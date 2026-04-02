@@ -1,9 +1,10 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
-import { generateEnrollmentKey } from '@/lib/auth'
+import { generateEnrollmentKey, hasValidAdminSecretFromHeaders } from '@/lib/auth'
 import { slugifyClientName } from '@/lib/clients'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
 import { type ProvisioningActionState } from './types'
@@ -22,6 +23,18 @@ const rotateKeySchema = z.object({
   serverUrl: z.string().trim().url(),
   clientId: z.string().trim().min(1),
 })
+
+function rejectUnauthorizedAccess(): ProvisioningActionState {
+  return {
+    error: 'Acesso administrativo nao autorizado.',
+    message: null,
+    package: null,
+  }
+}
+
+function hasClientsAdminAccess() {
+  return hasValidAdminSecretFromHeaders(headers())
+}
 
 function buildState(
   message: string,
@@ -57,6 +70,10 @@ export async function createClientAction(
   formData: FormData
 ): Promise<ProvisioningActionState> {
   try {
+    if (!hasClientsAdminAccess()) {
+      return rejectUnauthorizedAccess()
+    }
+
     const parsed = createClientSchema.safeParse({
       serverUrl: formData.get('serverUrl'),
       name: formData.get('name'),
@@ -122,6 +139,10 @@ export async function rotateEnrollmentKeyAction(
   formData: FormData
 ): Promise<ProvisioningActionState> {
   try {
+    if (!hasClientsAdminAccess()) {
+      return rejectUnauthorizedAccess()
+    }
+
     const parsed = rotateKeySchema.safeParse({
       serverUrl: formData.get('serverUrl'),
       clientId: formData.get('clientId'),

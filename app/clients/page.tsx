@@ -1,4 +1,7 @@
+import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
 import { Sidebar, Header } from '@/components/sidebar'
+import { hasValidAdminSecretFromHeaders } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getCurrentServerUrl } from '@/lib/server-url'
 import {
@@ -35,7 +38,14 @@ async function getClients() {
   }))
 }
 
+function requireClientsAdminAccess() {
+  if (!hasValidAdminSecretFromHeaders(headers())) {
+    notFound()
+  }
+}
+
 export default async function ClientsPage() {
+  requireClientsAdminAccess()
   const [clients, serverUrl] = await Promise.all([getClients(), getCurrentServerUrl()])
 
   async function createClientAction(state: ProvisioningActionState, formData: FormData) {

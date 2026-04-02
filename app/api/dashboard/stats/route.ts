@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { hasValidAdminSecretFromHeaders } from '@/lib/auth'
 import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere, getTenantHardwareWhere } from '@/lib/tenant-scope'
 
 export async function GET(request: Request) {
   try {
+    if (!hasValidAdminSecretFromHeaders(request.headers)) {
+      return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+    }
+
     const { searchParams } = new URL(request.url)
     const clientSlug = searchParams.get('clientSlug')?.trim().toLowerCase()
 

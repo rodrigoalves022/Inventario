@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server'
 import prisma from './prisma'
 
+type HeaderSource = {
+  get(name: string): string | null
+}
+
 export async function generateApiKey(): Promise<{ plaintext: string; hash: string }> {
   return generateSecret()
 }
@@ -98,7 +102,15 @@ export function authErrorResponse(result: Extract<AuthResult, { ok: false }>) {
   return Response.json({ error: result.message }, { status: result.status })
 }
 
-export function hasValidAdminSecret(req: NextRequest) {
-  const adminSecret = req.headers.get('x-admin-secret')
+function readAdminSecret(headerSource: HeaderSource) {
+  return headerSource.get('x-admin-secret')
+}
+
+export function hasValidAdminSecretFromHeaders(headerSource: HeaderSource) {
+  const adminSecret = readAdminSecret(headerSource)
   return Boolean(adminSecret && adminSecret === process.env.ADMIN_SECRET)
+}
+
+export function hasValidAdminSecret(req: NextRequest) {
+  return hasValidAdminSecretFromHeaders(req.headers)
 }
