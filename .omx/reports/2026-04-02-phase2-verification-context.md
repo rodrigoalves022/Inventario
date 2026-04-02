@@ -24,19 +24,19 @@ Command:
 node scripts/verification/verify-tenant-panel.mjs
 ```
 
-Current result:
+Current result after seeding a local verification fixture:
 
 - `tenant-route-files`: **PASS**
 - `legacy-inventory-fail-closed`: **PASS**
 - `real-asset-detail`: **PASS**
 - `api-source-guards`: **PASS**
-- `live-tenant-scope`: **INCONCLUSIVE**
+- `live-tenant-scope`: **PASS**
 - `tenant-navigation`: **PASS**
 
 Summary:
 
 - the structural tenant panel checks are green
-- live tenant scope validation cannot be completed against the current database because there is no seeded active tenant fixture
+- live tenant scope validation now passes with a local seeded active tenant fixture (`core-ti-expert`)
 
 ### 2) Lint
 
@@ -90,7 +90,7 @@ Result: **PASS**
 Outcome:
 
 - schema synchronized successfully to `dev.db`
-- the database remains empty with zero `Client` rows, so live tenant-scope verification is still inconclusive until data is seeded
+- a local verification fixture was seeded afterward to validate live tenant scope without changing application code
 
 ## Verification script update
 
@@ -109,7 +109,6 @@ What is now confirmed:
 
 What is still not complete:
 
-- live tenant-scope verification needs seeded tenant data
 - auth/RBAC for the panel is still not complete
 - repo-wide typecheck remains runtime-bound by timeout
 - build remains runtime-bound by external font fetch failure
@@ -118,5 +117,4 @@ What is still not complete:
 
 - `/clients` and the tenant shell remain security-sensitive surfaces
 - the panel still lacks full access control
-- verification confidence is limited until the database is seeded and the runtime can complete typecheck/build in a stable environment
-
+- verification confidence is now materially better for tenant scoping, but typecheck/build still need a more stable runtime

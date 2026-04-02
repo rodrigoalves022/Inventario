@@ -50,6 +50,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - checkpoint de verificação/contexto registrado em `.omx/reports/2026-04-02-phase2-verification-context.md`
 - checkpoint de segurança concluído com **PASS with constraints** em `.omx/reports/2026-04-02-phase2-security-checkpoint.md`
 - `scripts/verification/verify-tenant-panel.mjs` atualizado para classificar fixture live ausente como `INCONCLUSIVE`
+- fixture local de verificação foi seedada em `dev.db` e `live-tenant-scope` passou para `PASS` no verificador de tenant panel
 
 ## Status real do ambiente
 
@@ -66,7 +67,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - `app/api/collect/windows/route.ts` já foi neutralizada com `410`
 - existem relatórios de readiness, verificação e segurança já produzidos para a frente de tenant panel
 - o plano ativo de tenant isolation continua sendo a referência estrutural correta
-- o database local foi sincronizado com `prisma db push`, mas o ambiente atual ainda não contém tenant ativo para validação live
+- o database local foi sincronizado com `prisma db push` e recebeu fixture local suficiente para validar `live-tenant-scope`
 
 ### Ainda não plenamente normalizado ou endurecido
 
@@ -75,7 +76,6 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - a postura de segurança continua incompleta enquanto auth/RBAC do painel não existir
 - `/clients` e ações administrativas seguem superfície sensível sem proteção autenticada
 - a validação existente confirma isolamento por slug/consulta, mas não aprovação de segurança
-- a validação live de tenant depende de fixture seedada; a ausência de tenant ativo agora é registrada como `INCONCLUSIVE`
 - permanecem artefatos locais ignorados e não versionados de runtime/ambiente (por exemplo `.env`, `.next/` e um handle ocupado em `.codex`), mas eles não participam mais do baseline auditável
 
 ## Blocking issues
@@ -103,13 +103,13 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
    - o baseline de normalização já foi criado
    - a execução controlada já produziu mudanças revisadas, mas ainda falta integrá-las por slices antes de qualquer fechamento
 
-6. **A verificação live ainda depende de fixture de dados**
-   - o workspace atual não contém tenant ativo para o teste de `live-tenant-scope`
-   - a ausência da fixture foi reclassificada como `INCONCLUSIVE`, não como regressão funcional
+6. **A verificação completa ainda depende de runtime mais estável**
+   - `live-tenant-scope` já passou com fixture local
+   - `typecheck` e `build` continuam limitados por timeout/rede no runtime atual
 
 ## Non-blocking issues
 
-1. `lint` passou, mas `typecheck` continua expirando por timeout e `build` continua dependente do runtime/rede
+1. `verify-tenant-panel` e `lint` passaram, mas `typecheck` continua expirando por timeout e `build` continua dependente do runtime/rede
 2. há relatórios históricos com conclusões de momentos diferentes, exigindo leitura temporal cuidadosa
 3. `safe.directory` continua sendo nuance operacional do ambiente `/mnt/e`
 4. ainda existe dívida de normalização/versionamento do working tree amplo
@@ -135,9 +135,8 @@ Portanto:
 
 1. integrar por slices as mudanças já revisadas desta retomada
 2. manter visível que tenant isolation **não** equivale a auth/RBAC concluído
-3. seedar fixture/tenant ativo para reexecutar `live-tenant-scope`
-4. reexecutar `typecheck` e `build` em runtime/ambiente menos restrito
-5. antes de novo fechamento de fase, exigir:
+3. reexecutar `typecheck` e `build` em runtime/ambiente menos restrito
+4. antes de novo fechamento de fase, exigir:
    - revisão independente
    - checkpoint de segurança
    - atualização coerente dos arquivos canônicos
