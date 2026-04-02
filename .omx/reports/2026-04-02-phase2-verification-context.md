@@ -60,7 +60,14 @@ Result: **FAIL**
 
 Observed failure:
 
-- `tsc --noEmit` timed out after 120 seconds in this workspace/runtime
+- initial wrapper timed out at 120 seconds in this workspace/runtime
+- direct execution-side `tsc` was later run successfully after:
+  - excluding `antigravity-awesome-skills` from repo typecheck scope
+  - excluding stale `.next/dev` generated types from validation
+  - aligning `headers()` usage with Next 16 async behavior
+  - aligning layout signatures with the generated Next route/layout types
+
+Current status: **PASS**
 
 ### 4) Production build
 
@@ -110,11 +117,10 @@ What is now confirmed:
 What is still not complete:
 
 - auth/RBAC for the panel is still not complete
-- repo-wide typecheck remains runtime-bound by timeout
-- build remains runtime-bound by external font fetch failure
+- production build remains runtime-bound by timeout in the current execution environment
 
 ## Residual risk
 
 - `/clients` and the tenant shell remain security-sensitive surfaces
 - the panel still lacks full access control
-- verification confidence is now materially better for tenant scoping, but typecheck/build still need a more stable runtime
+- verification confidence is now materially better for tenant scoping and type safety, but production build evidence is still incomplete
