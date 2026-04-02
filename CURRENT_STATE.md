@@ -134,7 +134,76 @@ Portanto:
 ## Plano ativo
 
 - estrutural: `.omx/plans/2026-04-02-isolamento-real-por-tenant-no-painel.md`
-- operacional de retomada: `.omx/plans/2026-04-02-rebaseline-fase2-tenant-isolation.md`
+- operacional de rebaseline: `.omx/plans/2026-04-02-rebaseline-fase2-tenant-isolation.md`
+- fonte única de verdade para a execução desta retomada: `.omx/plans/2026-04-02-team-relaunch-fase2-tenant-isolation.md`
+
+## Relançamento controlado da execução
+
+Baseline de relançamento:
+
+- commit limpo de normalização: `058f90b`
+- sem dependência de board/runtime anterior
+- execução reaberta apenas a partir do plano de team relaunch
+
+Workers e ownership desta retomada:
+
+1. **Worker A — review técnico/consistência**
+   - status: `in_progress`
+   - ownership:
+     - `lib/tenant-context.ts`
+     - `lib/tenant-scope.ts`
+     - `lib/tenant-links.ts`
+     - `app/tenant/[clientSlug]/layout.tsx`
+     - revisão dos loaders/queries tenant-scoped necessários para validar boundary
+   - checkpoint de saída:
+     - coerência arquitetural
+     - risco de acesso global acidental
+     - findings objetivos para Worker B
+
+2. **Worker C — hardening sensível/admin/API**
+   - status: `in_progress`
+   - ownership:
+     - `app/clients/page.tsx`
+     - `app/clients/actions.ts`
+     - `app/api/dashboard/stats/route.ts`
+     - `app/api/inventory/computers/route.ts`
+     - `app/api/collect/windows/route.ts`
+     - `lib/auth.ts` somente se estritamente necessário
+   - checkpoint de saída:
+     - fail-closed em superfícies sensíveis
+     - riscos residuais explícitos
+     - handoff obrigatório para security review
+
+3. **Worker B — shell/redirects/pages tenant**
+   - status: `pending-gated`
+   - inicia apenas após findings iniciais de Worker A e Worker C
+   - ownership:
+     - `components/sidebar.tsx`
+     - `app/page.tsx`
+     - `app/computers/page.tsx`
+     - `app/servers/page.tsx`
+     - `app/storage/page.tsx`
+     - `app/processors/page.tsx`
+     - `app/network/page.tsx`
+     - `app/reports/page.tsx`
+     - `app/assets/[id]/page.tsx`
+     - `app/tenant/[clientSlug]/**/*`
+
+4. **Worker D — verification/context/versioning prep**
+   - status: `pending-gated`
+   - inicia após correções consolidadas
+   - ownership:
+     - `scripts/verification/**`
+     - `.omx/reports/**`
+     - `.omx/plans/**`
+     - `CURRENT_STATE.md`
+     - docs impactadas
+
+Checkpoints obrigatórios desta retomada:
+
+- **architecture checkpoint**: saída de Worker A antes de abrir correções do Worker B
+- **security checkpoint**: saída de Worker C + security review obrigatório antes de fechamento
+- **context checkpoint**: Worker D consolida evidências, limites e baseline versionado antes de decisão final
 
 ## Não fazer agora
 
