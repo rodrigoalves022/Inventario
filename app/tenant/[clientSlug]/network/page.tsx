@@ -13,10 +13,11 @@ function extractSubnet(ip?: string | null) {
 
 export default async function TenantNetworkPage({ params }: { params: TenantParams }) {
   const { clientSlug } = await Promise.resolve(params)
-  await requireTenantContext(clientSlug)
+  const tenant = await requireTenantContext(clientSlug)
+  const tenantSlug = tenant.slug
 
   const networks = await prisma.network.findMany({
-    where: getTenantNetworkWhere(clientSlug),
+    where: getTenantNetworkWhere(tenantSlug),
     include: {
       device: {
         select: {

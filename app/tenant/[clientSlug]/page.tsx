@@ -8,18 +8,18 @@ import { getTenantPath } from '@/lib/tenant-links'
 
 type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
 
-async function getStats(clientSlug: string) {
+async function getStats(tenantSlug: string) {
   const [total, online, offline, warning, hardware, diskData] = await Promise.all([
-    prisma.device.count({ where: getTenantDeviceWhere(clientSlug) }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(clientSlug), status: 'online' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(clientSlug), status: 'offline' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(clientSlug), status: 'warning' } }),
+    prisma.device.count({ where: getTenantDeviceWhere(tenantSlug) }),
+    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'online' } }),
+    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'offline' } }),
+    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'warning' } }),
     prisma.hardware.findMany({
-      where: getTenantHardwareWhere(clientSlug),
+      where: getTenantHardwareWhere(tenantSlug),
       select: { sistema: true, ramTotalGb: true },
     }),
     prisma.disk.findMany({
-      where: getTenantDiskWhere(clientSlug),
+      where: getTenantDiskWhere(tenantSlug),
       select: { capacidadeGb: true },
     }),
   ])
@@ -34,9 +34,9 @@ async function getStats(clientSlug: string) {
   return { total, online, offline, warning, win10, win11, server, totalRam: ramTotal, totalStorage: storageTotal }
 }
 
-async function getChartData(clientSlug: string) {
+async function getChartData(tenantSlug: string) {
   const hardware = await prisma.hardware.findMany({
-    where: getTenantHardwareWhere(clientSlug),
+    where: getTenantHardwareWhere(tenantSlug),
     select: { sistema: true, ramTotalGb: true },
   })
 
@@ -56,9 +56,9 @@ async function getChartData(clientSlug: string) {
   const osData = Object.entries(osCount).map(([name, value]) => ({ name, value }))
 
   const [onlineCount, offlineCount, warningCount] = await Promise.all([
-    prisma.device.count({ where: { ...getTenantDeviceWhere(clientSlug), status: 'online' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(clientSlug), status: 'offline' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(clientSlug), status: 'warning' } }),
+    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'online' } }),
+    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'offline' } }),
+    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'warning' } }),
   ])
 
   const statusData = [
@@ -80,16 +80,16 @@ async function getChartData(clientSlug: string) {
   return { osData, statusData, ramData }
 }
 
-async function getRecentDevices(clientSlug: string) {
+async function getRecentDevices(tenantSlug: string) {
   return prisma.device.findMany({
-    where: getTenantDeviceWhere(clientSlug),
+    where: getTenantDeviceWhere(tenantSlug),
     take: 10,
     orderBy: { updatedAt: 'desc' },
     include: {
       hardware: { select: { sistema: true, ramTotalGb: true } },
       networks: { where: { isPrimary: true }, select: { ip: true } },
       logs: {
-        where: getTenantCollectionLogWhere(clientSlug),
+        where: getTenantCollectionLogWhere(tenantSlug),
         orderBy: { coletadoEm: 'desc' },
         take: 1,
         select: { coletadoEm: true },
@@ -101,10 +101,11 @@ async function getRecentDevices(clientSlug: string) {
 export default async function TenantDashboardPage({ params }: { params: TenantParams }) {
   const { clientSlug } = await Promise.resolve(params)
   const tenant = await requireTenantContext(clientSlug)
+  const tenantSlug = tenant.slug
   const [stats, { osData, statusData, ramData }, recentDevices] = await Promise.all([
-    getStats(clientSlug),
-    getChartData(clientSlug),
-    getRecentDevices(clientSlug),
+    getStats(tenantSlug),
+    getChartData(tenantSlug),
+    getRecentDevices(tenantSlug),
   ])
 
   return (
@@ -166,7 +167,7 @@ export default async function TenantDashboardPage({ params }: { params: TenantPa
                 recentDevices.map((device) => (
                   <tr key={device.id} className="border-b last:border-0">
                     <td className="py-2 font-mono font-medium">
-                      <Link href={getTenantPath(clientSlug, `assets/${device.id}`)} className="hover:underline">
+                      <Link href={getTenantPath(tenantSlug, `assets/${device.id}`)} className="hover:underline">
                         {device.hostname}
                       </Link>
                     </td>

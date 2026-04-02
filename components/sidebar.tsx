@@ -42,7 +42,6 @@ function isPathActive(pathname: string, href: string, exact = false) {
 function getTenantNavigation(clientSlug: string): {
   navigation: NavigationItem[]
   management: NavigationItem[]
-  admin: NavigationItem[]
 } {
   return {
     navigation: [
@@ -55,12 +54,6 @@ function getTenantNavigation(clientSlug: string): {
       { name: 'Processadores', href: getTenantPath(clientSlug, 'processors'), icon: Cpu },
       { name: 'Rede', href: getTenantPath(clientSlug, 'network'), icon: Network },
       { name: 'Relatórios', href: getTenantPath(clientSlug, 'reports'), icon: BarChart3 },
-    ],
-    admin: [
-      { name: 'Clientes', href: '/clients', icon: Building2, exact: true },
-      { name: 'Usuários', href: '/users', icon: Users, exact: true },
-      { name: 'Segurança', href: '/security', icon: Shield, exact: true },
-      { name: 'Configurações', href: '/settings', icon: Settings, exact: true },
     ],
   }
 }
@@ -166,7 +159,9 @@ export function Sidebar({ tenant }: { tenant?: TenantShellInfo }) {
             <>
               <NavigationSection title="Visão Geral" items={tenantNavigation.navigation} pathname={pathname} />
               <NavigationSection title="Gerenciamento" items={tenantNavigation.management} pathname={pathname} />
-              <NavigationSection title="Administração" items={tenantNavigation.admin} pathname={pathname} />
+              <div className="rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs text-muted-foreground">
+                A área administrativa global permanece separada e pode ser acessada a partir de <span className="font-medium text-sidebar-foreground">/clients</span>.
+              </div>
             </>
           ) : (
             <NavigationSection title="Administração" items={globalAdmin} pathname={pathname} />

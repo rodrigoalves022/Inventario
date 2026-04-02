@@ -22,24 +22,25 @@ function summarizeOs(osName: string) {
 
 export default async function TenantReportsPage({ params }: { params: TenantParams }) {
   const { clientSlug } = await Promise.resolve(params)
-  await requireTenantContext(clientSlug)
+  const tenant = await requireTenantContext(clientSlug)
+  const tenantSlug = tenant.slug
 
   const [devices, hardware, disks, logs] = await Promise.all([
     prisma.device.findMany({
-      where: getTenantDeviceWhere(clientSlug),
+      where: getTenantDeviceWhere(tenantSlug),
       orderBy: { updatedAt: 'desc' },
       select: { hostname: true, status: true, updatedAt: true },
     }),
     prisma.hardware.findMany({
-      where: getTenantHardwareWhere(clientSlug),
+      where: getTenantHardwareWhere(tenantSlug),
       select: { sistema: true, ramTotalGb: true },
     }),
     prisma.disk.findMany({
-      where: getTenantDiskWhere(clientSlug),
+      where: getTenantDiskWhere(tenantSlug),
       select: { capacidadeGb: true, espacoLivreGb: true },
     }),
     prisma.collectionLog.findMany({
-      where: getTenantCollectionLogWhere(clientSlug),
+      where: getTenantCollectionLogWhere(tenantSlug),
       orderBy: { coletadoEm: 'desc' },
       take: 10,
       include: { device: { select: { hostname: true } } },

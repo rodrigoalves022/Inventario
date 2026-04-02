@@ -40,12 +40,13 @@ function formatStatus(status: string) {
 
 export default async function TenantAssetDetailsPage({ params }: { params: AssetParams }) {
   const { clientSlug, id } = await Promise.resolve(params)
-  await requireTenantContext(clientSlug)
+  const tenant = await requireTenantContext(clientSlug)
+  const tenantSlug = tenant.slug
 
   const asset = await prisma.device.findFirst({
     where: {
       id,
-      ...getTenantDeviceWhere(clientSlug),
+      ...getTenantDeviceWhere(tenantSlug),
     },
     include: {
       hardware: true,
@@ -72,7 +73,7 @@ export default async function TenantAssetDetailsPage({ params }: { params: Asset
     <div className="space-y-6">
       <div className="border-b border-border pb-4">
         <Button asChild variant="ghost" className="mb-4 gap-2">
-          <Link href={getTenantPath(clientSlug, 'computers')}>
+          <Link href={getTenantPath(tenantSlug, 'computers')}>
             <ArrowLeft className="h-4 w-4" />
             Voltar
           </Link>

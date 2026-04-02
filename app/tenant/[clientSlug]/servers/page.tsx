@@ -9,10 +9,11 @@ type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
 
 export default async function TenantServersPage({ params }: { params: TenantParams }) {
   const { clientSlug } = await Promise.resolve(params)
-  await requireTenantContext(clientSlug)
+  const tenant = await requireTenantContext(clientSlug)
+  const tenantSlug = tenant.slug
 
   const allDevices = await prisma.device.findMany({
-    where: getTenantDeviceWhere(clientSlug),
+    where: getTenantDeviceWhere(tenantSlug),
     orderBy: { updatedAt: 'desc' },
     include: {
       hardware: { select: { sistema: true, processador: true, ramTotalGb: true, tipoArmazenamento: true } },
@@ -57,7 +58,7 @@ export default async function TenantServersPage({ params }: { params: TenantPara
                 servers.map((server) => (
                   <tr key={server.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3 font-mono font-medium">
-                      <Link href={getTenantPath(clientSlug, `assets/${server.id}`)} className="hover:underline">
+                      <Link href={getTenantPath(tenantSlug, `assets/${server.id}`)} className="hover:underline">
                         {server.hostname}
                       </Link>
                     </td>

@@ -14,11 +14,12 @@ function inferVendor(processorName: string) {
 
 export default async function TenantProcessorsPage({ params }: { params: TenantParams }) {
   const { clientSlug } = await Promise.resolve(params)
-  await requireTenantContext(clientSlug)
+  const tenant = await requireTenantContext(clientSlug)
+  const tenantSlug = tenant.slug
 
   const hardware = await prisma.hardware.findMany({
     where: {
-      ...getTenantHardwareWhere(clientSlug),
+      ...getTenantHardwareWhere(tenantSlug),
       processador: { not: null },
     },
     select: { processador: true },

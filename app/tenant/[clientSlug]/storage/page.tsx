@@ -6,10 +6,11 @@ type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
 
 export default async function TenantStoragePage({ params }: { params: TenantParams }) {
   const { clientSlug } = await Promise.resolve(params)
-  await requireTenantContext(clientSlug)
+  const tenant = await requireTenantContext(clientSlug)
+  const tenantSlug = tenant.slug
 
   const devices = await prisma.device.findMany({
-    where: getTenantDeviceWhere(clientSlug),
+    where: getTenantDeviceWhere(tenantSlug),
     orderBy: { updatedAt: 'desc' },
     include: {
       disks: {
