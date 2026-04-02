@@ -83,6 +83,7 @@ Observed failure:
 
 - Next.js build failed while fetching Google Fonts assets (`Geist` / `Geist Mono`)
 - this is a runtime/network limitation, not a tenant-isolation logic failure
+- `app/layout.tsx` was subsequently adjusted to remove the external Google font dependency from the execution path
 
 ### 5) Prisma database sync
 
@@ -102,6 +103,17 @@ Outcome:
 ## Verification script update
 
 `scripts/verification/verify-tenant-panel.mjs` was updated so that the live tenant-scope check reports **INCONCLUSIVE** when the required active tenant fixture is missing instead of throwing or misclassifying the runtime state as a code regression.
+
+## Live local runtime validation
+
+Execution-side live runtime was brought up outside the sandbox on `127.0.0.1:3000` with a local `ADMIN_SECRET` used only for runtime validation.
+
+Confirmed probes:
+
+- `GET /api/collect/windows` → **410**
+- `GET /api/dashboard/stats?clientSlug=core-ti-expert` with `x-admin-secret` → **200**
+
+This confirms the local live runtime is serving the neutralized legacy endpoint and the guarded tenant stats API correctly.
 
 ## Contextual conclusion
 

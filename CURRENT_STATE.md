@@ -52,6 +52,11 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - `scripts/verification/verify-tenant-panel.mjs` atualizado para classificar fixture live ausente como `INCONCLUSIVE`
 - fixture local de verificação foi seedada em `dev.db` e `live-tenant-scope` passou para `PASS` no verificador de tenant panel
 - validação execution-side desbloqueou o `typecheck` real: `tsc` agora passa após exclusão de escopos externos e alinhamento de tipos/layouts do Next 16
+- runtime live local foi validado fora do sandbox em `127.0.0.1:3000` com `ADMIN_SECRET` local de execução
+- probes locais confirmados:
+  - `GET /api/collect/windows` → `410`
+  - `GET /api/dashboard/stats?clientSlug=core-ti-expert` com `x-admin-secret` → `200`
+- `app/layout.tsx` deixou de depender de `next/font/google` para evitar bloqueio local por fetch externo de fontes
 
 ## Status real do ambiente
 
@@ -69,6 +74,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - existem relatórios de readiness, verificação e segurança já produzidos para a frente de tenant panel
 - o plano ativo de tenant isolation continua sendo a referência estrutural correta
 - o database local foi sincronizado com `prisma db push` e recebeu fixture local suficiente para validar `live-tenant-scope`
+- o runtime live local responde corretamente nos endpoints validados de execução
 
 ### Ainda não plenamente normalizado ou endurecido
 
@@ -111,7 +117,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 
 ## Non-blocking issues
 
-1. `verify-tenant-panel`, `lint` e `typecheck` passaram, mas `build` continua expirando no runtime atual
+1. `verify-tenant-panel`, `lint`, `typecheck` e probes de runtime live local passaram, mas `build` continua expirando no runtime atual
 2. há relatórios históricos com conclusões de momentos diferentes, exigindo leitura temporal cuidadosa
 3. `safe.directory` continua sendo nuance operacional do ambiente `/mnt/e`
 4. ainda existe dívida de normalização/versionamento do working tree amplo
@@ -119,7 +125,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 
 ## Readiness atual
 
-**Readiness atual: execução controlada avançada, com review + verification + security checkpoint concluídos e `typecheck` destravado; pronta para runtime live local correto e nova evidência de build, não para fechamento.**
+**Readiness atual: execução controlada avançada, com review + verification + security checkpoint concluídos, `typecheck` destravado e runtime live local validado; pronta para nova evidência de build, não para fechamento.**
 
 Leitura prática:
 
@@ -137,9 +143,8 @@ Portanto:
 
 1. integrar por slices as mudanças já revisadas desta retomada
 2. manter visível que tenant isolation **não** equivale a auth/RBAC concluído
-3. executar runtime live local correto e coletar evidência operacional adicional
-4. reexecutar `build` em runtime/ambiente menos restrito ou com timeout/control plane mais adequado
-5. antes de novo fechamento de fase, exigir:
+3. reexecutar `build` em runtime/ambiente menos restrito ou com timeout/control plane mais adequado
+4. antes de novo fechamento de fase, exigir:
    - revisão independente
    - checkpoint de segurança
    - atualização coerente dos arquivos canônicos
