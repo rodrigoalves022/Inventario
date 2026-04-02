@@ -15,6 +15,10 @@ function fail(name, details) {
   return { name, status: 'FAIL', details }
 }
 
+function inconclusive(name, details) {
+  return { name, status: 'INCONCLUSIVE', details }
+}
+
 async function read(relativePath) {
   return fs.readFile(path.join(root, relativePath), 'utf8')
 }
@@ -114,8 +118,18 @@ async function verifyLiveTenantScope() {
     select: { name: true, slug: true, isActive: true },
   })
 
-  if (!tenant?.isActive) {
-    return fail('live-tenant-scope', `Active tenant ${clientSlug} not found in current database`)
+  if (!tenant) {
+    return inconclusive(
+      'live-tenant-scope',
+      `Tenant ${clientSlug} not found in current database; live scope validation depends on seeded tenant data`
+    )
+  }
+
+  if (!tenant.isActive) {
+    return inconclusive(
+      'live-tenant-scope',
+      `Tenant ${clientSlug} exists but is inactive; live scope validation depends on an active tenant fixture`
+    )
   }
 
   const tenantDevices = await prisma.device.findMany({
@@ -190,14 +204,16 @@ try {
   }
 
   const failed = results.filter((result) => result.status === 'FAIL')
+  const inconclusiveResults = results.filter((result) => result.status === 'INCONCLUSIVE')
   console.log(JSON.stringify({
-    ok: failed.length === 0,
+    ok: failed.length === 0 && inconclusiveResults.length === 0,
     checkCount: results.length,
     failedCount: failed.length,
+    inconclusiveCount: inconclusiveResults.length,
     results,
   }, null, 2))
 
-  process.exitCode = failed.length === 0 ? 0 : 1
+  process.exitCode = failed.length === 0 && inconclusiveResults.length === 0 ? 0 : 1
 } finally {
   await prisma.$disconnect()
 }

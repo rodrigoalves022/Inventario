@@ -26,7 +26,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 ## Resultado desta sessão
 
 - normalização obrigatória do workspace executada antes do relançamento da Fase 2
-- commit de baseline criado: `9af32cf` — `chore: workspace normalization before Phase 2 relaunch`
+- commit de baseline criado: `058f90b` — `chore: workspace normalization before Phase 2 relaunch`
 - artefatos temporários/runtime passaram a ser ignorados explicitamente em `.gitignore`
 - o workspace versionado agora representa o baseline real revisado para o relançamento controlado
 - revisão arquitetural completa do estado canônico após interrupção dos workers
@@ -43,6 +43,13 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - confirmação de que a maior parte do escopo técnico de tenant isolation já existe no workspace, mas ainda sem governança/validação suficientes para fechamento
 - criação do relatório `.omx/reports/2026-04-02-phase2-replanning-diagnostic.md`
 - criação do plano reorganizado `.omx/plans/2026-04-02-rebaseline-fase2-tenant-isolation.md`
+- revisão técnica inicial concluída pelo Worker A com finding principal sobre slug normalizado vs raw route param
+- relatório de review técnico salvo em `.omx/reports/2026-04-02-phase2-initial-technical-review.md`
+- hardening sensível concluído pelo Worker C em `/clients`, `lib/auth.ts` e APIs tenant-operacionais
+- correções de consistência concluídas pelo Worker B no shell tenant e nas páginas tenant-scoped
+- checkpoint de verificação/contexto registrado em `.omx/reports/2026-04-02-phase2-verification-context.md`
+- checkpoint de segurança concluído com **PASS with constraints** em `.omx/reports/2026-04-02-phase2-security-checkpoint.md`
+- `scripts/verification/verify-tenant-panel.mjs` atualizado para classificar fixture live ausente como `INCONCLUSIVE`
 
 ## Status real do ambiente
 
@@ -59,6 +66,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - `app/api/collect/windows/route.ts` já foi neutralizada com `410`
 - existem relatórios de readiness, verificação e segurança já produzidos para a frente de tenant panel
 - o plano ativo de tenant isolation continua sendo a referência estrutural correta
+- o database local foi sincronizado com `prisma db push`, mas o ambiente atual ainda não contém tenant ativo para validação live
 
 ### Ainda não plenamente normalizado ou endurecido
 
@@ -67,7 +75,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 - a postura de segurança continua incompleta enquanto auth/RBAC do painel não existir
 - `/clients` e ações administrativas seguem superfície sensível sem proteção autenticada
 - a validação existente confirma isolamento por slug/consulta, mas não aprovação de segurança
-- ainda falta revisão independente focada em consistência técnica do que já foi materializado
+- a validação live de tenant depende de fixture seedada; a ausência de tenant ativo agora é registrada como `INCONCLUSIVE`
 - permanecem artefatos locais ignorados e não versionados de runtime/ambiente (por exemplo `.env`, `.next/` e um handle ocupado em `.codex`), mas eles não participam mais do baseline auditável
 
 ## Blocking issues
@@ -86,17 +94,22 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
    - o estado live anterior de team execution não está disponível de forma confiável no snapshot atual
    - ownership, claims e sequência de execução devem ser reconstruídos com segurança pelo próximo ciclo de planejamento
 
-4. **A segurança do painel ainda não está aprovada**
-   - tenant isolation por `clientSlug` não substitui autenticação/autorização real
-   - `/clients` e APIs tenant-operacionais continuam exigindo hardening e futuro auth/RBAC
+4. **A segurança do painel ainda não está aprovada como completa**
+   - o checkpoint atual passou com restrições e postura fail-closed
+   - tenant isolation por `clientSlug` e shared secret não substituem autenticação/autorização real
+   - `/clients` continua superfície sensível e auth/RBAC seguem como follow-up obrigatório
 
 5. **Ainda falta normalização segura de versionamento**
    - o baseline de normalização já foi criado
-   - ainda falta versionamento por slices revisadas ao longo da execução da Fase 2 antes de qualquer fechamento
+   - a execução controlada já produziu mudanças revisadas, mas ainda falta integrá-las por slices antes de qualquer fechamento
+
+6. **A verificação live ainda depende de fixture de dados**
+   - o workspace atual não contém tenant ativo para o teste de `live-tenant-scope`
+   - a ausência da fixture foi reclassificada como `INCONCLUSIVE`, não como regressão funcional
 
 ## Non-blocking issues
 
-1. a evidência anterior de `test`/`lint`/`typecheck`/`build` continua parcial e dependente do ambiente
+1. `lint` passou, mas `typecheck` continua expirando por timeout e `build` continua dependente do runtime/rede
 2. há relatórios históricos com conclusões de momentos diferentes, exigindo leitura temporal cuidadosa
 3. `safe.directory` continua sendo nuance operacional do ambiente `/mnt/e`
 4. ainda existe dívida de normalização/versionamento do working tree amplo
@@ -104,14 +117,14 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 
 ## Readiness atual
 
-**Readiness atual: baseline normalizado e pronto para relançamento controlado da execução, não para fechamento.**
+**Readiness atual: execução controlada avançada, com review + verification + security checkpoint concluídos; pronta para versionamento por slices, não para fechamento.**
 
 Leitura prática:
 
 - existe base técnica suficiente para continuar a frente de tenant isolation
 - existe evidência de que grande parte da Fase 2 já foi iniciada no workspace
 - a governança de execução foi reorganizada nesta sessão pelo `$plan`
-- o próximo passo correto agora é relançar execução em etapas curtas, com review e security review explícitos
+- o próximo passo correto agora é normalizar/versionar as mudanças revisadas em slices auditáveis
 
 Portanto:
 
@@ -120,13 +133,11 @@ Portanto:
 
 ## Próximos passos recomendados
 
-1. iniciar pela etapa de review técnico/consistência do que já existe no workspace
-2. executar hardening focado nas superfícies sensíveis (`/clients`, actions e APIs tenant-operacionais)
-3. corrigir gaps remanescentes de consistência entre helpers, rotas e APIs a partir do review
-4. executar verificação independente e checkpoint de segurança antes de qualquer fechamento
-5. definir e executar a estratégia de normalização/versionamento do working tree atual antes do encerramento da fase
-6. manter visível que tenant isolation **não** equivale a auth/RBAC concluído
-7. antes de novo fechamento de fase, exigir:
+1. integrar por slices as mudanças já revisadas desta retomada
+2. manter visível que tenant isolation **não** equivale a auth/RBAC concluído
+3. seedar fixture/tenant ativo para reexecutar `live-tenant-scope`
+4. reexecutar `typecheck` e `build` em runtime/ambiente menos restrito
+5. antes de novo fechamento de fase, exigir:
    - revisão independente
    - checkpoint de segurança
    - atualização coerente dos arquivos canônicos
@@ -148,7 +159,7 @@ Baseline de relançamento:
 Workers e ownership desta retomada:
 
 1. **Worker A — review técnico/consistência**
-   - status: `in_progress`
+   - status: `completed`
    - ownership:
      - `lib/tenant-context.ts`
      - `lib/tenant-scope.ts`
@@ -161,7 +172,7 @@ Workers e ownership desta retomada:
      - findings objetivos para Worker B
 
 2. **Worker C — hardening sensível/admin/API**
-   - status: `in_progress`
+   - status: `completed`
    - ownership:
      - `app/clients/page.tsx`
      - `app/clients/actions.ts`
@@ -175,8 +186,8 @@ Workers e ownership desta retomada:
      - handoff obrigatório para security review
 
 3. **Worker B — shell/redirects/pages tenant**
-   - status: `pending-gated`
-   - inicia apenas após findings iniciais de Worker A e Worker C
+   - status: `completed`
+   - correções aplicadas após findings de Worker A e hardening de Worker C
    - ownership:
      - `components/sidebar.tsx`
      - `app/page.tsx`
@@ -190,8 +201,8 @@ Workers e ownership desta retomada:
      - `app/tenant/[clientSlug]/**/*`
 
 4. **Worker D — verification/context/versioning prep**
-   - status: `pending-gated`
-   - inicia após correções consolidadas
+   - status: `completed`
+   - concluiu checkpoint de verificação/contexto desta retomada
    - ownership:
      - `scripts/verification/**`
      - `.omx/reports/**`
@@ -199,10 +210,15 @@ Workers e ownership desta retomada:
      - `CURRENT_STATE.md`
      - docs impactadas
 
+5. **Security reviewer — checkpoint de segurança**
+   - status: `completed`
+   - relatório: `.omx/reports/2026-04-02-phase2-security-checkpoint.md`
+   - decisão: `PASS with constraints`
+
 Checkpoints obrigatórios desta retomada:
 
 - **architecture checkpoint**: saída de Worker A antes de abrir correções do Worker B
-- **security checkpoint**: saída de Worker C + security review obrigatório antes de fechamento
+- **security checkpoint**: concluído com `PASS with constraints`; não equivale a auth/RBAC completo
 - **context checkpoint**: Worker D consolida evidências, limites e baseline versionado antes de decisão final
 
 ## Não fazer agora
@@ -217,11 +233,12 @@ Checkpoints obrigatórios desta retomada:
 
 ## Último handoff válido
 
-Sessão de 2026-04-02 — normalização arquitetural:
+Sessão de 2026-04-02 — relançamento controlado da Fase 2:
 
 - Fase 1 continua encerrada formalmente
 - a Fase 2 já deixou artefatos reais no workspace
 - o runtime/board anterior não está disponível como verdade confiável de continuidade
-- o estado canônico foi reorganizado para rebaseline seguro
-- o `$plan` reorganizou a continuidade a partir do workspace real e dos riscos já conhecidos
-- próximo passo recomendado: relançamento controlado por etapas, começando por review técnico + hardening de superfícies sensíveis
+- o workspace foi normalizado em `058f90b`
+- review técnico, hardening, correções de consistência, verificação e security checkpoint foram executados
+- o checkpoint de segurança passou com restrições; auth/RBAC continuam pendentes
+- próximo passo recomendado: versionamento por slices das mudanças revisadas e novo handoff sem declarar fechamento de fase
