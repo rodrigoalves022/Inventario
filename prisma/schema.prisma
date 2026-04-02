@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id                String      @id @default(cuid())
+  name              String
+  slug              String      @unique
+  enrollmentKeyHash String      @unique
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  agents            AgentAuth[]
+
+  @@index([name])
+  @@map("clients")
+}
+
+model AgentAuth {
+  id          String    @id @default(cuid())
+  clientId    String?
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  name        String
+  apiKeyHash  String    @unique
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  device      Device?
+
+  @@index([clientId])
+  @@index([apiKeyHash])
+  @@map("agent_auths")
+}
+
+model Device {
+  id          String    @id @default(cuid())
+  agentAuthId String    @unique
+  agentAuth   AgentAuth @relation(fields: [agentAuthId], references: [id], onDelete: Cascade)
+
+  hostname    String
+  serial      String?
+  fabricante  String?
+  modelo      String?
+  dominio     String?
+  usuario     String?
+  status      String    @default("online")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  hardware    Hardware?
+  networks    Network[]
+  disks       Disk[]
+  software    Software[]
+  logs        CollectionLog[]
+
+  @@index([hostname])
+  @@index([status])
+  @@map("devices")
+}
+
+model Hardware {
+  id                String  @id @default(cuid())
+  deviceId          String  @unique
+  device            Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  sistema           String?
+  versaoSO          String?
+  processador       String?
+  ramTotalGb        Int?
+  slot1             String?
+  slot2             String?
+  slot3             String?
+  slot4             String?
+  placaMae          String?
+  tipoArmazenamento String?
+
+  @@map("hardware")
+}
+
+model Network {
+  id         String  @id @default(cuid())
+  deviceId   String
+  device     Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  ip         String?
+  mac        String?
+  gateway    String?
+  dns        String?
+  dhcp       Boolean @default(true)
+  isPrimary  Boolean @default(false)
+
+  @@index([deviceId])
+  @@index([ip])
+  @@map("networks")
+}
+
+model Disk {
+  id            String  @id @default(cuid())
+  deviceId      String
+  device        Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  unidade       String?
+  modelo        String?
+  tipo          String?
+  capacidadeGb  Int?
+  espacoLivreGb Int?
+
+  @@index([deviceId])
+  @@map("disks")
+}
+
+model Software {
+  id           String   @id @default(cuid())
+  deviceId     String
+  device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  nome         String
+  versao       String?
+  editor       String?
+  installadoEm DateTime?
+
+  @@index([deviceId])
+  @@index([nome])
+  @@map("software")
+}
+
+model CollectionLog {
+  id         String   @id @default(cuid())
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  ipOrigem   String?
+  status     String   @default("success")
+  mensagem   String?
+  coletadoEm DateTime @default(now())
+
+  @@index([deviceId])
+  @@index([coletadoEm])
+  @@map("collection_logs")
+}

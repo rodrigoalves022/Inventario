@@ -1,7 +1,7 @@
 ﻿Status: operational
-Scope: phase-closure
+Scope: phase2-replanned
 Last-reviewed: 2026-04-02
-Owner: executor
+Owner: plan
 
 # CURRENT_STATE
 
@@ -11,117 +11,148 @@ Inventario Enterprise
 
 ## Fase atual
 
-**Phase 1 concluída formalmente** como etapa de destravamento operacional, coordenação multi-worker e fechamento de contexto.
+**Fase 1 permanece formalmente concluída.**
 
-A Fase 1 entregou:
+**A Fase 2 foi parcialmente materializada no workspace, mas a execução multi-worker foi interrompida antes de uma normalização segura de governança/contexto.**
 
-- bootstrap Git no repositório local
-- baseline mínima de versionamento
-- comandos npm operacionais para `test`, `lint`, `typecheck` e `build:verify`
-- gate final de segurança/arquitetura para a fase operacional
-- mapa final de ownership/coordenação
-- validação arquitetural da disciplina de execução e contexto
-- atualização deste `CURRENT_STATE.md` para registrar o estado real antes da próxima fase
+Estado canônico a partir desta revisão arquitetural:
 
-A próxima frente técnica continua sendo o plano de **isolamento real por tenant no painel web**.
+- a Fase 2 **não deve ser tratada como “não iniciada”**
+- a Fase 2 também **não deve ser tratada como governada de forma limpa** neste momento
+- o projeto está em **rebaseline arquitetural e de governança** antes de um novo relançamento organizado
+
+A frente técnica continua sendo o plano de **isolamento real por tenant no painel web**, agora reinterpretado a partir do **estado real do workspace**, e não apenas do histórico git ou do board interrompido.
 
 ## Resultado desta sessão
 
-- `task 1` concluiu bootstrap Git e commit baseline (`f526d23`)
-- `task 2` destravou Node/npm/lint/test com scripts operacionais e timeouts explícitos
-- `task 5` concluiu o gate final com decisão **READY for Phase 2 with non-blocking operational risks acknowledged**
-- `task 6` consolidou o fechamento de coordenação e registrou que não há `claim_conflict` ativo bloqueando o board atual
-- `task 7` entregou validação arquitetural e manteve **HOLD para abertura automática** da próxima fase até aprovação explícita
-- `task 8` consolidou o fechamento formal da Fase 1 neste arquivo
+- normalização obrigatória do workspace executada antes do relançamento da Fase 2
+- commit de baseline criado: `9af32cf` — `chore: workspace normalization before Phase 2 relaunch`
+- artefatos temporários/runtime passaram a ser ignorados explicitamente em `.gitignore`
+- o workspace versionado agora representa o baseline real revisado para o relançamento controlado
+- revisão arquitetural completa do estado canônico após interrupção dos workers
+- confirmação de que existem artefatos reais de Phase 2 no workspace, incluindo:
+  - `app/tenant/[clientSlug]/*`
+  - `lib/tenant-context.ts`
+  - `lib/tenant-scope.ts`
+  - arquivos de navegação/suporte tenant-aware
+- confirmação de que o histórico git ainda para no fechamento da Fase 1 e **não representa o estado real atual do projeto**
+- confirmação de que o runtime anterior do team/board não está disponível de forma confiável no snapshot atual
+- normalização deste `CURRENT_STATE.md` para servir como **fonte canônica de retomada**
+- criação do relatório `.omx/reports/2026-04-02-architect-normalization-reset.md`
+- inventário do workspace real da Fase 2 concluído pelo `$plan`
+- confirmação de que a maior parte do escopo técnico de tenant isolation já existe no workspace, mas ainda sem governança/validação suficientes para fechamento
+- criação do relatório `.omx/reports/2026-04-02-phase2-replanning-diagnostic.md`
+- criação do plano reorganizado `.omx/plans/2026-04-02-rebaseline-fase2-tenant-isolation.md`
 
 ## Status real do ambiente
 
-### Operacionalmente pronto
+### Confirmado como real no workspace
 
-- Git está disponível e o diretório já é um repositório válido
-- Node e npm estão funcionais no workspace
-- `npm run test` executa com sucesso via stub explícito
-- `npm run lint` executa com sucesso no escopo mínimo configurado (`scripts/verification/**` e `eslint.config.mjs`)
-- existe verificador funcional de smoke para o tenant panel em `scripts/verification/verify-tenant-panel.mjs`
-- o board atual está coerente do ponto de vista de coordenação; não há `claim_conflict` ativo bloqueando execução
+- Git está disponível e o diretório é um repositório válido
+- existem evidências de destravamento operacional herdadas da Fase 1
+- existe trabalho real de tenant isolation já materializado no workspace
+- existem helpers centrais em `lib/tenant-context.ts` e `lib/tenant-scope.ts`
+- existem rotas tenant-scoped em `app/tenant/[clientSlug]/*`, incluindo detalhe de ativo
+- páginas globais legadas de inventário em `app/*` foram fechadas por redirect para `/clients`
+- `components/sidebar.tsx` já preserva contexto tenant-aware
+- `app/api/dashboard/stats/route.ts` e `app/api/inventory/computers/route.ts` já exigem `clientSlug`
+- `app/api/collect/windows/route.ts` já foi neutralizada com `410`
+- existem relatórios de readiness, verificação e segurança já produzidos para a frente de tenant panel
+- o plano ativo de tenant isolation continua sendo a referência estrutural correta
 
-### Ainda não plenamente endurecido
+### Ainda não plenamente normalizado ou endurecido
 
-- `npm run test` ainda é um stub operacional, não uma suíte real
-- `npm run lint` ainda cobre apenas o escopo mínimo de verificação operacional
-- `npm run typecheck` continua expirando por timeout (`124`) após 120s
-- `npm run build:verify` continua sensível ao ambiente compartilhado (`timeout`/`.next` lock contention)
-- o repositório ainda possui grande volume de arquivos não normalizados no baseline
-- houve drift de atribuição/estado durante a Fase 1 que foi funcionalmente contornado, mas deve ser evitado na fase seguinte
+- o runtime/board anterior da execução multi-worker não está disponível como fonte confiável de continuidade
+- a evidência de verificação continua parcial e sensível ao ambiente
+- a postura de segurança continua incompleta enquanto auth/RBAC do painel não existir
+- `/clients` e ações administrativas seguem superfície sensível sem proteção autenticada
+- a validação existente confirma isolamento por slug/consulta, mas não aprovação de segurança
+- ainda falta revisão independente focada em consistência técnica do que já foi materializado
+- permanecem artefatos locais ignorados e não versionados de runtime/ambiente (por exemplo `.env`, `.next/` e um handle ocupado em `.codex`), mas eles não participam mais do baseline auditável
 
 ## Blocking issues
 
-### Para abertura automática da Phase 2
+### Para retomar execução organizada
 
-1. **Ainda não há liberação automática arquitetural**
-   - o gate final de segurança (task 5) classificou os riscos operacionais remanescentes como **non-blocking**
-   - porém a validação arquitetural (task 7) recomendou manter **HOLD para auto-open** até aprovação explícita
+1. **O estado canônico estava em drift antes desta normalização**
+   - havia incompatibilidade entre fechamento formal da Fase 1 e existência prática de trabalho de Fase 2 no workspace
+   - esta sessão corrigiu a interpretação canônica, mas o relançamento ainda depende de replanejamento
 
-2. **Repo-state normalization ainda incompleta**
-   - a validação arquitetural apontou drift entre o estado operacional do workspace e o baseline versionado
-   - a próxima fase não deve assumir que o baseline atual representa integralmente o estado operacional sem decisão explícita do líder
+2. **Git ainda não é a fonte suficiente de verdade operacional**
+   - o histórico anterior terminava no fechamento da Fase 1
+   - esta sessão criou um baseline de normalização, mas a retomada ainda não deve depender de boards/runtime antigos
 
-3. **É necessária aprovação explícita para prosseguir**
-   - a conclusão conjunta das lanes não autoriza autoaprovação
-   - a abertura da próxima fase deve ser deliberada pelo líder/operador
+3. **O runtime/board anterior não deve ser reutilizado cegamente**
+   - o estado live anterior de team execution não está disponível de forma confiável no snapshot atual
+   - ownership, claims e sequência de execução devem ser reconstruídos com segurança pelo próximo ciclo de planejamento
+
+4. **A segurança do painel ainda não está aprovada**
+   - tenant isolation por `clientSlug` não substitui autenticação/autorização real
+   - `/clients` e APIs tenant-operacionais continuam exigindo hardening e futuro auth/RBAC
+
+5. **Ainda falta normalização segura de versionamento**
+   - o baseline de normalização já foi criado
+   - ainda falta versionamento por slices revisadas ao longo da execução da Fase 2 antes de qualquer fechamento
 
 ## Non-blocking issues
 
-1. `npm run test` é um stub operacional temporário
-2. `npm run lint` permanece propositalmente estreito e não cobre `app/**`, `lib/**` e `components/**`
-3. `npm run typecheck` tem timeout determinístico (`124`) no ambiente atual
-4. `npm run build:verify` sofre com timeout/contenda de lock em `.next`
-5. `safe.directory` segue sendo uma nuance do ambiente `/mnt/e`
-6. ainda existe dívida de normalização do working tree amplo fora do baseline mínimo
-7. houve histórico de drift de ownership/atribuição na Fase 1, embora sem bloqueio ativo no fechamento
+1. a evidência anterior de `test`/`lint`/`typecheck`/`build` continua parcial e dependente do ambiente
+2. há relatórios históricos com conclusões de momentos diferentes, exigindo leitura temporal cuidadosa
+3. `safe.directory` continua sendo nuance operacional do ambiente `/mnt/e`
+4. ainda existe dívida de normalização/versionamento do working tree amplo
+5. parte da implementação atual ainda depende de validação independente e checkpoint de segurança para ganhar status de entrega governada
 
-## Readiness para Phase 2
+## Readiness atual
 
-**Readiness atual: READY de forma condicional para Phase 2, mas HOLD para abertura automática.**
+**Readiness atual: baseline normalizado e pronto para relançamento controlado da execução, não para fechamento.**
 
 Leitura prática:
 
-- do ponto de vista do gate operacional/security-review, os riscos remanescentes foram classificados como **non-blocking**
-- do ponto de vista arquitetural/governança, a próxima fase **não deve abrir automaticamente** sem decisão explícita
+- existe base técnica suficiente para continuar a frente de tenant isolation
+- existe evidência de que grande parte da Fase 2 já foi iniciada no workspace
+- a governança de execução foi reorganizada nesta sessão pelo `$plan`
+- o próximo passo correto agora é relançar execução em etapas curtas, com review e security review explícitos
 
 Portanto:
 
-- o ambiente está suficientemente destravado para continuar trabalho planejado
-- a transição para a próxima fase deve ocorrer com aceite explícito dos riscos remanescentes e sem autoaprovação
+- o projeto está pronto para **organização pelo `$plan`**
+- o projeto **não** está em estado limpo para simplesmente retomar workers como se o board anterior ainda fosse a verdade canônica
 
 ## Próximos passos recomendados
 
-1. obter decisão explícita do líder sobre a abertura da próxima fase
-2. iniciar a próxima etapa técnica do plano de tenant isolation somente após esse aceite
-3. carregar os riscos remanescentes como dívida visível da próxima fase:
-   - substituir o stub de teste por testes reais
-   - ampliar o escopo de lint
-   - reexecutar typecheck/build em ambiente menos contendido
-   - normalizar melhor o baseline versionado
-4. manter revisão independente e checkpoint de segurança nas mudanças reais de app/API da próxima fase
+1. iniciar pela etapa de review técnico/consistência do que já existe no workspace
+2. executar hardening focado nas superfícies sensíveis (`/clients`, actions e APIs tenant-operacionais)
+3. corrigir gaps remanescentes de consistência entre helpers, rotas e APIs a partir do review
+4. executar verificação independente e checkpoint de segurança antes de qualquer fechamento
+5. definir e executar a estratégia de normalização/versionamento do working tree atual antes do encerramento da fase
+6. manter visível que tenant isolation **não** equivale a auth/RBAC concluído
+7. antes de novo fechamento de fase, exigir:
+   - revisão independente
+   - checkpoint de segurança
+   - atualização coerente dos arquivos canônicos
 
 ## Plano ativo
 
-- `.omx/plans/2026-04-02-isolamento-real-por-tenant-no-painel.md`
+- estrutural: `.omx/plans/2026-04-02-isolamento-real-por-tenant-no-painel.md`
+- operacional de retomada: `.omx/plans/2026-04-02-rebaseline-fase2-tenant-isolation.md`
 
 ## Não fazer agora
 
-- não interpretar o fechamento da Fase 1 como autoaprovação para abrir a próxima fase
-- não tratar lint/test atuais como quality gates completos do produto
-- não esconder os timeouts de typecheck/build
-- não ignorar drift de repo-state/atribuição apontado pela validação arquitetural
+- não fingir que a Fase 2 ainda não começou no workspace
+- não fingir que a Fase 2 já está governada/fechada de forma limpa
+- não tratar o histórico git atual como representação completa do estado do projeto
+- não declarar aprovação de segurança do painel
+- não relançar workers a partir de ownership/claims antigos sem novo planejamento
+- não tratar os relatórios de verificação/readiness como substitutos de review independente novo sobre o workspace atual
+- não normalizar o working tree por commit amplo sem recorte explícito de ownership e revisão
 
 ## Último handoff válido
 
-Sessão de 2026-04-02:
+Sessão de 2026-04-02 — normalização arquitetural:
 
-- Fase 1 encerrada formalmente
-- ambiente operacional destravado para continuidade do trabalho
-- gate final de segurança permite seguir com riscos non-blocking explícitos
-- validação arquitetural mantém HOLD para abertura automática
-- próximo passo recomendado: decisão explícita do líder e então retomada da frente técnica planejada
+- Fase 1 continua encerrada formalmente
+- a Fase 2 já deixou artefatos reais no workspace
+- o runtime/board anterior não está disponível como verdade confiável de continuidade
+- o estado canônico foi reorganizado para rebaseline seguro
+- o `$plan` reorganizou a continuidade a partir do workspace real e dos riscos já conhecidos
+- próximo passo recomendado: relançamento controlado por etapas, começando por review técnico + hardening de superfícies sensíveis

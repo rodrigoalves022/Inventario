@@ -25,3 +25,10 @@ node_modules/
 dev.db
 .omx/state/
 .omx/logs/
+.omx/context/
+.omx/metrics.json
+.codex
+build_log.txt
+prisma/dev.db
+agent-go/*.exe
+agent-go/dist/
