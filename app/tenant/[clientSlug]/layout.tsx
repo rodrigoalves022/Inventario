@@ -1,16 +1,8 @@
 import { Header, Sidebar } from '@/components/sidebar'
 import { requireTenantContext } from '@/lib/tenant-context'
 
-type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
-
-export default async function TenantLayout({
-  children,
-  params,
-}: Readonly<{
-  children: React.ReactNode
-  params: TenantParams
-}>) {
-  const { clientSlug } = await Promise.resolve(params)
+export default async function TenantLayout({ children, params }: LayoutProps<'/tenant/[clientSlug]'>) {
+  const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
 
   return (

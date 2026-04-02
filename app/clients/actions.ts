@@ -32,8 +32,8 @@ function rejectUnauthorizedAccess(): ProvisioningActionState {
   }
 }
 
-function hasClientsAdminAccess() {
-  return hasValidAdminSecretFromHeaders(headers())
+async function hasClientsAdminAccess() {
+  return hasValidAdminSecretFromHeaders(await headers())
 }
 
 function buildState(
@@ -70,7 +70,7 @@ export async function createClientAction(
   formData: FormData
 ): Promise<ProvisioningActionState> {
   try {
-    if (!hasClientsAdminAccess()) {
+    if (!(await hasClientsAdminAccess())) {
       return rejectUnauthorizedAccess()
     }
 
@@ -139,7 +139,7 @@ export async function rotateEnrollmentKeyAction(
   formData: FormData
 ): Promise<ProvisioningActionState> {
   try {
-    if (!hasClientsAdminAccess()) {
+    if (!(await hasClientsAdminAccess())) {
       return rejectUnauthorizedAccess()
     }
 

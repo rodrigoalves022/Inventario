@@ -38,14 +38,14 @@ async function getClients() {
   }))
 }
 
-function requireClientsAdminAccess() {
-  if (!hasValidAdminSecretFromHeaders(headers())) {
+async function requireClientsAdminAccess() {
+  if (!hasValidAdminSecretFromHeaders(await headers())) {
     notFound()
   }
 }
 
 export default async function ClientsPage() {
-  requireClientsAdminAccess()
+  await requireClientsAdminAccess()
   const [clients, serverUrl] = await Promise.all([getClients(), getCurrentServerUrl()])
 
   async function createClientAction(state: ProvisioningActionState, formData: FormData) {
