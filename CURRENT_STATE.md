@@ -1,6 +1,6 @@
 ﻿Status: operational
 Scope: phase2-replanned
-Last-reviewed: 2026-04-02
+Last-reviewed: 2026-04-06
 Owner: plan
 
 # CURRENT_STATE
@@ -57,6 +57,10 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
   - `GET /api/collect/windows` → `410`
   - `GET /api/dashboard/stats?clientSlug=core-ti-expert` com `x-admin-secret` → `200`
 - `app/layout.tsx` deixou de depender de `next/font/google` para evitar bloqueio local por fetch externo de fontes
+- `scripts/verification/run-build.mjs` passou a usar `next build --webpack` com timeout padrão configurável de `600s`
+- o root layout foi marcado como `force-dynamic` para evitar pré-render estático indevido sobre superfícies dependentes de banco/runtime
+- páginas tenant-scoped foram alinhadas ao contrato `PageProps` esperado pelo Next 16; `tsc --noEmit` voltou a passar
+- validação live local do tenant visual foi confirmada novamente em `GET /tenant/core-ti-expert` → `200`
 
 ## Status real do ambiente
 
@@ -113,11 +117,11 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 6. **A verificação completa ainda depende de runtime mais estável**
    - `live-tenant-scope` já passou com fixture local
    - `typecheck` foi destravado e agora passa
-   - `build` continua limitado por timeout no runtime atual
+   - `build:verify` continua limitado por timeout mesmo após migração para webpack e aumento do teto para `600s`
 
 ## Non-blocking issues
 
-1. `verify-tenant-panel`, `lint`, `typecheck` e probes de runtime live local passaram, mas `build` continua expirando no runtime atual
+1. `verify-tenant-panel`, `lint`, `typecheck` e probes de runtime live local passaram, mas `build:verify` continua expirando no runtime atual
 2. há relatórios históricos com conclusões de momentos diferentes, exigindo leitura temporal cuidadosa
 3. `safe.directory` continua sendo nuance operacional do ambiente `/mnt/e`
 4. ainda existe dívida de normalização/versionamento do working tree amplo
@@ -125,7 +129,7 @@ A frente técnica continua sendo o plano de **isolamento real por tenant no pain
 
 ## Readiness atual
 
-**Readiness atual: execução controlada avançada, com review + verification + security checkpoint concluídos, `typecheck` destravado e runtime live local validado; pronta para nova evidência de build, não para fechamento.**
+**Readiness atual: execução controlada avançada, com review + verification + security checkpoint concluídos, `typecheck` revalidado, runtime live local validado e build ainda bloqueado por timeout; pronta para nova evidência de build, não para fechamento.**
 
 Leitura prática:
 

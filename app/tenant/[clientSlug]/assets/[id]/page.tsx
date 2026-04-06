@@ -8,8 +8,6 @@ import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
 
-type AssetParams = Promise<{ clientSlug: string; id: string }> | { clientSlug: string; id: string }
-
 function getStatusIcon(status: string) {
   switch (status) {
     case 'online':
@@ -38,8 +36,8 @@ function formatStatus(status: string) {
   return 'Warning'
 }
 
-export default async function TenantAssetDetailsPage({ params }: { params: AssetParams }) {
-  const { clientSlug, id } = await Promise.resolve(params)
+export default async function TenantAssetDetailsPage({ params }: PageProps<'/tenant/[clientSlug]/assets/[id]'>) {
+  const { clientSlug, id } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 

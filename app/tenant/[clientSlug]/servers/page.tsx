@@ -5,10 +5,8 @@ import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { getTenantPath } from '@/lib/tenant-links'
 
-type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
-
-export default async function TenantServersPage({ params }: { params: TenantParams }) {
-  const { clientSlug } = await Promise.resolve(params)
+export default async function TenantServersPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+  const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 

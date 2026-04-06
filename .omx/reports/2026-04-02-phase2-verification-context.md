@@ -74,16 +74,19 @@ Current status: **PASS**
 Command:
 
 ```bash
-npm run build
+npm run build:verify
 ```
 
 Result: **FAIL**
 
 Observed failure:
 
-- Next.js build failed while fetching Google Fonts assets (`Geist` / `Geist Mono`)
-- this is a runtime/network limitation, not a tenant-isolation logic failure
-- `app/layout.tsx` was subsequently adjusted to remove the external Google font dependency from the execution path
+- the original build path was migrated to `next build --webpack`
+- verifier timeout was expanded from `180s` to `600s`
+- the root layout was marked `force-dynamic` to avoid static build-time rendering pressure on database-backed routes
+- despite those execution-side mitigations, the build still timed out after `600s` at `Creating an optimized production build ...`
+
+Current status: **still FAIL by timeout**
 
 ### 5) Prisma database sync
 
@@ -112,6 +115,7 @@ Confirmed probes:
 
 - `GET /api/collect/windows` → **410**
 - `GET /api/dashboard/stats?clientSlug=core-ti-expert` with `x-admin-secret` → **200**
+- `GET /tenant/core-ti-expert` → **200**
 
 This confirms the local live runtime is serving the neutralized legacy endpoint and the guarded tenant stats API correctly.
 
@@ -129,7 +133,7 @@ What is now confirmed:
 What is still not complete:
 
 - auth/RBAC for the panel is still not complete
-- production build remains runtime-bound by timeout in the current execution environment
+- production build remains runtime-bound by timeout in the current execution environment even after webpack-based verification and a higher timeout ceiling
 
 ## Residual risk
 

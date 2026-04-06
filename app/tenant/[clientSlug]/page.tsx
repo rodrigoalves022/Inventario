@@ -6,8 +6,6 @@ import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere, getTenantDiskWhere, getTenantHardwareWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
 
-type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
-
 async function getStats(tenantSlug: string) {
   const [total, online, offline, warning, hardware, diskData] = await Promise.all([
     prisma.device.count({ where: getTenantDeviceWhere(tenantSlug) }),
@@ -98,8 +96,8 @@ async function getRecentDevices(tenantSlug: string) {
   })
 }
 
-export default async function TenantDashboardPage({ params }: { params: TenantParams }) {
-  const { clientSlug } = await Promise.resolve(params)
+export default async function TenantDashboardPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+  const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
   const [stats, { osData, statusData, ramData }, recentDevices] = await Promise.all([

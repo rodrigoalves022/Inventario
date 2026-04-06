@@ -2,8 +2,6 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere, getTenantDiskWhere, getTenantHardwareWhere } from '@/lib/tenant-scope'
 
-type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
-
 function bucketRam(value: number) {
   if (value <= 8) return '8 GB ou menos'
   if (value <= 16) return '16 GB'
@@ -20,8 +18,8 @@ function summarizeOs(osName: string) {
   return osName
 }
 
-export default async function TenantReportsPage({ params }: { params: TenantParams }) {
-  const { clientSlug } = await Promise.resolve(params)
+export default async function TenantReportsPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+  const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 

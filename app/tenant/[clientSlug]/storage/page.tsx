@@ -2,10 +2,8 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 
-type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
-
-export default async function TenantStoragePage({ params }: { params: TenantParams }) {
-  const { clientSlug } = await Promise.resolve(params)
+export default async function TenantStoragePage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+  const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 

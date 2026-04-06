@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Inventário TI - Dashboard',
   description: 'Sistema de Inventário de Ativos de TI',

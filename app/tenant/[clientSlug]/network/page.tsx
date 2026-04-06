@@ -2,8 +2,6 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantNetworkWhere } from '@/lib/tenant-scope'
 
-type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
-
 function extractSubnet(ip?: string | null) {
   if (!ip) return null
   const parts = ip.split('.')
@@ -11,8 +9,8 @@ function extractSubnet(ip?: string | null) {
   return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`
 }
 
-export default async function TenantNetworkPage({ params }: { params: TenantParams }) {
-  const { clientSlug } = await Promise.resolve(params)
+export default async function TenantNetworkPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+  const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 

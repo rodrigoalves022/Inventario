@@ -2,8 +2,6 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantHardwareWhere } from '@/lib/tenant-scope'
 
-type TenantParams = Promise<{ clientSlug: string }> | { clientSlug: string }
-
 function inferVendor(processorName: string) {
   const normalized = processorName.toLowerCase()
   if (normalized.includes('intel')) return 'Intel'
@@ -12,8 +10,8 @@ function inferVendor(processorName: string) {
   return 'Nao identificado'
 }
 
-export default async function TenantProcessorsPage({ params }: { params: TenantParams }) {
-  const { clientSlug } = await Promise.resolve(params)
+export default async function TenantProcessorsPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+  const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 
