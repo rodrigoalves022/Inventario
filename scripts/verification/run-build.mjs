@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 
-const timeoutMs = 180_000
-const result = spawnSync('npx', ['next', 'build'], {
+const timeoutMs = Number(process.env.BUILD_VERIFY_TIMEOUT_MS ?? 600_000)
+const result = spawnSync('npx', ['next', 'build', '--webpack'], {
   encoding: 'utf8',
   timeout: timeoutMs,
   shell: process.platform === 'win32',
@@ -15,7 +15,9 @@ if (result.stdout) process.stdout.write(result.stdout)
 if (result.stderr) process.stderr.write(result.stderr)
 
 if (result.error?.code === 'ETIMEDOUT') {
-  console.error(`[phase1b:build] Timed out after ${timeoutMs / 1000}s while running next build.`)
+  console.error(
+    `[phase1b:build] Timed out after ${timeoutMs / 1000}s while running next build --webpack.`,
+  )
   process.exit(124)
 }
 
