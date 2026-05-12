@@ -1,10 +1,19 @@
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { unlinkSync } from 'node:fs'
+import { join } from 'node:path'
 
 const timeoutMs = 120_000
-const result = spawnSync('npx', ['tsc', '--noEmit', '--pretty', 'false'], {
+
+const tsBuildInfoFile = join(process.cwd(), 'tsconfig.tsbuildinfo')
+if (existsSync(tsBuildInfoFile)) {
+  unlinkSync(tsBuildInfoFile)
+}
+
+const tscBin = join(process.cwd(), 'node_modules', 'typescript', 'bin', 'tsc')
+const result = spawnSync(process.execPath, [tscBin, '--noEmit', '--pretty', 'false'], {
   encoding: 'utf8',
   timeout: timeoutMs,
-  shell: process.platform === 'win32',
 })
 
 if (result.stdout) process.stdout.write(result.stdout)

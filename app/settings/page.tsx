@@ -1,17 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Save, Trash2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sidebar, Header } from '@/components/sidebar'
 import { cn } from '@/lib/utils'
+import { getPermissionUser } from '@/lib/permissions'
 
-type SettingsPageProps = {
-  userRole?: 'SUPER_ADMIN' | 'ADMIN_TENANT' | 'USER' | null
-}
-
-export default function SettingsPageClient({ userRole = null }: SettingsPageProps) {
+export default function SettingsPageClient() {
+  const { data: session } = useSession()
+  const userRole = getPermissionUser(session?.user).role
   const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState({
     systemName: 'Sistema de Inventário TI',
