@@ -2,13 +2,9 @@ import { spawn } from 'node:child_process'
 import { clearInterval, clearTimeout, setInterval, setTimeout } from 'node:timers'
 import { join } from 'node:path'
 
-const BUILD_COMMAND = join(
-  process.cwd(),
-  'node_modules',
-  '.bin',
-  process.platform === 'win32' ? 'next.cmd' : 'next',
-)
-const BUILD_ARGS = ['build', '--webpack']
+const NEXT_BIN = join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next')
+const BUILD_COMMAND = process.execPath
+const BUILD_ARGS = [NEXT_BIN, 'build', '--webpack']
 const timeoutMs = Number(process.env.BUILD_VERIFY_TIMEOUT_MS ?? 600_000)
 const heartbeatMs = Number(process.env.BUILD_VERIFY_HEARTBEAT_MS ?? 15_000)
 const recentLineLimit = Number(process.env.BUILD_VERIFY_RECENT_LINE_LIMIT ?? 10)
@@ -83,11 +79,12 @@ console.error(
 )
 
 const child = spawn(BUILD_COMMAND, BUILD_ARGS, {
-  shell: process.platform === 'win32',
   env: {
     ...process.env,
     CI: '1',
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED ?? '1',
+    NODE_OPTIONS:
+      process.env.NODE_OPTIONS ?? '--max-old-space-size=4096',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
