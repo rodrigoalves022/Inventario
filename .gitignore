@@ -1,0 +1,44 @@
+# v0 sandbox internal files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.npmrc
+.snowflake/
+.v0-trash/
+.vercel/
+next.user-config.*
+
+# Environment variables
+.env*.local
+
+# Common ignores
+node_modules/
+.next/
+.DS_Store
+/lib/generated/prisma
+
+# Phase 1 baseline
+.env
+*.log
+*.tmp
+*.tsbuildinfo
+dev.db
+.omx/
+.omx/state/
+.omx/logs/
+.omx/context/
+.omx/metrics.json
+.codex/*
+!.codex/skills/
+!.codex/skills/**
+.codex.file-backup-*
+build_log.txt
+build-output.txt
+build-status.txt
+build-stderr.txt
+build-stdout.txt
+prisma/dev.db
+prisma/export/
+agent-go/*.exe
+agent-go/dist/
+public/*.exe
