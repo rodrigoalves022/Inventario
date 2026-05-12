@@ -49,14 +49,14 @@ export default async function TenantStoragePage({ params }: PageProps<'/tenant/[
       <div>
         <h1 className="text-2xl font-bold text-foreground">Armazenamento</h1>
         <p className="text-muted-foreground">
-          {storageDevices.length} dispositivo{storageDevices.length !== 1 ? 's' : ''} com armazenamento reportado para o tenant atual.
+          {storageDevices.length} dispositivo{storageDevices.length !== 1 ? 's' : ''} com armazenamento reportado para a empresa atual.
         </p>
       </div>
 
       <div className="grid gap-4">
         {storageDevices.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card p-6 text-muted-foreground">
-            Nenhum dispositivo com discos reportados no tenant atual.
+          <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+            Nenhum dispositivo com discos reportados no cliente selecionado.
           </div>
         ) : (
           storageDevices.map((device) => {

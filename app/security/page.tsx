@@ -1,7 +1,16 @@
+import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { Sidebar, Header } from '@/components/sidebar'
 import { AlertCircle, Shield, Lock, Eye } from 'lucide-react'
+import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
 
-export default function SecurityPage() {
+export default async function SecurityPage() {
+  const session = await auth()
+  const user = getSessionPermissionUser(session)
+  if (!canAccessGlobalAdmin(user)) {
+    notFound()
+  }
+
   const securityAlerts = [
     { id: 1, title: 'Verificação de segurança necessária', desc: 'Alguns dispositivos não possuem antivírus atualizado', level: 'warning' },
     { id: 2, title: 'Senhas fracas detectadas', desc: '5 usuários com senhas fracas no registro', level: 'danger' },
@@ -10,7 +19,7 @@ export default function SecurityPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar userRole={user.role} />
       <div className="flex-1 pl-64">
         <Header />
         <main className="p-6">

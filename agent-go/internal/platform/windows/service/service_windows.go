@@ -26,8 +26,13 @@ type inventarioService struct{}
 
 func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	const acceptedCommands = svc.AcceptStop | svc.AcceptShutdown
-
 	status <- svc.Status{State: svc.StartPending}
+
+	logPath := filepath.Join(os.Getenv("ProgramData"), "InventarioAgent", "agent.log")
+	if logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666); err == nil {
+		log.SetOutput(logFile)
+	}
+	log.Println("=== INICIANDO SERVICO INVENTARIO AGENT ===")
 
 	cfg, err := config.Load(config.DefaultPath())
 	if err != nil {

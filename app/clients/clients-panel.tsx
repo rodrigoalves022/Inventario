@@ -1,15 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useEffect, useMemo, useState } from 'react'
-import { ArrowUpRight, Copy, Download, KeyRound, Rocket, Terminal } from 'lucide-react'
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
+import { useFormStatus } from 'react-dom'
+import { ArrowUpRight, Copy, Download, Eye, KeyRound, Loader2, PlusCircle, Rocket, Terminal, X } from 'lucide-react'
 import {
   initialProvisioningState,
   type ProvisioningActionState,
+  type ProvisioningCredentialsResponse,
   type ProvisioningPackage,
 } from './types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +39,26 @@ type ClientsPanelProps = {
     payload: FormData
   ) => Promise<ProvisioningActionState>
 }
+
+type CredentialsDialogState =
+  | { open: false; client: null; loading: false; error: null; data: null }
+  | {
+      open: true
+      client: ClientRow
+      loading: boolean
+      error: string | null
+      data: ProvisioningCredentialsResponse | null
+    }
+
+const emptyCredentialsDialogState: CredentialsDialogState = {
+  open: false,
+  client: null,
+  loading: false,
+  error: null,
+  data: null,
+}
+
+const credentialsLoadError = 'Falha ao carregar credenciais ativas.'
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false)
@@ -71,99 +94,140 @@ function downloadScriptFile(provisioningPackage: ProvisioningPackage) {
   URL.revokeObjectURL(url)
 }
 
-function ProvisioningResult({
-  result,
-  serverUrl,
+function PackageFields({ pkg }: { pkg: ProvisioningPackage }) {
+  return (
+    <>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Chave de instalação</Label>
+          <Textarea value={pkg.enrollmentKey} readOnly className="min-h-24 font-mono" />
+          <div className="flex flex-wrap gap-2">
+            <CopyButton value={pkg.enrollmentKey} label="Copiar chave" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Comando de instalação em um passo</Label>
+          <Textarea value={pkg.bootstrapCommand} readOnly className="min-h-24 font-mono" />
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="default" size="sm">
+              <a href={`/api/agent/download-exe?client=${pkg.clientSlug}&key=${pkg.enrollmentKey}`} download>
+                <Download className="h-4 w-4 mr-2" />
+                Baixar instalador (.exe)
+              </a>
+            </Button>
+            <CopyButton value={pkg.bootstrapCommand} label="Copiar comando" />
+            <Button type="button" variant="outline" size="sm" onClick={() => downloadScriptFile(pkg)}>
+              <Download className="h-4 w-4" />
+              Baixar script PS1
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Comando manual alternativo</Label>
+        <Textarea value={pkg.installCommand} readOnly className="min-h-20 font-mono" />
+        <div className="flex flex-wrap gap-2">
+          <CopyButton value={pkg.installCommand} label="Copiar modo manual" />
+          <Button asChild variant="secondary" size="sm">
+            <Link href={pkg.bootstrapUrl}>
+              <Rocket className="h-4 w-4" />
+              Abrir script gerado
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function PackagePanel({
+  pkg,
+  message,
 }: {
-  result: ProvisioningActionState
-  serverUrl: string
+  pkg: ProvisioningPackage
+  message?: string | null
 }) {
-  if (!result.error && !result.package && !result.message) {
-    return (
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle>Provisionamento rapido</CardTitle>
-          <CardDescription>
-            Crie um cliente ou emita uma nova chave para gerar um bootstrap pronto para a instalacao remota.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>O pacote gerado baixa o agente pelo site e instala o servico automaticamente.</p>
-          <p>Na maquina do cliente, basta abrir o PowerShell como administrador e colar o comando.</p>
-          <p>
-            Servidor detectado para esse painel: <span className="font-mono text-foreground">{serverUrl}</span>
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (result.error) {
-    return (
-      <Card className="border-destructive/40">
-        <CardHeader>
-          <CardTitle>Falha ao gerar pacote</CardTitle>
-          <CardDescription>{result.error}</CardDescription>
-        </CardHeader>
-      </Card>
-    )
-  }
-
-  if (!result.package) return null
-
   return (
     <Card className="border-primary/40 bg-primary/5">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-3">
           <Badge>Provisionado</Badge>
-          <CardTitle>{result.package.clientName}</CardTitle>
-          <span className="font-mono text-xs text-muted-foreground">{result.package.clientSlug}</span>
+          <CardTitle>{pkg.clientName}</CardTitle>
         </div>
-        <CardDescription>{result.message}</CardDescription>
+        {message && <CardDescription>{message}</CardDescription>}
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 xl:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="enrollmentKey">Enrollment key</Label>
-            <Textarea id="enrollmentKey" value={result.package.enrollmentKey} readOnly className="min-h-24 font-mono" />
-            <div className="flex flex-wrap gap-2">
-              <CopyButton value={result.package.enrollmentKey} label="Copiar chave" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="bootstrapCommand">Comando de instalacao em um passo</Label>
-            <Textarea
-              id="bootstrapCommand"
-              value={result.package.bootstrapCommand}
-              readOnly
-              className="min-h-24 font-mono"
-            />
-            <div className="flex flex-wrap gap-2">
-              <CopyButton value={result.package.bootstrapCommand} label="Copiar comando" />
-              <CopyButton value={result.package.bootstrapUrl} label="Copiar URL do script" />
-              <Button type="button" variant="outline" size="sm" onClick={() => downloadScriptFile(result.package!)}>
-                <Download className="h-4 w-4" />
-                Baixar script
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="legacyCommand">Comando manual alternativo</Label>
-          <Textarea id="legacyCommand" value={result.package.installCommand} readOnly className="min-h-20 font-mono" />
-          <div className="flex flex-wrap gap-2">
-            <CopyButton value={result.package.installCommand} label="Copiar modo manual" />
-            <Button asChild variant="secondary" size="sm">
-              <Link href={result.package.bootstrapUrl}>
-                <Rocket className="h-4 w-4" />
-                Abrir script gerado
-              </Link>
-            </Button>
-          </div>
-        </div>
+        <PackageFields pkg={pkg} />
       </CardContent>
     </Card>
+  )
+}
+
+function CredentialsDialog({
+  state,
+  onOpenChange,
+}: {
+  state: CredentialsDialogState
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={state.open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Credenciais ativas</DialogTitle>
+          <DialogDescription>
+            {state.open && state.client
+              ? `Pacote ativo do cliente ${state.client.name} sem rotacionar a chave atual.`
+              : 'Pacote ativo do cliente.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!state.open ? null : state.loading ? (
+          <div className="flex items-center justify-center gap-3 py-10 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Carregando credenciais ativas...
+          </div>
+        ) : state.error ? (
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <CardTitle>Falha ao consultar credenciais</CardTitle>
+              <CardDescription>{state.error}</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : state.data?.status === 'unavailable' ? (
+          <Card className="border-border/60 bg-muted/30">
+            <CardHeader>
+              <CardTitle>Pacote ativo indisponível</CardTitle>
+              <CardDescription>{state.data.message}</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : state.data?.status === 'available' ? (
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              {state.data.generatedAt
+                ? `Último pacote persistido em ${new Intl.DateTimeFormat('pt-BR', {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  }).format(new Date(state.data.generatedAt))}.`
+                : 'Pacote ativo persistido sem carimbo de data disponível.'}
+            </div>
+            <PackageFields pkg={state.data.package} />
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RotatePackageButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button type="submit" size="sm" variant="outline" disabled={pending}>
+      <Terminal className="h-4 w-4" />
+      {pending ? 'Emitindo...' : 'Emitir novo pacote'}
+    </Button>
   )
 }
 
@@ -174,42 +238,126 @@ export function ClientsPanel({
   rotateEnrollmentKeyAction,
 }: ClientsPanelProps) {
   const [provisioningServerUrl, setProvisioningServerUrl] = useState(serverUrl)
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const [createState, createAction, createPending] = useActionState(
     createClientAction,
     initialProvisioningState
   )
-  const [rotateState, rotateAction, rotatePending] = useActionState(
-    rotateEnrollmentKeyAction,
-    initialProvisioningState
-  )
+  const [, rotateAction] = useActionState(rotateEnrollmentKeyAction, initialProvisioningState)
   const [result, setResult] = useState<ProvisioningActionState>(initialProvisioningState)
+  const [credentialsDialog, setCredentialsDialog] = useState<CredentialsDialogState>(
+    emptyCredentialsDialogState
+  )
+  const credentialsRequestId = useRef(0)
 
   useEffect(() => {
     if (createState.error || createState.message || createState.package) {
       setResult(createState)
+      if (createState.package) setShowCreateForm(false)
     }
   }, [createState])
-
-  useEffect(() => {
-    if (rotateState.error || rotateState.message || rotateState.package) {
-      setResult(rotateState)
-    }
-  }, [rotateState])
 
   const sortedClients = useMemo(
     () => [...clients].sort((left, right) => left.name.localeCompare(right.name)),
     [clients]
   )
 
+  async function handleViewCredentials(client: ClientRow) {
+    const requestId = credentialsRequestId.current + 1
+    credentialsRequestId.current = requestId
+    setCredentialsDialog({ open: true, client, loading: true, error: null, data: null })
+
+    try {
+      const response = await fetch(
+        `/api/clients/${client.id}/credentials?serverUrl=${encodeURIComponent(provisioningServerUrl)}`,
+        {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'same-origin',
+        }
+      )
+
+      const payload = (await response.json()) as ProvisioningCredentialsResponse | { error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload && 'error' in payload && payload.error ? payload.error : credentialsLoadError)
+      }
+
+      if (credentialsRequestId.current !== requestId) {
+        return
+      }
+
+      setCredentialsDialog({
+        open: true,
+        client,
+        loading: false,
+        error: null,
+        data: payload as ProvisioningCredentialsResponse,
+      })
+    } catch (error) {
+      if (credentialsRequestId.current !== requestId) {
+        return
+      }
+
+      setCredentialsDialog({
+        open: true,
+        client,
+        loading: false,
+        error: error instanceof Error ? error.message : credentialsLoadError,
+        data: null,
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <CredentialsDialog
+        state={credentialsDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            credentialsRequestId.current += 1
+            setCredentialsDialog(emptyCredentialsDialogState)
+          }
+        }}
+      />
+
+      {(result.package || result.error) && (
+        <div className="relative">
+          {result.package ? (
+            <PackagePanel pkg={result.package} message={result.message} />
+          ) : (
+            <Card className="border-destructive/40">
+              <CardHeader>
+                <CardTitle>Falha ao gerar pacote</CardTitle>
+                <CardDescription>{result.error}</CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="absolute right-3 top-3"
+            onClick={() => setResult(initialProvisioningState)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {showCreateForm ? (
         <Card>
           <CardHeader>
-            <CardTitle>Novo cliente</CardTitle>
-            <CardDescription>
-              Gera o tenant, a enrollment key inicial e o bootstrap de instalacao em uma unica etapa.
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Novo cliente</CardTitle>
+                <CardDescription>
+                  Cria o cadastro, a chave inicial e o pacote de instalação em um passo.
+                </CardDescription>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setShowCreateForm(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <form action={createAction} className="space-y-4">
@@ -224,7 +372,7 @@ export function ClientsPanel({
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Se o agente sera instalado em outra maquina, use aqui o IP ou dominio realmente acessivel por ela.
+                  Use o IP ou domínio acessível pela máquina do cliente.
                 </p>
               </div>
               <div className="space-y-2">
@@ -234,32 +382,41 @@ export function ClientsPanel({
               <div className="space-y-2">
                 <Label htmlFor="slug">Slug do cliente</Label>
                 <Input id="slug" name="slug" placeholder="core-ti-expert" />
-                <p className="text-xs text-muted-foreground">
-                  Se deixar em branco, o sistema gera automaticamente.
-                </p>
+                <p className="text-xs text-muted-foreground">Se vazio, é gerado automaticamente.</p>
               </div>
-              <Button type="submit" className="w-full" disabled={createPending}>
-                <KeyRound className="h-4 w-4" />
-                {createPending ? 'Gerando pacote...' : 'Criar cliente e emitir pacote'}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={createPending}>
+                  <KeyRound className="h-4 w-4" />
+                  {createPending ? 'Criando...' : 'Criar e emitir pacote'}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
+                  Cancelar
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
-
-        <ProvisioningResult result={result} serverUrl={provisioningServerUrl} />
-      </div>
+      ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>Clientes provisionados</CardTitle>
-          <CardDescription>
-            Emita um novo pacote quando precisar instalar o agente em outra empresa ou revogar instaladores antigos.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Clientes</CardTitle>
+              <CardDescription>
+                Gerencie empresas, baixe instaladores e emita novos pacotes.
+              </CardDescription>
+            </div>
+            <Button onClick={() => setShowCreateForm(true)} disabled={showCreateForm}>
+              <PlusCircle className="h-4 w-4" />
+              Novo cliente
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           {sortedClients.length === 0 ? (
-            <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-              Nenhum cliente cadastrado.
+            <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+              Nenhum cliente cadastrado. Clique em <strong>Novo cliente</strong> para começar.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -267,19 +424,17 @@ export function ClientsPanel({
                 <thead className="border-b">
                   <tr className="text-muted-foreground">
                     <th className="px-4 py-3 text-left font-medium">Cliente</th>
-                    <th className="px-4 py-3 text-left font-medium">Slug</th>
                     <th className="px-4 py-3 text-left font-medium">Agentes</th>
                     <th className="px-4 py-3 text-left font-medium">Status</th>
                     <th className="px-4 py-3 text-left font-medium">Painel</th>
                     <th className="px-4 py-3 text-left font-medium">Criado em</th>
-                    <th className="px-4 py-3 text-left font-medium">Provisionamento</th>
+                    <th className="px-4 py-3 text-left font-medium">Instalação</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedClients.map((client) => (
                     <tr key={client.id} className="border-b last:border-0">
                       <td className="px-4 py-3 font-medium text-foreground">{client.name}</td>
-                      <td className="px-4 py-3 font-mono text-muted-foreground">{client.slug}</td>
                       <td className="px-4 py-3">{client.agentCount}</td>
                       <td className="px-4 py-3">
                         <Badge variant={client.isActive ? 'default' : 'outline'}>
@@ -301,14 +456,17 @@ export function ClientsPanel({
                         }).format(new Date(client.createdAt))}
                       </td>
                       <td className="px-4 py-3">
-                        <form action={rotateAction}>
-                          <input type="hidden" name="serverUrl" value={provisioningServerUrl} />
-                          <input type="hidden" name="clientId" value={client.id} />
-                          <Button type="submit" size="sm" variant="outline" disabled={rotatePending}>
-                            <Terminal className="h-4 w-4" />
-                            {rotatePending ? 'Emitindo...' : 'Emitir novo pacote'}
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="outline" onClick={() => handleViewCredentials(client)}>
+                            <Eye className="h-4 w-4" />
+                            Ver credenciais
                           </Button>
-                        </form>
+                          <form action={rotateAction} className="inline">
+                            <input type="hidden" name="serverUrl" value={provisioningServerUrl} />
+                            <input type="hidden" name="clientId" value={client.id} />
+                            <RotatePackageButton />
+                          </form>
+                        </div>
                       </td>
                     </tr>
                   ))}

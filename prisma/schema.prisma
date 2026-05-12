@@ -8,15 +8,24 @@ datasource db {
 }
 
 model Client {
-  id                String      @id @default(cuid())
-  name              String
-  slug              String      @unique
-  enrollmentKeyHash String      @unique
-  isActive          Boolean     @default(true)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                        String      @id @default(cuid())
+  name                      String
+  slug                      String      @unique
+  enrollmentKeyHash         String      @unique
+  activeProvisioningKeyEnc  String?
+  activeProvisioningSetAt   DateTime?
+  alertsEnabled             Boolean     @default(true)
+  alertWebhookEnabled       Boolean     @default(false)
+  alertWebhookUrl           String?
+  alertDiskThresholdGb      Int         @default(10)
+  alertRamThresholdGb       Int         @default(4)
+  alertOfflineHours         Int         @default(24)
+  isActive                  Boolean     @default(true)
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
 
-  agents            AgentAuth[]
+  agents                    AgentAuth[]
+  users                     User[]
 
   @@index([name])
   @@map("clients")
@@ -145,4 +154,38 @@ model CollectionLog {
   @@index([deviceId])
   @@index([coletadoEm])
   @@map("collection_logs")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  actorEmail   String?
+  actorRole    String?
+  clientId     String?
+  action       String
+  targetType   String
+  targetId     String?
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([clientId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  password      String    
+  role          String    @default("USER") // SUPER_ADMIN, ADMIN_TENANT, USER
+  clientId      String?
+  client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([clientId])
+  @@map("users")
 }

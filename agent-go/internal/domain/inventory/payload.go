@@ -3,6 +3,7 @@ package inventory
 // Payload representa a estrutura de dados enviada ao servidor.
 type Payload struct {
 	Hostname          string         `json:"hostname"`
+	AgentVersion      string         `json:"agentVersion,omitempty"`
 	Serial            string         `json:"serial,omitempty"`
 	Fabricante        string         `json:"fabricante,omitempty"`
 	Modelo            string         `json:"modelo,omitempty"`

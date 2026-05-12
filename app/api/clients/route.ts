@@ -3,6 +3,7 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { generateEnrollmentKey, hasValidAdminSecret } from '@/lib/auth'
 import { slugifyClientName } from '@/lib/clients'
+import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
 
 const createClientSchema = z.object({
   name: z.string().trim().min(3, 'O campo "name" é obrigatório (mínimo 3 caracteres).'),
@@ -11,6 +12,24 @@ const createClientSchema = z.object({
 
 function unauthorized() {
   return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
+}
+
+type TransactionLike = {
+  client: typeof prisma.client
+  $executeRaw: typeof prisma.$executeRaw
+}
+
+async function persistActiveProvisioningKey(
+  db: Pick<TransactionLike, '$executeRaw'>,
+  clientId: string,
+  enrollmentKey: string
+) {
+  await db.$executeRaw`
+    UPDATE "clients"
+    SET "activeProvisioningKeyEnc" = ${encryptProvisioningSecret({ enrollmentKey })},
+        "activeProvisioningSetAt" = ${new Date()}
+    WHERE "id" = ${clientId}
+  `
 }
 
 export async function GET(req: NextRequest) {
@@ -55,12 +74,17 @@ export async function POST(req: NextRequest) {
     }
 
     const { plaintext, hash } = await generateEnrollmentKey()
-    const client = await prisma.client.create({
-      data: {
-        name: parsed.data.name,
-        slug,
-        enrollmentKeyHash: hash,
-      },
+    const client = await prisma.$transaction(async (tx: TransactionLike) => {
+      const createdClient = await tx.client.create({
+        data: {
+          name: parsed.data.name,
+          slug,
+          enrollmentKeyHash: hash,
+        },
+      })
+
+      await persistActiveProvisioningKey(tx, createdClient.id, plaintext)
+      return createdClient
     })
 
     return NextResponse.json(

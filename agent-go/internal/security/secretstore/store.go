@@ -1,3 +1,5 @@
+//go:build !windows
+
 package secretstore
 
 import filestore "inventario-agent/internal/security/secretstore/file"

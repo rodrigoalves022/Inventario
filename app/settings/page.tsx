@@ -7,7 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Sidebar, Header } from '@/components/sidebar'
 import { cn } from '@/lib/utils'
 
-export default function SettingsPage() {
+type SettingsPageProps = {
+  userRole?: 'SUPER_ADMIN' | 'ADMIN_TENANT' | 'USER' | null
+}
+
+export default function SettingsPageClient({ userRole = null }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState({
     systemName: 'Sistema de Inventário TI',
@@ -34,7 +38,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar userRole={userRole} />
       <div className="flex-1 pl-64">
         <Header />
         <main className="p-6">

@@ -140,7 +140,15 @@ export function StatsGrid({
   )
 }
 
-export function SecondaryStats({ totalRam, totalStorage }: { totalRam: number; totalStorage: number }) {
+export function SecondaryStats({
+  totalRam,
+  totalStorage,
+  activeAlerts,
+}: {
+  totalRam: number
+  totalStorage: number
+  activeAlerts: number
+}) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <StatCard
@@ -159,7 +167,7 @@ export function SecondaryStats({ totalRam, totalStorage }: { totalRam: number; t
       />
       <StatCard
         title="Alertas Ativos"
-        value={3}
+        value={activeAlerts}
         subtitle="Requerem atenção"
         icon={<AlertTriangle className="h-5 w-5" />}
         variant="danger"

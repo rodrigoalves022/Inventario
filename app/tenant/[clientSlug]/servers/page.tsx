@@ -27,11 +27,15 @@ export default async function TenantServersPage({ params }: PageProps<'/tenant/[
       <div>
         <h1 className="text-2xl font-bold text-foreground">Servidores</h1>
         <p className="text-muted-foreground">
-          {servers.length} servidor{servers.length !== 1 ? 'es' : ''} identificado{servers.length !== 1 ? 's' : ''} no tenant atual.
+          {servers.length} servidor{servers.length !== 1 ? 'es' : ''} identificado{servers.length !== 1 ? 's' : ''} na empresa selecionada.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-card">
+      <div className="flex items-center gap-2">
+        {/* Action buttons... */}
+      </div>
+
+      <div className="rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b">
@@ -49,7 +53,7 @@ export default async function TenantServersPage({ params }: PageProps<'/tenant/[
               {servers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                    Nenhum servidor registrado para este tenant.
+                    Nenhum servidor registrado para o cliente atual.
                   </td>
                 </tr>
               ) : (

@@ -3,11 +3,11 @@ import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere, getTenantDiskWhere, getTenantHardwareWhere } from '@/lib/tenant-scope'
 
 function bucketRam(value: number) {
-  if (value <= 8) return '8 GB ou menos'
-  if (value <= 16) return '16 GB'
-  if (value <= 32) return '32 GB'
-  if (value <= 64) return '64 GB'
-  return '128 GB+'
+  if (value <= 8) return '≤ 8 GB'
+  if (value <= 16) return '9 - 16 GB'
+  if (value <= 32) return '17 - 32 GB'
+  if (value <= 64) return '33 - 64 GB'
+  return '65+ GB'
 }
 
 function summarizeOs(osName: string) {
@@ -69,7 +69,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/tenant/[
     .map(([name, value]) => ({ name, value }))
     .sort((left, right) => right.value - left.value)
 
-  const ramDistribution = ['8 GB ou menos', '16 GB', '32 GB', '64 GB', '128 GB+'].map((range) => ({
+  const ramDistribution = ['≤ 8 GB', '9 - 16 GB', '17 - 32 GB', '33 - 64 GB', '65+ GB'].map((range) => ({
     range,
     count: ramMap.get(range) ?? 0,
   }))
@@ -83,7 +83,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/tenant/[
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
-        <p className="text-muted-foreground">Resumo operacional baseado exclusivamente nos dados reais do tenant atual.</p>
+        <p className="text-muted-foreground">Resumo operacional baseado exclusivamente nos dados reais do cliente atual.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -19,3 +19,16 @@ export const initialProvisioningState: ProvisioningActionState = {
   message: null,
   package: null,
 }
+
+
+export type ProvisioningCredentialsResponse =
+  | {
+      status: 'available'
+      package: ProvisioningPackage
+      generatedAt: string | null
+    }
+  | {
+      status: 'unavailable'
+      reason: 'legacy'
+      message: string
+    }

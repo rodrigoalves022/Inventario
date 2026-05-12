@@ -1,90 +1,94 @@
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
+import { auth } from '@/auth'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { getTenantPath } from '@/lib/tenant-links'
+import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
+import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
+import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
+import { TenantAlertSettingsForm } from '@/components/tenant-alert-settings-form'
+import { TenantComputersTable } from '@/components/tenant-computers-table'
 
 export default async function TenantComputersPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
+  const session = await auth()
 
-  const allDevices = await prisma.device.findMany({
-    where: getTenantDeviceWhere(tenantSlug),
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      hardware: { select: { sistema: true, processador: true, ramTotalGb: true, tipoArmazenamento: true } },
-      networks: { where: { isPrimary: true }, select: { ip: true, mac: true } },
-      disks: { select: { unidade: true, capacidadeGb: true, espacoLivreGb: true, tipo: true } },
-    },
-  })
+  const [allDevices, tenantAlertSettings] = await Promise.all([
+    prisma.device.findMany({
+      where: getTenantDeviceWhere(tenantSlug),
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        hardware: { select: { sistema: true, processador: true, ramTotalGb: true, tipoArmazenamento: true } },
+        networks: { where: { isPrimary: true }, select: { ip: true, mac: true } },
+        disks: { select: { unidade: true, capacidadeGb: true, espacoLivreGb: true, tipo: true } },
+        logs: { orderBy: { coletadoEm: 'desc' }, take: 1, select: { coletadoEm: true } },
+      },
+    }),
+    getTenantAlertSettingsBySlug(tenantSlug),
+  ])
 
-  const devices = allDevices.filter((device) => !isServerOperatingSystem(device.hardware?.sistema))
+  const settings = tenantAlertSettings ?? { clientId: tenant.id, ...getDefaultAlertSettings() }
+  const devices = allDevices
+    .filter((device) => !isServerOperatingSystem(device.hardware?.sistema))
+    .map((device) => {
+      const lastCollectionAt = device.logs[0]?.coletadoEm ?? device.updatedAt
+      const issues = settings.alertsEnabled
+        ? deriveInventoryIssues(
+            {
+              updatedAt: device.updatedAt,
+              lastCollectionAt,
+              hardware: device.hardware,
+              disks: device.disks,
+            },
+            settings
+          )
+        : []
+
+      const lowestDiskFreeGb = device.disks
+        .map((disk) => disk.espacoLivreGb)
+        .filter((value): value is number => typeof value === 'number')
+        .sort((left, right) => left - right)[0] ?? null
+
+      return {
+        id: device.id,
+        hostname: device.hostname,
+        ip: device.networks[0]?.ip ?? null,
+        sistema: device.hardware?.sistema ?? null,
+        processador: device.hardware?.processador ?? null,
+        ramTotalGb: device.hardware?.ramTotalGb ?? null,
+        lowestDiskFreeGb,
+        storageLabel: device.disks[0] ? `${device.disks[0].capacidadeGb ?? '?'} GB ${device.disks[0].tipo ?? ''}` : null,
+        updatedAt: device.updatedAt.toISOString(),
+        lastCollectionAt: lastCollectionAt?.toISOString() ?? null,
+        effectiveStatus: getEffectiveDeviceStatus(device.status, issues) as 'online' | 'warning' | 'offline',
+        issues,
+        detailsPath: getTenantPath(tenantSlug, `assets/${device.id}`),
+      }
+    })
+
+  const canManageAlerts = canManageTenantAlerts(getSessionPermissionUser(session), tenantSlug)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Computadores registrados</h1>
-        <p className="text-muted-foreground">
-          {devices.length} computador{devices.length !== 1 ? 'es' : ''} classificado{devices.length !== 1 ? 's' : ''} no tenant atual.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Computadores registrados</h1>
+          <p className="text-muted-foreground">
+            {devices.length} computador{devices.length !== 1 ? 'es' : ''} classificado{devices.length !== 1 ? 's' : ''} no tenant atual.
+          </p>
+        </div>
+        <Link href={getTenantPath(tenantSlug, '')} className="text-sm text-primary hover:underline">
+          Voltar ao dashboard
+        </Link>
       </div>
 
-      <div className="rounded-lg border bg-card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b">
-              <tr className="text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">Hostname</th>
-                <th className="px-4 py-3 text-left font-medium">IP</th>
-                <th className="px-4 py-3 text-left font-medium">Sistema</th>
-                <th className="px-4 py-3 text-left font-medium">Processador</th>
-                <th className="px-4 py-3 text-left font-medium">RAM</th>
-                <th className="px-4 py-3 text-left font-medium">Armazenamento</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {devices.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                    Nenhum computador registrado para este tenant.
-                  </td>
-                </tr>
-              ) : (
-                devices.map((device) => (
-                  <tr key={device.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3 font-mono font-medium">
-                      <Link href={getTenantPath(tenantSlug, `assets/${device.id}`)} className="hover:underline">
-                        {device.hostname}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{device.networks[0]?.ip ?? '-'}</td>
-                    <td className="px-4 py-3">{device.hardware?.sistema ?? '-'}</td>
-                    <td className="px-4 py-3 max-w-[200px] truncate text-muted-foreground">{device.hardware?.processador ?? '-'}</td>
-                    <td className="px-4 py-3">{device.hardware?.ramTotalGb ? `${device.hardware.ramTotalGb} GB` : '-'}</td>
-                    <td className="px-4 py-3">
-                      {device.disks[0] ? `${device.disks[0].capacidadeGb ?? '?'} GB ${device.disks[0].tipo ?? ''}` : '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        device.status === 'online'
-                          ? 'bg-success/10 text-success'
-                          : device.status === 'offline'
-                          ? 'bg-destructive/10 text-destructive'
-                          : 'bg-warning/10 text-warning'
-                      }`}>
-                        {device.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {canManageAlerts ? <TenantAlertSettingsForm tenantSlug={tenantSlug} settings={settings} /> : null}
+
+      <TenantComputersTable devices={devices} />
     </div>
   )
 }

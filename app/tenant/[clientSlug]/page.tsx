@@ -29,7 +29,7 @@ async function getStats(tenantSlug: string) {
   const win11 = hardware.filter((item) => item.sistema?.includes('11') && !item.sistema?.includes('Server')).length
   const server = hardware.filter((item) => item.sistema?.includes('Server')).length
 
-  return { total, online, offline, warning, win10, win11, server, totalRam: ramTotal, totalStorage: storageTotal }
+  return { total, online, offline, warning, activeAlerts: warning, win10, win11, server, totalRam: ramTotal, totalStorage: storageTotal }
 }
 
 async function getChartData(tenantSlug: string) {
@@ -65,13 +65,13 @@ async function getChartData(tenantSlug: string) {
     { name: 'Warning', value: warningCount },
   ]
 
-  const ramGroups: Record<string, number> = { '≤8 GB': 0, '16 GB': 0, '32 GB': 0, '64+ GB': 0 }
+  const ramGroups: Record<string, number> = { '≤ 8 GB': 0, '9 - 16 GB': 0, '17 - 32 GB': 0, '33+ GB': 0 }
   for (const item of hardware) {
     const ram = item.ramTotalGb ?? 0
-    if (ram <= 8) ramGroups['≤8 GB'] += 1
-    else if (ram <= 16) ramGroups['16 GB'] += 1
-    else if (ram <= 32) ramGroups['32 GB'] += 1
-    else ramGroups['64+ GB'] += 1
+    if (ram <= 8) ramGroups['≤ 8 GB'] += 1
+    else if (ram <= 16) ramGroups['9 - 16 GB'] += 1
+    else if (ram <= 32) ramGroups['17 - 32 GB'] += 1
+    else ramGroups['33+ GB'] += 1
   }
 
   const ramData = Object.entries(ramGroups).map(([name, value]) => ({ name, value }))
@@ -111,7 +111,7 @@ export default async function TenantDashboardPage({ params }: PageProps<'/tenant
       <div>
         <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
         <p className="text-muted-foreground">
-          Monitoramento em tempo real dos ativos de TI do tenant <span className="font-medium text-foreground">{tenant.name}</span>.
+          Monitoramento em tempo real dos ativos de TI da empresa <span className="font-medium text-foreground">{tenant.name}</span>.
         </p>
       </div>
 
@@ -133,7 +133,7 @@ export default async function TenantDashboardPage({ params }: PageProps<'/tenant
         <RamDistributionChart data={ramData} />
       </div>
 
-      <SecondaryStats totalRam={stats.totalRam} totalStorage={stats.totalStorage} />
+      <SecondaryStats totalRam={stats.totalRam} totalStorage={stats.totalStorage} activeAlerts={stats.activeAlerts} />
 
       <div className="rounded-lg border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3">

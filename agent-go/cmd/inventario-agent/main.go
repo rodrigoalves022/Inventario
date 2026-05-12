@@ -6,23 +6,162 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
+	"syscall"
 	"time"
 
 	"inventario-agent/internal/app/checkin"
 	appinstall "inventario-agent/internal/app/install"
 	"inventario-agent/internal/config"
 	"inventario-agent/internal/platform/windows/service"
+	"golang.org/x/sys/windows"
 )
+
+type AutoConfig struct {
+	ServerURL string `json:"serverUrl"`
+	Client    string `json:"client"`
+	Key       string `json:"key"`
+}
+
+func extractAutoConfig() (*AutoConfig, error) {
+	exePath, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
+	fileInfo, err := os.Stat(exePath)
+	if err != nil {
+		return nil, err
+	}
+
+	readSize := int64(8192)
+	if fileInfo.Size() < readSize {
+		readSize = fileInfo.Size()
+	}
+
+	f, err := os.Open(exePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	buf := make([]byte, readSize)
+	_, err = f.ReadAt(buf, fileInfo.Size()-readSize)
+	if err != nil {
+		return nil, err
+	}
+
+	contentStr := string(buf)
+	marker := "<<INV_CONFIG>>"
+
+	firstMarker := strings.Index(contentStr, marker)
+	lastMarker := strings.LastIndex(contentStr, marker)
+
+	if firstMarker != -1 && lastMarker != -1 && firstMarker != lastMarker {
+		jsonStr := contentStr[firstMarker+len(marker) : lastMarker]
+		var ac AutoConfig
+		if err := json.Unmarshal([]byte(jsonStr), &ac); err == nil {
+			return &ac, nil
+		}
+	}
+	return nil, nil
+}
+
+func isElevated() bool {
+	var sid *windows.SID
+	err := windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY, 2, windows.SECURITY_BUILTIN_DOMAIN_RID, windows.DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &sid)
+	if err != nil {
+		return false
+	}
+	token := windows.Token(0)
+	member, err := token.IsMember(sid)
+	if err != nil {
+		return false
+	}
+	return member
+}
+
+func elevateAndExit() {
+	exe, _ := os.Executable()
+	cwd, _ := os.Getwd()
+	verb, _ := syscall.UTF16PtrFromString("runas")
+	argv, _ := syscall.UTF16PtrFromString("autoinstall")
+	dir, _ := syscall.UTF16PtrFromString(cwd)
+	exePath, _ := syscall.UTF16PtrFromString(exe)
+
+	err := windows.ShellExecute(0, verb, exePath, argv, dir, 1)
+	if err != nil {
+		fmt.Printf("[!] Falha ao solicitar elevacao: %v (Execute como Administrador manualmente)\n", err)
+		time.Sleep(10 * time.Second)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func runAutoInstall(ac *AutoConfig) {
+	hostname, _ := os.Hostname()
+	fmt.Printf("[...] Instalacao silenciosa Inteligente detectada (Cliente: %s)...\n", ac.Client)
+
+	cfg, err := appinstall.Run(appinstall.Options{
+		ServerURL:     ac.ServerURL,
+		Client:        ac.Client,
+		EnrollmentKey: ac.Key,
+		AgentName:     hostname,
+	}, time.Now())
+
+	if err != nil {
+		log.Printf("[!] Instalacao logica falhou: %v\n", err)
+		time.Sleep(10 * time.Second)
+		os.Exit(1)
+	}
+
+	fmt.Printf("[+] Configuracao gerada com sucesso!\n")
+
+	service.Uninstall() // force clean state
+	if err := service.Install(); err != nil {
+		log.Printf("[!] Falha ao registrar servico: %v\n", err)
+		time.Sleep(10 * time.Second)
+		os.Exit(1)
+	}
+
+	if err := service.Start(); err != nil {
+		fmt.Printf("[!] O Servico falhou em inicializar. Religue pelo services.msc!\n")
+	} else {
+		fmt.Printf("[+] Inventario instalado e operante sob nome %s\n", cfg.AgentName)
+	}
+
+	fmt.Println("\n[+] Fechando janela automaticamente...")
+	time.Sleep(5 * time.Second)
+	os.Exit(0)
+}
 
 var version = "1.0.0"
 
 func main() {
 	if len(os.Args) < 2 {
+		ac, _ := extractAutoConfig()
+		if ac != nil {
+			if !isElevated() {
+				elevateAndExit()
+			}
+			runAutoInstall(ac)
+			return
+		}
+
 		printUsage()
 		os.Exit(1)
 	}
 
 	switch os.Args[1] {
+	case "autoinstall":
+		ac, _ := extractAutoConfig()
+		if ac != nil {
+			runAutoInstall(ac)
+		} else {
+			fmt.Println("[!] Falha: Este arquivo perdeu sua assinatura digital de auto-instalacao.")
+			time.Sleep(10 * time.Second)
+			os.Exit(1)
+		}
 	case "install":
 		handleInstall()
 	case "uninstall":

@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Download, RefreshCw, Wifi, WifiOff, AlertCircle } from 'lucide-react'
+import { auth } from '@/auth'
+import { DeleteAssetButton } from '@/components/delete-asset-button'
 import { Button } from '@/components/ui/button'
+import { canDeleteTenantAsset, getSessionPermissionUser } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -40,6 +43,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
   const { clientSlug, id } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
+  const session = await auth()
 
   const asset = await prisma.device.findFirst({
     where: {
@@ -60,6 +64,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
 
   const latestLog = asset.logs[0]
   const primaryNetwork = asset.networks[0]
+  const canDeleteAsset = canDeleteTenantAsset(getSessionPermissionUser(session), tenantSlug)
   const memorySlots = [
     { slot: 'Slot 1', value: asset.hardware?.slot1 },
     { slot: 'Slot 2', value: asset.hardware?.slot2 },
@@ -90,6 +95,9 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
               <Download className="h-4 w-4" />
               Exportar
             </Button>
+            {canDeleteAsset ? (
+              <DeleteAssetButton assetId={asset.id} assetName={asset.hostname} tenantSlug={tenantSlug} />
+            ) : null}
           </div>
         </div>
       </div>

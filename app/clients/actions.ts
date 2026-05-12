@@ -1,12 +1,14 @@
 'use server'
 
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
-import { generateEnrollmentKey, hasValidAdminSecretFromHeaders } from '@/lib/auth'
+import { generateEnrollmentKey } from '@/lib/auth'
 import { slugifyClientName } from '@/lib/clients'
+import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
+import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { type ProvisioningActionState } from './types'
 
 const createClientSchema = z.object({
@@ -33,7 +35,26 @@ function rejectUnauthorizedAccess(): ProvisioningActionState {
 }
 
 async function hasClientsAdminAccess() {
-  return hasValidAdminSecretFromHeaders(await headers())
+  const session = await auth()
+  return canAccessGlobalAdmin(getSessionPermissionUser(session))
+}
+
+type TransactionLike = {
+  client: typeof prisma.client
+  $executeRaw: typeof prisma.$executeRaw
+}
+
+async function persistActiveProvisioningKey(
+  db: Pick<TransactionLike, '$executeRaw'>,
+  clientId: string,
+  enrollmentKey: string
+) {
+  await db.$executeRaw`
+    UPDATE "clients"
+    SET "activeProvisioningKeyEnc" = ${encryptProvisioningSecret({ enrollmentKey })},
+        "activeProvisioningSetAt" = ${new Date()}
+    WHERE "id" = ${clientId}
+  `
 }
 
 function buildState(
@@ -107,12 +128,17 @@ export async function createClientAction(
     }
 
     const { plaintext, hash } = await generateEnrollmentKey()
-    const client = await prisma.client.create({
-      data: {
-        name: parsed.data.name,
-        slug,
-        enrollmentKeyHash: hash,
-      },
+    const client = await prisma.$transaction(async (tx: TransactionLike) => {
+      const createdClient = await tx.client.create({
+        data: {
+          name: parsed.data.name,
+          slug,
+          enrollmentKeyHash: hash,
+        },
+      })
+
+      await persistActiveProvisioningKey(tx, createdClient.id, plaintext)
+      return createdClient
     })
 
     revalidatePath('/clients')
@@ -170,9 +196,13 @@ export async function rotateEnrollmentKeyAction(
     }
 
     const { plaintext, hash } = await generateEnrollmentKey()
-    await prisma.client.update({
-      where: { id: client.id },
-      data: { enrollmentKeyHash: hash },
+    await prisma.$transaction(async (tx: TransactionLike) => {
+      await tx.client.update({
+        where: { id: client.id },
+        data: { enrollmentKeyHash: hash },
+      })
+
+      await persistActiveProvisioningKey(tx, client.id, plaintext)
     })
 
     revalidatePath('/clients')

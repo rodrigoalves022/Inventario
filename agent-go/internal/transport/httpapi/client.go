@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"inventario-agent/internal/app/updater"
 	"inventario-agent/internal/config"
 )
 
@@ -163,7 +164,26 @@ func (c *Client) doRequest(body []byte) error {
 		return fmt.Errorf("servidor retornou %d: %s", resp.StatusCode, string(body))
 	}
 
+	var result struct {
+		UpdateAvailable bool `json:"updateAvailable"`
+		UpdateMetadata  *struct {
+			Version string `json:"version"`
+			URL     string `json:"url"`
+		} `json:"updateMetadata"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+		if result.UpdateAvailable && result.UpdateMetadata != nil {
+			log.Printf("[INFO] Atualizacao detectada (v%s). Acionando Updater...", result.UpdateMetadata.Version)
+			go triggerAutoUpdate(result.UpdateMetadata.URL)
+		}
+	}
+
 	return nil
+}
+
+func triggerAutoUpdate(downloadUrl string) {
+	updater.RunAsync(downloadUrl)
 }
 
 type authError struct {

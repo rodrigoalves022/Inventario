@@ -39,14 +39,14 @@ export default async function TenantProcessorsPage({ params }: PageProps<'/tenan
       <div>
         <h1 className="text-2xl font-bold text-foreground">Processadores</h1>
         <p className="text-muted-foreground">
-          {processors.length} modelo{processors.length !== 1 ? 's' : ''} encontrado{processors.length !== 1 ? 's' : ''} no inventário do tenant atual.
+          {processors.length} modelo{processors.length !== 1 ? 's' : ''} encontrado{processors.length !== 1 ? 's' : ''} no inventário da empresa selecionada.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="space-y-4">
         {processors.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card p-6 text-muted-foreground">
-            Nenhum processador reportado ainda para este tenant.
+          <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+            Nenhum processador reportado ainda para este cliente.
           </div>
         ) : (
           processors.map((processor) => (

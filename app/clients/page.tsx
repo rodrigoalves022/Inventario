@@ -1,7 +1,8 @@
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { Sidebar, Header } from '@/components/sidebar'
-import { hasValidAdminSecretFromHeaders } from '@/lib/auth'
+import { auth } from '@/auth'
+import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
 import prisma from '@/lib/prisma'
 import { getCurrentServerUrl } from '@/lib/server-url'
 import {
@@ -39,14 +40,18 @@ async function getClients() {
 }
 
 async function requireClientsAdminAccess() {
-  if (!hasValidAdminSecretFromHeaders(await headers())) {
+  const session = await auth()
+  if (!canAccessGlobalAdmin(getSessionPermissionUser(session))) {
     notFound()
   }
+
+  return session
 }
 
 export default async function ClientsPage() {
-  await requireClientsAdminAccess()
+  const session = await requireClientsAdminAccess()
   const [clients, serverUrl] = await Promise.all([getClients(), getCurrentServerUrl()])
+  const user = getSessionPermissionUser(session)
 
   async function createClientAction(state: ProvisioningActionState, formData: FormData) {
     'use server'
@@ -60,7 +65,7 @@ export default async function ClientsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar userRole={user.role} />
       <div className="flex-1 pl-64">
         <Header />
         <main className="p-6">
@@ -68,7 +73,7 @@ export default async function ClientsPage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Clientes</h1>
               <p className="text-muted-foreground">
-                Provisione tenants, gere instaladores e controle o bootstrap do agente pela web.
+                Cadastre empresas, gere instaladores e gerencie os agentes de cada cliente.
               </p>
             </div>
 

@@ -1,6 +1,15 @@
+import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { Sidebar, Header } from '@/components/sidebar'
+import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
 
-export default function UsersPage() {
+export default async function UsersPage() {
+  const session = await auth()
+  const user = getSessionPermissionUser(session)
+  if (!canAccessGlobalAdmin(user)) {
+    notFound()
+  }
+
   const users = [
     { id: 1, name: 'João Silva', email: 'joao@corp.local', role: 'Admin', status: 'Ativo' },
     { id: 2, name: 'Maria Santos', email: 'maria@corp.local', role: 'Gerente', status: 'Ativo' },
@@ -9,7 +18,7 @@ export default function UsersPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar userRole={user.role} />
       <div className="flex-1 pl-64">
         <Header />
         <main className="p-6">
