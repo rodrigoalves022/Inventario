@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -8,6 +10,13 @@ const timeoutMs = 120_000
 const tsBuildInfoFile = join(process.cwd(), 'tsconfig.tsbuildinfo')
 if (existsSync(tsBuildInfoFile)) {
   unlinkSync(tsBuildInfoFile)
+}
+
+const generatedTypesDir = join(process.cwd(), '.next', 'types')
+const generatedRoutesFile = join(generatedTypesDir, 'routes.d.ts')
+if (!existsSync(generatedRoutesFile)) {
+  mkdirSync(generatedTypesDir, { recursive: true })
+  writeFileSync(generatedRoutesFile, 'export {}\n', 'utf8')
 }
 
 const tscBin = join(process.cwd(), 'node_modules', 'typescript', 'bin', 'tsc')
