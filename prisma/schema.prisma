@@ -42,6 +42,7 @@ model AgentAuth {
   revokedAt   DateTime?
 
   device      Device?
+  checkLogs   AgentCheckLog[]
 
   @@index([clientId])
   @@index([apiKeyHash])
@@ -69,6 +70,7 @@ model Device {
   disks       Disk[]
   software    Software[]
   logs        CollectionLog[]
+  checkLogs   AgentCheckLog[]
 
   @@index([hostname])
   @@index([status])
@@ -154,6 +156,23 @@ model CollectionLog {
   @@index([deviceId])
   @@index([coletadoEm])
   @@map("collection_logs")
+}
+
+model AgentCheckLog {
+  id          String    @id @default(cuid())
+  agentAuthId String
+  agentAuth   AgentAuth @relation(fields: [agentAuthId], references: [id], onDelete: Cascade)
+  deviceId    String?
+  device      Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  ipOrigem    String?
+  status      String
+  detailsJson String?
+  createdAt   DateTime  @default(now())
+
+  @@index([agentAuthId])
+  @@index([deviceId])
+  @@index([createdAt])
+  @@map("agent_check_logs")
 }
 
 model AuditLog {

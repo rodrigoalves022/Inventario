@@ -4,56 +4,9 @@ import { validateAgentApiKey, authErrorResponse } from '@/lib/auth'
 import { getCurrentServerUrl } from '@/lib/server-url'
 import { deriveInventoryIssues, getWarningTransitionIssues } from '@/lib/inventory-alerts'
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
-import { z } from 'zod'
+import { agentCheckinSchema } from '@/lib/schemas/agent-checkin'
 
-const networkSchema = z.object({
-  ip: z.string().max(100).optional().nullable(),
-  mac: z.string().max(100).optional().nullable(),
-  gateway: z.string().max(100).optional().nullable(),
-  dns: z.string().max(255).optional().nullable(),
-  dhcp: z.boolean().optional().nullable(),
-  isPrimary: z.boolean().optional().nullable(),
-})
-
-const diskSchema = z.object({
-  unidade: z.string().max(20).optional().nullable(),
-  modelo: z.string().max(255).optional().nullable(),
-  tipo: z.string().max(50).optional().nullable(),
-  capacidadeGb: z.number().int().optional().nullable(),
-  espacoLivreGb: z.number().int().optional().nullable(),
-})
-
-const softwareSchema = z.object({
-  nome: z.string().min(1).max(255),
-  versao: z.string().max(255).optional().nullable(),
-  editor: z.string().max(255).optional().nullable(),
-  installadoEm: z.string().max(100).optional().nullable(),
-})
-
-const checkinSchema = z.object({
-  hostname: z.string().min(1, 'hostname é obrigatório').max(255),
-  agentVersion: z.string().max(50).optional().nullable(),
-  serial: z.string().max(255).optional().nullable(),
-  fabricante: z.string().max(255).optional().nullable(),
-  modelo: z.string().max(255).optional().nullable(),
-  dominio: z.string().max(255).optional().nullable(),
-  usuario: z.string().max(255).optional().nullable(),
-
-  sistema: z.string().max(255).optional().nullable(),
-  versaoSO: z.string().max(255).optional().nullable(),
-  processador: z.string().max(255).optional().nullable(),
-  ramTotalGb: z.number().int().optional().nullable(),
-  slot1: z.string().max(255).optional().nullable(),
-  slot2: z.string().max(255).optional().nullable(),
-  slot3: z.string().max(255).optional().nullable(),
-  slot4: z.string().max(255).optional().nullable(),
-  placaMae: z.string().max(255).optional().nullable(),
-  tipoArmazenamento: z.string().max(255).optional().nullable(),
-
-  redes: z.array(networkSchema).max(20).optional().default([]),
-  discos: z.array(diskSchema).max(20).optional().default([]),
-  software: z.array(softwareSchema).max(300).optional().default([]),
-})
+const checkinSchema = agentCheckinSchema
 
 export async function POST(req: NextRequest) {
   const auth = await validateAgentApiKey(req)
@@ -62,10 +15,38 @@ export async function POST(req: NextRequest) {
   const ipOrigem = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'desconhecido'
 
   try {
-    const rawBody = await req.json()
+    const rawBody = await req.json().catch(() => null)
+
+    if (!rawBody) {
+      void prisma.agentCheckLog
+        .create({
+          data: {
+            agentAuthId: auth.agentAuth.id,
+            deviceId: null,
+            ipOrigem,
+            status: 'invalid_json',
+            detailsJson: null,
+          },
+        })
+        .catch(() => null)
+
+      return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 })
+    }
     const parsed = checkinSchema.safeParse(rawBody)
 
     if (!parsed.success) {
+      void prisma.agentCheckLog
+        .create({
+          data: {
+            agentAuthId: auth.agentAuth.id,
+            deviceId: null,
+            ipOrigem,
+            status: 'invalid_payload',
+            detailsJson: JSON.stringify(parsed.error.format()).slice(0, 20_000),
+          },
+        })
+        .catch(() => null)
+
       return NextResponse.json(
         { error: 'Payload inválido ou excede o limite de recursos.', details: parsed.error.format() },
         { status: 400 }
