@@ -3,9 +3,12 @@
 import { signIn } from "@/auth"
 import { AuthError } from "next-auth"
 
-export async function loginUser(prevState: any, formData: FormData) {
+type LoginState = { error: string } | null
+
+export async function loginUser(_prevState: LoginState, formData: FormData): Promise<LoginState> {
   try {
     await signIn("credentials", formData)
+    return null
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {

@@ -10,9 +10,7 @@ export default async function DashboardRedirectPage() {
     redirect('/login')
   }
 
-  // @ts-ignore
   const role = session.user.role
-  // @ts-ignore
   const clientId = session.user.clientId
 
   console.log(`[DashboardRedirect] User: ${session.user.email}, Role: ${role}, ClientId: ${clientId}`)

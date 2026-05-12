@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
-import { generateEnrollmentKey, hasValidAdminSecret } from '@/lib/auth'
+import { auth } from '@/auth'
+import { generateEnrollmentKey } from '@/lib/auth'
 import { slugifyClientName } from '@/lib/clients'
 import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
+import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
 
 const createClientSchema = z.object({
   name: z.string().trim().min(3, 'O campo "name" é obrigatório (mínimo 3 caracteres).'),
@@ -33,7 +35,8 @@ async function persistActiveProvisioningKey(
 }
 
 export async function GET(req: NextRequest) {
-  if (!hasValidAdminSecret(req)) return unauthorized()
+  const session = await auth()
+  if (!canAccessGlobalAdmin(getSessionPermissionUser(session))) return unauthorized()
 
   const clients = await prisma.client.findMany({
     orderBy: { name: 'asc' },
@@ -55,7 +58,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!hasValidAdminSecret(req)) return unauthorized()
+  const session = await auth()
+  if (!canAccessGlobalAdmin(getSessionPermissionUser(session))) return unauthorized()
 
   try {
     const parsed = createClientSchema.safeParse(await req.json())

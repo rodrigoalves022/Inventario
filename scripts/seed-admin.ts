@@ -22,8 +22,9 @@ async function main() {
     data: {
       email,
       name: "Administrador",
-      password: hashedPassword,
-      role: "admin",
+      passwordHash: hashedPassword,
+      role: "SUPER_ADMIN",
+      clientId: null,
     }
   });
 

@@ -178,9 +178,9 @@ model AuditLog {
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String?   @unique
-  password      String    
-  role          String    @default("USER") // SUPER_ADMIN, ADMIN_TENANT, USER
+  email         String    @unique
+  passwordHash  String
+  role          String    @default("CLIENT_ADMIN") // SUPER_ADMIN, CLIENT_ADMIN
   clientId      String?
   client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())

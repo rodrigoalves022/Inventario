@@ -1,11 +1,18 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { PrismaAdapter } from "@auth/prisma-adapter"
 import prisma from "./lib/prisma"
 import bcrypt from "bcryptjs"
+import type { AppRole } from "@/lib/permissions"
+
+function readAppRole(value: unknown): AppRole | null {
+  return value === 'SUPER_ADMIN' || value === 'CLIENT_ADMIN' ? value : null
+}
+
+function readNullableString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
@@ -19,19 +26,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         try {
-          if (!credentials?.email || !credentials?.password) {
+          const email = typeof credentials?.email === 'string' ? credentials.email : null
+          const password = typeof credentials?.password === 'string' ? credentials.password : null
+
+          if (!email || !password) {
             console.log('[Auth] Missing email or password')
             return null
           }
 
-          console.log(`[Auth] Attempting login for: ${credentials.email}`)
+          console.log(`[Auth] Attempting login for: ${email}`)
 
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email as string }
+            where: { email }
           })
 
           if (!user) {
-            console.log(`[Auth] User not found: ${credentials.email}`)
+            console.log(`[Auth] User not found: ${email}`)
+            return null
+          }
+
+          if (user.role !== 'SUPER_ADMIN' && user.role !== 'CLIENT_ADMIN') {
+            console.error(`[Auth] Invalid role for user ${user.email}: ${user.role}`)
             return null
           }
 
@@ -45,8 +60,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
 
           const passwordsMatch = await bcrypt.compare(
-            credentials.password as string,
-            user.password
+            password,
+            user.passwordHash
           )
 
           if (passwordsMatch) {
@@ -57,13 +72,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               name: user.name, 
               role: user.role,
               clientId: user.clientId,
-              clientSlug: clientSlug
+              clientSlug: clientSlug ?? null
             }
           }
 
           console.log(`[Auth] Password mismatch for: ${user.email}`)
           return null
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[Auth] Authorization error:', error)
           return null
         }
@@ -73,21 +88,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.sub as string
-        // @ts-ignore
-        session.user.role = token.role
-        // @ts-ignore
-        session.user.clientId = token.clientId
-        // @ts-ignore
-        session.user.clientSlug = token.clientSlug
+        const tokenAny = token as Record<string, unknown>
+        session.user.id = token.sub ?? session.user.id
+        session.user.role = readAppRole(tokenAny.role) ?? 'CLIENT_ADMIN'
+        session.user.clientId = readNullableString(tokenAny.clientId) ?? null
+        session.user.clientSlug = readNullableString(tokenAny.clientSlug) ?? null
       }
       return session
     },
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role
-        token.clientId = (user as any).clientId
-        token.clientSlug = (user as any).clientSlug
+        const tokenAny = token as Record<string, unknown>
+        tokenAny.role = user.role
+        tokenAny.clientId = user.clientId
+        tokenAny.clientSlug = user.clientSlug
       }
       return token
     }

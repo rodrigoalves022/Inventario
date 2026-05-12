@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { canAccessGlobalAdmin, canAccessTenant, getPermissionUser } from "@/lib/permissions"
 
 // List of public routes that don't need authentication
-const publicRoutes = ["/login", "/api/agent/checkin", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/collect/windows"]
+const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/collect/windows"]
 
 export default auth((req) => {
   const { nextUrl } = req

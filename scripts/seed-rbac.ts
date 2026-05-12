@@ -13,7 +13,7 @@ async function main() {
     create: {
       email: 'admin@inventario.local',
       name: 'Super Admin',
-      password: password,
+      passwordHash: password,
       role: 'SUPER_ADMIN'
     }
   })
@@ -24,12 +24,12 @@ async function main() {
   if (client) {
     const tenantAdmin = await prisma.user.upsert({
       where: { email: `admin@${client.slug}.local` },
-      update: { role: 'ADMIN_TENANT', clientId: client.id },
+      update: { role: 'CLIENT_ADMIN', clientId: client.id },
       create: {
         email: `admin@${client.slug}.local`,
         name: `Admin ${client.name}`,
-        password: password,
-        role: 'ADMIN_TENANT',
+        passwordHash: password,
+        role: 'CLIENT_ADMIN',
         clientId: client.id
       }
     })

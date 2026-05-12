@@ -1,6 +1,6 @@
 import type { Session } from 'next-auth'
 
-export type AppRole = 'SUPER_ADMIN' | 'ADMIN_TENANT' | 'USER'
+export type AppRole = 'SUPER_ADMIN' | 'CLIENT_ADMIN'
 
 export type PermissionUser = {
   id: string | null
@@ -26,7 +26,7 @@ export function getPermissionUser(
   return {
     id: user?.id ?? null,
     email: user?.email ?? null,
-    role: role === 'SUPER_ADMIN' || role === 'ADMIN_TENANT' || role === 'USER' ? role : null,
+    role: role === 'SUPER_ADMIN' || role === 'CLIENT_ADMIN' ? role : null,
     clientId: user?.clientId ?? null,
     clientSlug: user?.clientSlug ?? null,
   }
@@ -41,11 +41,7 @@ export function isSuperAdmin(user: PermissionUser | null | undefined) {
 }
 
 export function isTenantAdmin(user: PermissionUser | null | undefined) {
-  return user?.role === 'ADMIN_TENANT'
-}
-
-export function isTenantUser(user: PermissionUser | null | undefined) {
-  return user?.role === 'USER'
+  return user?.role === 'CLIENT_ADMIN'
 }
 
 export function canAccessGlobalAdmin(user: PermissionUser | null | undefined) {
