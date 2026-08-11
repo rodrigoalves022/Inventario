@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { MIGRATION_MODELS } from './migration-models.ts'
+
 const prisma = new PrismaClient()
 
 async function main() {
@@ -10,28 +12,14 @@ async function main() {
     fs.mkdirSync(exportDir, { recursive: true })
   }
 
-  const models = [
-    'client',
-    'agentAuth',
-    'device',
-    'hardware',
-    'network',
-    'disk',
-    'software',
-    'collectionLog',
-    'user',
-  ]
-
-  for (const model of models) {
-    console.log(`Exporting ${model}...`)
-    // @ts-ignore
+  for (const model of MIGRATION_MODELS) {
+    // @ts-ignore - acesso dinamico por nome de model
     const data = await prisma[model].findMany()
-    fs.writeFileSync(
-      path.join(exportDir, `${model}.json`),
-      JSON.stringify(data, null, 2)
-    )
-    console.log(`Exported ${data.length} records from ${model}.`)
+    fs.writeFileSync(path.join(exportDir, `${model}.json`), JSON.stringify(data, null, 2))
+    console.log(`${model}: ${data.length} registros exportados`)
   }
+
+  console.log(`\nExport concluido em ${exportDir}`)
 }
 
 main()

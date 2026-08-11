@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: inventario-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-inventario}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventario}
+      POSTGRES_DB: ${POSTGRES_DB:-inventario}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - inventario-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inventario} -d ${POSTGRES_DB:-inventario}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Perfil "app": sobe tambem a aplicacao. Para desenvolvimento local rodando
+  # `npm run dev` na maquina, use apenas `docker compose up -d db`.
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inventario-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-inventario}:${POSTGRES_PASSWORD:-inventario}@db:5432/${POSTGRES_DB:-inventario}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET obrigatorio}
+      ADMIN_SECRET: ${ADMIN_SECRET:?ADMIN_SECRET obrigatorio}
+      INVENTARIO_PROVISIONING_SECRET: ${INVENTARIO_PROVISIONING_SECRET:-}
+      INVENTARIO_SERVER_URL: ${INVENTARIO_SERVER_URL:-}
+      NODE_ENV: production
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+volumes:
+  inventario-pgdata:

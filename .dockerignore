@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env
+.env*.local
+*.log
+*.tmp
+*.tsbuildinfo
+dev.db
+prisma/dev.db
+prisma/export
+agent-go/dist
+agent-go/*.exe
+public/*.exe
+docs
+README.md
