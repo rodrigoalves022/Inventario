@@ -6,6 +6,7 @@ import { generateEnrollmentKey } from '@/lib/auth'
 import { slugifyClientName } from '@/lib/clients'
 import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
+import { resolveOrganizationIdForActor } from '@/lib/organizations'
 
 const createClientSchema = z.object({
   name: z.string().trim().min(3, 'O campo "name" é obrigatório (mínimo 3 caracteres).'),
@@ -78,12 +79,14 @@ export async function POST(req: NextRequest) {
     }
 
     const { plaintext, hash } = await generateEnrollmentKey()
+    const organizationId = await resolveOrganizationIdForActor(getSessionPermissionUser(session))
     const client = await prisma.$transaction(async (tx: TransactionLike) => {
       const createdClient = await tx.client.create({
         data: {
           name: parsed.data.name,
           slug,
           enrollmentKeyHash: hash,
+          organizationId,
         },
       })
 

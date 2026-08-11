@@ -6,37 +6,67 @@ const prisma = new PrismaClient()
 async function main() {
   const password = await bcrypt.hash('admin', 10)
 
-  // 1. Ensure a Super Admin exists
-  const superAdmin = await prisma.user.upsert({
+  // 1. Admin da plataforma (sem organizacao — escopo global)
+  const platformAdmin = await prisma.user.upsert({
     where: { email: 'admin@inventario.local' },
-    update: { role: 'SUPER_ADMIN' },
+    update: { role: 'PLATFORM_ADMIN' },
     create: {
       email: 'admin@inventario.local',
-      name: 'Super Admin',
+      name: 'Platform Admin',
       passwordHash: password,
-      role: 'SUPER_ADMIN'
+      role: 'PLATFORM_ADMIN'
     }
   })
-  console.log('Super Admin ensured:', superAdmin.email)
+  console.log('Platform Admin:', platformAdmin.email)
 
-  // 2. Find a client to link to a Tenant Admin
-  const client = await prisma.client.findFirst()
-  if (client) {
-    const tenantAdmin = await prisma.user.upsert({
-      where: { email: `admin@${client.slug}.local` },
-      update: { role: 'CLIENT_ADMIN', clientId: client.id },
-      create: {
-        email: `admin@${client.slug}.local`,
-        name: `Admin ${client.name}`,
-        passwordHash: password,
-        role: 'CLIENT_ADMIN',
-        clientId: client.id
-      }
-    })
-    console.log(`Tenant Admin ensured for ${client.name}:`, tenantAdmin.email)
-  } else {
-    console.log('No clients found to create a Tenant Admin.')
+  // 2. Admin e operador da organizacao dona do primeiro cliente
+  const client = await prisma.client.findFirst({ select: { id: true, slug: true, name: true, organizationId: true } })
+  if (!client) {
+    console.log('Nenhum cliente encontrado — sem usuarios de organizacao para criar.')
+    return
   }
+
+  const orgAdmin = await prisma.user.upsert({
+    where: { email: `admin@${client.slug}.local` },
+    update: { role: 'ORG_ADMIN', clientId: client.id, organizationId: client.organizationId },
+    create: {
+      email: `admin@${client.slug}.local`,
+      name: `Admin ${client.name}`,
+      passwordHash: password,
+      role: 'ORG_ADMIN',
+      clientId: client.id,
+      organizationId: client.organizationId
+    }
+  })
+  console.log('Org Admin:', orgAdmin.email)
+
+  const orgOperator = await prisma.user.upsert({
+    where: { email: `operador@${client.slug}.local` },
+    update: { role: 'ORG_OPERATOR', clientId: client.id, organizationId: client.organizationId },
+    create: {
+      email: `operador@${client.slug}.local`,
+      name: `Operador ${client.name}`,
+      passwordHash: password,
+      role: 'ORG_OPERATOR',
+      clientId: client.id,
+      organizationId: client.organizationId
+    }
+  })
+  console.log('Org Operator:', orgOperator.email)
+
+  const clientViewer = await prisma.user.upsert({
+    where: { email: `portal@${client.slug}.local` },
+    update: { role: 'CLIENT_VIEWER', clientId: client.id, organizationId: client.organizationId },
+    create: {
+      email: `portal@${client.slug}.local`,
+      name: `Portal ${client.name}`,
+      passwordHash: password,
+      role: 'CLIENT_VIEWER',
+      clientId: client.id,
+      organizationId: client.organizationId
+    }
+  })
+  console.log('Client Viewer:', clientViewer.email)
 }
 
 main()

@@ -1,8 +1,15 @@
-import { headers } from 'next/headers'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Plus } from 'lucide-react'
 import { Sidebar, Header } from '@/components/sidebar'
+import { Button } from '@/components/ui/button'
 import { auth } from '@/auth'
-import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
+import {
+  getSessionPermissionUser,
+  isOrgAdmin,
+  isPlatformAdmin,
+  type PermissionUser,
+} from '@/lib/permissions'
 import prisma from '@/lib/prisma'
 import { getCurrentServerUrl } from '@/lib/server-url'
 import {
@@ -12,8 +19,11 @@ import {
 import { ClientsPanel } from './clients-panel'
 import { type ProvisioningActionState } from './types'
 
-async function getClients() {
+async function getClients(user: PermissionUser) {
   const clients = await prisma.client.findMany({
+    // PLATFORM_ADMIN ve todas as contas; qualquer outro papel fica restrito
+    // a propria organizacao. Sem este filtro, um ORG_ADMIN veria clientes alheios.
+    where: isPlatformAdmin(user) ? undefined : { organizationId: user.organizationId ?? '__sem_organizacao__' },
     orderBy: { name: 'asc' },
     select: {
       id: true,
@@ -41,17 +51,18 @@ async function getClients() {
 
 async function requireClientsAdminAccess() {
   const session = await auth()
-  if (!canAccessGlobalAdmin(getSessionPermissionUser(session))) {
+  const user = getSessionPermissionUser(session)
+
+  if (!isPlatformAdmin(user) && !isOrgAdmin(user)) {
     notFound()
   }
 
-  return session
+  return { session, user }
 }
 
 export default async function ClientsPage() {
-  const session = await requireClientsAdminAccess()
-  const [clients, serverUrl] = await Promise.all([getClients(), getCurrentServerUrl()])
-  const user = getSessionPermissionUser(session)
+  const { session, user } = await requireClientsAdminAccess()
+  const [clients, serverUrl] = await Promise.all([getClients(user), getCurrentServerUrl()])
 
   async function createClientAction(state: ProvisioningActionState, formData: FormData) {
     'use server'
@@ -65,16 +76,24 @@ export default async function ClientsPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar userRole={user.role} />
+      <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
       <div className="flex-1 pl-64">
         <Header />
         <main className="p-6">
           <div className="space-y-6">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Clientes</h1>
-              <p className="text-muted-foreground">
-                Cadastre empresas, gere instaladores e gerencie os agentes de cada cliente.
-              </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Clientes</h1>
+                <p className="text-muted-foreground">
+                  Cadastre empresas, gere instaladores e gerencie os agentes de cada cliente.
+                </p>
+              </div>
+              <Button asChild className="gap-2">
+                <Link href="/clients/novo">
+                  <Plus className="h-4 w-4" />
+                  Novo cliente
+                </Link>
+              </Button>
             </div>
 
             <ClientsPanel

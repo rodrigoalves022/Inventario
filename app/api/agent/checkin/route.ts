@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { validateAgentApiKey, authErrorResponse } from '@/lib/auth'
 import { getCurrentServerUrl } from '@/lib/server-url'
+import { getAgentBinarySha256 } from '@/lib/agent-binary'
 import { deriveInventoryIssues, getWarningTransitionIssues } from '@/lib/inventory-alerts'
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 import { agentCheckinSchema } from '@/lib/schemas/agent-checkin'
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
       create: {
         hostname,
         agentAuthId: auth.agentAuth.id,
+        clientId: auth.agentAuth.clientId,
         serial: body.serial,
         fabricante: body.fabricante,
         modelo: body.modelo,
@@ -87,6 +89,9 @@ export async function POST(req: NextRequest) {
       },
       update: {
         hostname,
+        // Reafirma o vinculo desnormalizado: se o agente for movido de cliente,
+        // o Device acompanha em vez de ficar com o tenant antigo.
+        clientId: auth.agentAuth.clientId,
         serial: body.serial,
         fabricante: body.fabricante,
         modelo: body.modelo,
@@ -216,6 +221,7 @@ export async function POST(req: NextRequest) {
     const LATEST_AGENT_VERSION = "1.0.0"
     const isOutdated = body.agentVersion && body.agentVersion !== LATEST_AGENT_VERSION
     const serverUrl = await getCurrentServerUrl()
+    const binarySha256 = isOutdated ? await getAgentBinarySha256() : null
 
     return NextResponse.json(
       {
@@ -224,7 +230,8 @@ export async function POST(req: NextRequest) {
         updateAvailable: isOutdated,
         updateMetadata: isOutdated ? {
             version: LATEST_AGENT_VERSION,
-            url: `${serverUrl}/inventario-agent.exe`
+            url: `${serverUrl}/inventario-agent.exe`,
+            sha256: binarySha256,
         } : null,
         client: auth.agentAuth.clientSlug
           ? {

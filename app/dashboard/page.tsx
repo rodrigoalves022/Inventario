@@ -2,34 +2,53 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 
+/**
+ * Ponto de entrada pos-login: encaminha cada papel para a sua superficie.
+ * PLATFORM_ADMIN -> administracao global
+ * ORG_ADMIN / ORG_OPERATOR -> primeiro cliente da propria organizacao
+ * CLIENT_VIEWER -> apenas o proprio cliente
+ */
 export default async function DashboardRedirectPage() {
   const session = await auth()
+  const isDev = process.env.NODE_ENV !== 'production'
 
   if (!session?.user) {
-    console.log('[DashboardRedirect] No session found, redirecting to /login')
     redirect('/login')
   }
 
-  const role = session.user.role
-  const clientId = session.user.clientId
+  const { role, organizationId, clientId } = session.user
 
-  console.log(`[DashboardRedirect] User: ${session.user.email}, Role: ${role}, ClientId: ${clientId}`)
+  if (isDev) console.log(`[DashboardRedirect] Role: ${role}, Org: ${organizationId}, Client: ${clientId}`)
 
-  if (role === 'SUPER_ADMIN') {
-    console.log('[DashboardRedirect] Super Admin detected, redirecting to /clients')
+  if (role === 'PLATFORM_ADMIN') {
     redirect('/clients')
   }
 
-  if (!clientId) {
-    // Se não tem clientId e não é SUPER_ADMIN, algo está errado ou é um admin tenant sem vínculo
-    // Por enquanto, manda para a home ou exibe erro
+  if (role === 'CLIENT_VIEWER') {
+    if (!clientId) redirect('/login?error=no-tenant')
+
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { slug: true },
+    })
+
+    if (!client) redirect('/login?error=tenant-not-found')
+    redirect(`/tenant/${client.slug}`)
+  }
+
+  // ORG_ADMIN / ORG_OPERATOR: entram pelo cliente vinculado; se a conta tiver
+  // varios clientes e nenhum vinculo direto, cai no primeiro da organizacao.
+  if (!organizationId && !clientId) {
     redirect('/login?error=no-tenant')
   }
 
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { slug: true }
-  })
+  const client = clientId
+    ? await prisma.client.findUnique({ where: { id: clientId }, select: { slug: true } })
+    : await prisma.client.findFirst({
+        where: { organizationId: organizationId as string, isActive: true },
+        orderBy: { name: 'asc' },
+        select: { slug: true },
+      })
 
   if (!client) {
     redirect('/login?error=tenant-not-found')

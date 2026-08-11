@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 
-type AuditDb = Pick<typeof prisma, '$executeRaw'>
+type AuditDb = Pick<typeof prisma, 'auditLog'>
 
 export type AuditActor = {
   userId?: string | null
@@ -51,34 +51,26 @@ function toJson(value: AuditLogInput['metadata']) {
   return JSON.stringify(value)
 }
 
+/**
+ * Usa o client tipado (não `$executeRaw`): `audit_logs.id` não tem default no banco,
+ * o cuid é gerado pelo Prisma na aplicação. Um INSERT cru sem `id` viola NOT NULL.
+ */
 export async function recordAuditLog(
   input: AuditLogInput,
   db: AuditDb = prisma
 ) {
-  await db.$executeRaw`
-    INSERT INTO "audit_logs" (
-      "actorUserId",
-      "actorEmail",
-      "actorRole",
-      "clientId",
-      "action",
-      "targetType",
-      "targetId",
-      "metadataJson",
-      "createdAt"
-    )
-    VALUES (
-      ${input.actor?.userId ?? null},
-      ${input.actor?.email ?? null},
-      ${input.actor?.role ?? null},
-      ${input.clientId ?? input.actor?.clientId ?? null},
-      ${input.action},
-      ${input.targetType},
-      ${input.targetId ?? null},
-      ${toJson(input.metadata)},
-      ${new Date()}
-    )
-  `
+  await db.auditLog.create({
+    data: {
+      actorUserId: input.actor?.userId ?? null,
+      actorEmail: input.actor?.email ?? null,
+      actorRole: input.actor?.role ?? null,
+      clientId: input.clientId ?? input.actor?.clientId ?? null,
+      action: input.action,
+      targetType: input.targetType,
+      targetId: input.targetId ?? null,
+      metadataJson: toJson(input.metadata),
+    },
+  })
 }
 
 export function getSessionAuditActor(

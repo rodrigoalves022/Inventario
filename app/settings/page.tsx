@@ -38,7 +38,7 @@ export default function SettingsPageClient() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar userRole={userRole} />
+      <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: userRole }} />
       <div className="flex-1 pl-64">
         <Header />
         <main className="p-6">

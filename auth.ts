@@ -2,21 +2,12 @@ import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import prisma from "./lib/prisma"
 import bcrypt from "bcryptjs"
-import type { AppRole } from "@/lib/permissions"
-
-function readAppRole(value: unknown): AppRole | null {
-  return value === 'SUPER_ADMIN' || value === 'CLIENT_ADMIN' ? value : null
-}
-
-function readNullableString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
+import { authConfig } from "./auth.config"
+import { recordAuditLog } from "./lib/audit-log"
+import { isAppRole } from "./lib/permissions"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -25,28 +16,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        const isDev = process.env.NODE_ENV !== 'production'
         try {
           const email = typeof credentials?.email === 'string' ? credentials.email : null
           const password = typeof credentials?.password === 'string' ? credentials.password : null
 
           if (!email || !password) {
-            console.log('[Auth] Missing email or password')
+            if (isDev) console.log('[Auth] Missing email or password')
             return null
           }
 
-          console.log(`[Auth] Attempting login for: ${email}`)
+          if (isDev) console.log(`[Auth] Attempting login for: ${email}`)
 
           const user = await prisma.user.findUnique({
             where: { email }
           })
 
           if (!user) {
-            console.log(`[Auth] User not found: ${email}`)
+            if (isDev) console.log(`[Auth] User not found: ${email}`)
             return null
           }
 
-          if (user.role !== 'SUPER_ADMIN' && user.role !== 'CLIENT_ADMIN') {
-            console.error(`[Auth] Invalid role for user ${user.email}: ${user.role}`)
+          if (!isAppRole(user.role)) {
+            if (isDev) console.error(`[Auth] Invalid role for user ${user.email}: ${user.role}`)
+            return null
+          }
+
+          if (!user.isActive) {
+            if (isDev) console.log(`[Auth] Inactive user: ${user.email}`)
             return null
           }
 
@@ -65,18 +62,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           )
 
           if (passwordsMatch) {
-            console.log(`[Auth] Login successful: ${user.email}, Role: ${user.role}`)
-            return { 
-              id: user.id, 
-              email: user.email, 
-              name: user.name, 
+            if (isDev) console.log(`[Auth] Login successful: ${user.email}, Role: ${user.role}`)
+            // Auditoria nao pode bloquear autenticacao: falha de log e registrada, nao propagada.
+            await recordAuditLog({
+              action: 'login',
+              targetType: 'user',
+              targetId: user.id,
+              clientId: user.clientId,
+              actor: { userId: user.id, email: user.email, role: user.role, clientId: user.clientId },
+            }).catch((error) => console.error('[Auth] Falha ao registrar auditoria de login:', error))
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
               role: user.role,
+              organizationId: user.organizationId,
               clientId: user.clientId,
               clientSlug: clientSlug ?? null
             }
           }
 
-          console.log(`[Auth] Password mismatch for: ${user.email}`)
+          if (isDev) console.log(`[Auth] Password mismatch for: ${user.email}`)
           return null
         } catch (error: unknown) {
           console.error('[Auth] Authorization error:', error)
@@ -85,25 +91,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
     })
   ],
-  callbacks: {
-    async session({ session, token }) {
-      if (token && session.user) {
-        const tokenAny = token as Record<string, unknown>
-        session.user.id = token.sub ?? session.user.id
-        session.user.role = readAppRole(tokenAny.role) ?? 'CLIENT_ADMIN'
-        session.user.clientId = readNullableString(tokenAny.clientId) ?? null
-        session.user.clientSlug = readNullableString(tokenAny.clientSlug) ?? null
-      }
-      return session
+  events: {
+    async signOut(message) {
+      if (!('token' in message) || !message.token) return
+      const token = message.token as Record<string, unknown>
+      await recordAuditLog({
+        action: 'logout',
+        targetType: 'user',
+        targetId: typeof token.sub === 'string' ? token.sub : null,
+        clientId: typeof token.clientId === 'string' ? token.clientId : null,
+        actor: {
+          userId: typeof token.sub === 'string' ? token.sub : null,
+          email: typeof token.email === 'string' ? token.email : null,
+          role: typeof token.role === 'string' ? token.role : null,
+          clientId: typeof token.clientId === 'string' ? token.clientId : null,
+        },
+      }).catch((error) => console.error('[Auth] Falha ao registrar auditoria de logout:', error))
     },
-    async jwt({ token, user }) {
-      if (user) {
-        const tokenAny = token as Record<string, unknown>
-        tokenAny.role = user.role
-        tokenAny.clientId = user.clientId
-        tokenAny.clientSlug = user.clientSlug
-      }
-      return token
-    }
-  }
+  },
 })

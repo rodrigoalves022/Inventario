@@ -7,8 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Conta contratante. Em MSP, possui varios Clients; em DIRECT, possui exatamente um
+/// (a propria empresa). Manter o Client sempre presente garante um unico caminho de
+/// escopo para todo o inventario, sem ramificacao por tipo de conta.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  type      String   @default("DIRECT") // MSP | DIRECT
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients   Client[]
+  users     User[]
+
+  @@map("organizations")
+}
+
 model Client {
   id                        String      @id @default(cuid())
+  organizationId            String
+  organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name                      String
   slug                      String      @unique
   enrollmentKeyHash         String      @unique
@@ -28,6 +48,7 @@ model Client {
   users                     User[]
 
   @@index([name])
+  @@index([organizationId])
   @@map("clients")
 }
 
@@ -43,6 +64,7 @@ model AgentAuth {
 
   device      Device?
   checkLogs   AgentCheckLog[]
+  commands    AgentCommand[]
 
   @@index([clientId])
   @@index([apiKeyHash])
@@ -53,6 +75,11 @@ model Device {
   id          String    @id @default(cuid())
   agentAuthId String    @unique
   agentAuth   AgentAuth @relation(fields: [agentAuthId], references: [id], onDelete: Cascade)
+
+  /// Desnormalizado a partir de agentAuth.clientId no check-in. Evita JOIN em toda
+  /// consulta de tenant e reduz o risco de vazamento por JOIN esquecido.
+  /// Nulo apenas para agentes legados registrados sem cliente.
+  clientId    String?
 
   hostname    String
   serial      String?
@@ -74,6 +101,7 @@ model Device {
 
   @@index([hostname])
   @@index([status])
+  @@index([clientId])
   @@map("devices")
 }
 
@@ -194,17 +222,49 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model AgentCommand {
+  id                 String    @id @default(cuid())
+  agentAuthId        String
+  agentAuth          AgentAuth @relation(fields: [agentAuthId], references: [id], onDelete: Cascade)
+  clientId           String
+
+  type               String    // "collect_now" | "restart_service" | "run_script"
+  paramsJson         String?
+  scriptId           String?   // referência a script pré-aprovado (catálogo), não texto livre
+
+  status             String    @default("pending") // pending, running, done, failed, expired
+  resultJson         String?
+
+  requestedByUserId  String?
+  createdAt          DateTime  @default(now())
+  expiresAt          DateTime
+  startedAt          DateTime?
+  completedAt        DateTime?
+
+  @@index([agentAuthId, status])
+  @@index([clientId, createdAt])
+  @@map("agent_commands")
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
   email         String    @unique
   passwordHash  String
-  role          String    @default("CLIENT_ADMIN") // SUPER_ADMIN, CLIENT_ADMIN
+  /// PLATFORM_ADMIN (global) | ORG_ADMIN | ORG_OPERATOR (escopo Organization)
+  /// | CLIENT_VIEWER (escopo Client, portal somente leitura)
+  role          String    @default("ORG_ADMIN")
+  /// Escopo do usuario. PLATFORM_ADMIN nao tem nenhum dos dois;
+  /// ORG_* tem organizationId; CLIENT_VIEWER tem ambos.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   clientId      String?
   client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([clientId])
+  @@index([organizationId])
   @@map("users")
 }

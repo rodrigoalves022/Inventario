@@ -70,7 +70,7 @@ export default async function TenantComputersPage({ params }: PageProps<'/tenant
       }
     })
 
-  const canManageAlerts = canManageTenantAlerts(getSessionPermissionUser(session), tenantSlug)
+  const canManageAlerts = canManageTenantAlerts(getSessionPermissionUser(session), tenant)
 
   return (
     <div className="space-y-6">

@@ -19,7 +19,7 @@ export default async function SecurityPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar userRole={user.role} />
+      <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
       <div className="flex-1 pl-64">
         <Header />
         <main className="p-6">

@@ -10,13 +10,17 @@ import (
 	"time"
 
 	"inventario-agent/internal/app/checkin"
+	"inventario-agent/internal/app/commands"
 	"inventario-agent/internal/config"
+	"inventario-agent/internal/transport/httpapi"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 )
+
+const commandPollInterval = 90 * time.Second
 
 const ServiceName = "InventarioAgent"
 const ServiceDisplayName = "Inventario Enterprise Agent"
@@ -43,15 +47,27 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 	log.Printf("[INFO] Agente iniciado. Servidor: %s", cfg.ServerURL)
 	runCollection(cfg)
 
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
+	commandClient, err := httpapi.NewClient(cfg.ServerURL, cfg.APIKey)
+	if err != nil {
+		log.Printf("[ERROR] Falha ao criar cliente de comandos: %v", err)
+	}
+
+	collectionTicker := time.NewTicker(1 * time.Hour)
+	defer collectionTicker.Stop()
+
+	commandTicker := time.NewTicker(commandPollInterval)
+	defer commandTicker.Stop()
 
 	status <- svc.Status{State: svc.Running, Accepts: acceptedCommands}
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-collectionTicker.C:
 			runCollection(cfg)
+		case <-commandTicker.C:
+			if commandClient != nil {
+				commands.PollAndExecute(commandClient, cfg)
+			}
 		case change := <-requests:
 			switch change.Cmd {
 			case svc.Stop, svc.Shutdown:

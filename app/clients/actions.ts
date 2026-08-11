@@ -6,7 +6,8 @@ import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { generateEnrollmentKey } from '@/lib/auth'
 import { slugifyClientName } from '@/lib/clients'
-import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
+import { getSessionPermissionUser, isOrgAdmin, isPlatformAdmin } from '@/lib/permissions'
+import { resolveOrganizationIdForActor } from '@/lib/organizations'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
 import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { type ProvisioningActionState } from './types'
@@ -34,9 +35,12 @@ function rejectUnauthorizedAccess(): ProvisioningActionState {
   }
 }
 
+// Gerir clientes e atribuicao de administrador: PLATFORM_ADMIN em qualquer conta,
+// ORG_ADMIN apenas dentro da propria (o organizationId vem sempre do ator, nunca do form).
 async function hasClientsAdminAccess() {
   const session = await auth()
-  return canAccessGlobalAdmin(getSessionPermissionUser(session))
+  const user = getSessionPermissionUser(session)
+  return isPlatformAdmin(user) || isOrgAdmin(user)
 }
 
 type TransactionLike = {
@@ -128,12 +132,14 @@ export async function createClientAction(
     }
 
     const { plaintext, hash } = await generateEnrollmentKey()
+    const organizationId = await resolveOrganizationIdForActor(getSessionPermissionUser(await auth()))
     const client = await prisma.$transaction(async (tx: TransactionLike) => {
       const createdClient = await tx.client.create({
         data: {
           name: parsed.data.name,
           slug,
           enrollmentKeyHash: hash,
+          organizationId,
         },
       })
 

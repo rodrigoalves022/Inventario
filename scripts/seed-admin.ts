@@ -23,7 +23,7 @@ async function main() {
       email,
       name: "Administrador",
       passwordHash: hashedPassword,
-      role: "SUPER_ADMIN",
+      role: "PLATFORM_ADMIN",
       clientId: null,
     }
   });

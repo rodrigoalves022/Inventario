@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { auth } from '@/auth'
 import { normalizeAlertSettings } from '@/lib/inventory-alerts'
 import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
+import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantAlertSettingsBySlug, updateTenantAlertSettings } from '@/lib/tenant-alert-settings'
 
 export type AlertSettingsActionState = {
@@ -63,7 +64,8 @@ export async function saveTenantAlertSettingsAction(
     }
   }
 
-  if (!canManageTenantAlerts(getSessionPermissionUser(session), parsed.data.tenantSlug)) {
+  const tenant = await getTenantContext(parsed.data.tenantSlug)
+  if (!tenant || !canManageTenantAlerts(getSessionPermissionUser(session), tenant)) {
     return { status: 'error', message: 'Você não pode alterar alertas deste tenant.' }
   }
 

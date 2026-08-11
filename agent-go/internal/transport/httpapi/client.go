@@ -140,6 +140,77 @@ func Register(options RegisterOptions) (*RegisterResult, error) {
 	return &result, nil
 }
 
+type PendingCommand struct {
+	ID     string          `json:"id"`
+	Type   string          `json:"type"`
+	Params json.RawMessage `json:"params"`
+}
+
+type CommandResult struct {
+	Status       string `json:"status"` // "done" | "failed"
+	Output       string `json:"output,omitempty"`
+	ErrorMessage string `json:"errorMessage,omitempty"`
+}
+
+// PollCommand pergunta ao servidor se ha comando pendente para este agente.
+// Retorna nil, nil quando nao ha nada na fila - nao e erro.
+func (c *Client) PollCommand() (*PendingCommand, error) {
+	req, err := http.NewRequest("GET", c.ServerURL+"/api/agent/commands/pending", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-Key", c.APIKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, &authError{code: resp.StatusCode}
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("servidor retornou %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Command *PendingCommand `json:"command"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result.Command, nil
+}
+
+// ReportCommandResult envia o resultado de execucao de volta ao servidor.
+func (c *Client) ReportCommandResult(commandID string, result CommandResult) error {
+	body, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", c.ServerURL+"/api/agent/commands/"+commandID+"/result", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", c.APIKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTP: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("servidor retornou %d ao reportar resultado: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 func (c *Client) doRequest(body []byte) error {
 	req, err := http.NewRequest("POST", c.ServerURL+"/api/agent/checkin", bytes.NewReader(body))
 	if err != nil {
@@ -169,21 +240,26 @@ func (c *Client) doRequest(body []byte) error {
 		UpdateMetadata  *struct {
 			Version string `json:"version"`
 			URL     string `json:"url"`
+			SHA256  string `json:"sha256"`
 		} `json:"updateMetadata"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
 		if result.UpdateAvailable && result.UpdateMetadata != nil {
-			log.Printf("[INFO] Atualizacao detectada (v%s). Acionando Updater...", result.UpdateMetadata.Version)
-			go triggerAutoUpdate(result.UpdateMetadata.URL)
+			if result.UpdateMetadata.SHA256 == "" {
+				log.Printf("[WARN] Atualizacao (v%s) sem hash SHA-256 no payload do servidor - update abortado por seguranca.", result.UpdateMetadata.Version)
+			} else {
+				log.Printf("[INFO] Atualizacao detectada (v%s). Acionando Updater...", result.UpdateMetadata.Version)
+				go triggerAutoUpdate(result.UpdateMetadata.URL, result.UpdateMetadata.SHA256)
+			}
 		}
 	}
 
 	return nil
 }
 
-func triggerAutoUpdate(downloadUrl string) {
-	updater.RunAsync(downloadUrl)
+func triggerAutoUpdate(downloadUrl, expectedSHA256 string) {
+	updater.RunAsync(downloadUrl, expectedSHA256)
 }
 
 type authError struct {

@@ -1,9 +1,14 @@
-import { auth } from "@/auth"
+import NextAuth from "next-auth"
 import { NextResponse } from "next/server"
-import { canAccessGlobalAdmin, canAccessTenant, getPermissionUser } from "@/lib/permissions"
+import { authConfig } from "@/auth.config"
+import { canAccessGlobalAdmin, canPossiblyAccessTenantSlug, getPermissionUser } from "@/lib/permissions"
+
+// Instância edge-safe: usa só authConfig (sem CredentialsProvider/bcryptjs),
+// evitando puxar módulos Node-only pro bundle do middleware (Edge Runtime).
+const { auth } = NextAuth(authConfig)
 
 // List of public routes that don't need authentication
-const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/collect/windows"]
+const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/agent/commands", "/api/collect/windows"]
 
 export default auth((req) => {
   const { nextUrl } = req
@@ -24,15 +29,16 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", nextUrl))
   }
 
-  // Tenant Isolation logic
+  // Portao GROSSEIRO de tenant. O middleware roda no Edge e nao tem banco, entao
+  // nao consegue saber qual Organization e dona do slug. A autorizacao definitiva
+  // acontece em `requireTenantContext`, chamado por toda pagina de tenant.
   if (isAuthenticated && nextUrl.pathname.startsWith("/tenant/")) {
     const segments = nextUrl.pathname.split("/")
     const targetSlug = segments[2] // /tenant/[targetSlug]/...
     const user = getPermissionUser(session?.user)
 
-    // Only allow access if SUPER_ADMIN or if slugs match
-    if (!canAccessTenant(user, targetSlug)) {
-      console.warn(`Unauthorized tenant access attempt: User ${session?.user?.email} (${user.clientSlug}) tried to access ${targetSlug}`)
+    if (!canPossiblyAccessTenantSlug(user, targetSlug)) {
+      console.warn(`Unauthorized tenant access attempt: User ${session?.user?.email} tried to access ${targetSlug}`)
       return NextResponse.redirect(new URL("/dashboard", nextUrl))
     }
   }

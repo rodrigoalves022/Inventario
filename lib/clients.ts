@@ -1,4 +1,5 @@
 import prisma from './prisma'
+import { ensureDefaultOrganization } from './organizations'
 
 const LEGACY_CLIENT_NAME = 'Legacy Default'
 const LEGACY_CLIENT_SLUG = 'legacy-default'
@@ -41,11 +42,14 @@ export async function ensureLegacyClient(enrollmentKeyHash: string) {
     return existing
   }
 
+  const organization = await ensureDefaultOrganization()
+
   return prisma.client.create({
     data: {
       name: LEGACY_CLIENT_NAME,
       slug: LEGACY_CLIENT_SLUG,
       enrollmentKeyHash,
+      organizationId: organization.id,
     },
   })
 }

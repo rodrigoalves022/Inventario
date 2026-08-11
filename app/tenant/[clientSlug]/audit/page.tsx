@@ -47,7 +47,7 @@ export default async function TenantAuditPage({
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const session = await auth()
-  const canViewAudit = canViewTenantAudit(getSessionPermissionUser(session), tenant.slug)
+  const canViewAudit = canViewTenantAudit(getSessionPermissionUser(session), tenant)
 
   if (!session?.user || !canViewAudit) {
     notFound()

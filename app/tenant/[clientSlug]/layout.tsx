@@ -23,7 +23,10 @@ export default async function TenantLayout({ children, params }: LayoutProps<'/t
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar tenant={tenant} userRole={user.role} />
+      <Sidebar
+        tenant={tenant}
+        user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }}
+      />
       <div className="flex-1 pl-64">
         <Header tenant={tenant} lastCollectionAt={lastCollection} />
         <main className="p-6">{children}</main>

@@ -1,6 +1,8 @@
 package updater
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -8,9 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
-func RunAsync(downloadUrl string) {
+func RunAsync(downloadUrl, expectedSHA256 string) {
 	log.Printf("[UPDATER] Baixando atualizacao de %s\n", downloadUrl)
 
 	tempExe := filepath.Join(os.TempDir(), "inventario-agent.update.exe")
@@ -32,13 +35,23 @@ func RunAsync(downloadUrl string) {
 		log.Printf("[UPDATER] Falha ao criar arquivo temp: %v\n", err)
 		return
 	}
-	
-	_, err = io.Copy(out, resp.Body)
+
+	hasher := sha256.New()
+	_, err = io.Copy(io.MultiWriter(out, hasher), resp.Body)
 	out.Close()
 	if err != nil {
 		log.Printf("[UPDATER] Erro na copia de rede: %v\n", err)
+		_ = os.Remove(tempExe)
 		return
 	}
+
+	actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
+	if !strings.EqualFold(actualSHA256, expectedSHA256) {
+		log.Printf("[UPDATER] ABORTADO: hash SHA-256 do binario baixado nao confere (esperado=%s obtido=%s). Possivel binario corrompido ou adulterado.\n", expectedSHA256, actualSHA256)
+		_ = os.Remove(tempExe)
+		return
+	}
+	log.Printf("[UPDATER] Integridade do binario confirmada (sha256=%s).\n", actualSHA256)
 
 	currentExe, err := os.Executable()
 	if err != nil {

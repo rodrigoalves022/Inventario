@@ -15,11 +15,12 @@ Plataforma de inventário corporativo de TI com arquitetura **agent-based**, foc
 
 ## Capacidades atuais
 
-- Cadastro de clientes/tenants
-- Registro de agentes por cliente com `enrollmentKey` e `apiKey`
-- Bootstrap remoto via endpoint web + download do binário Windows
-- Check-in autenticado com coleta de hardware, redes, discos, software e logs
-- Painel tenant-aware (parcialmente implementado)
+- Cadastro de clientes/tenants, com registro de agentes por cliente via `enrollmentKey` e `apiKey`
+- Bootstrap remoto via endpoint web + download do binário Windows, com verificação de integridade (SHA-256) no auto-update
+- Check-in autenticado com validação forte (Zod) e coleta de hardware, redes, discos, software e logs
+- Login e RBAC (`SUPER_ADMIN`/`CLIENT_ADMIN`) com isolamento por tenant no painel
+- Canal de comandos ao agente (força coleta, reinicia serviço, roda script de catálogo pré-aprovado)
+- Log de auditoria (login/logout, credenciais, exclusão de ativos, comandos)
 
 ## Estrutura principal
 
@@ -35,7 +36,6 @@ docs/                 → Documentação técnica
 
 ## Documentação
 
-- [Estado atual do projeto](./CURRENT_STATE.md)
 - [Arquitetura](./docs/ARCHITECTURE.md)
 - [API](./docs/API.md)
 - [Banco de Dados](./docs/DATABASE.md)

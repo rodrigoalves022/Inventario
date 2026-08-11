@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 import type { AppRole } from '@/lib/permissions'
-import { canAccessGlobalAdmin, canViewTenantAdminNavigation, getPermissionUser } from '@/lib/permissions'
+import { getPermissionUser, isOrgAdmin, isOrgOperator, isPlatformAdmin } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { getTenantBasePath, getTenantPath } from '@/lib/tenant-links'
-import { signOut } from 'next-auth/react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,22 +23,24 @@ import {
   Cpu,
   Network,
   Settings,
-  Search,
-  Bell,
   ChevronDown,
   BarChart3,
   Users,
   Shield,
   Building2,
-  MapPinned,
   LogOut,
-  User,
   ClipboardList,
 } from 'lucide-react'
 
 type TenantShellInfo = {
   name: string
   slug: string
+}
+
+export type SidebarUser = {
+  name?: string | null
+  email?: string | null
+  role?: AppRole | null
 }
 
 type NavigationItem = {
@@ -48,38 +50,24 @@ type NavigationItem = {
   exact?: boolean
 }
 
+const ROLE_LABELS: Record<AppRole, string> = {
+  PLATFORM_ADMIN: 'Administrador da plataforma',
+  ORG_ADMIN: 'Administrador da conta',
+  ORG_OPERATOR: 'Operador',
+  CLIENT_VIEWER: 'Portal do cliente',
+}
+
 function isPathActive(pathname: string, href: string, exact = false) {
   if (exact) return pathname === href
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-function getTenantNavigation(clientSlug: string): {
-  navigation: NavigationItem[]
-  management: NavigationItem[]
-} {
-  return {
-    navigation: [
-      { name: 'Dashboard', href: getTenantBasePath(clientSlug), icon: LayoutDashboard, exact: true },
-      { name: 'Computadores', href: getTenantPath(clientSlug, 'computers'), icon: Monitor },
-      { name: 'Servidores', href: getTenantPath(clientSlug, 'servers'), icon: Server },
-      { name: 'Armazenamento', href: getTenantPath(clientSlug, 'storage'), icon: HardDrive },
-    ],
-    management: [
-      { name: 'Processadores', href: getTenantPath(clientSlug, 'processors'), icon: Cpu },
-      { name: 'Rede', href: getTenantPath(clientSlug, 'network'), icon: Network },
-      { name: 'Relatórios', href: getTenantPath(clientSlug, 'reports'), icon: BarChart3 },
-      { name: 'Auditoria', href: getTenantPath(clientSlug, 'audit'), icon: ClipboardList },
-    ],
-  }
+function getInitials(user: SidebarUser) {
+  const source = user.name?.trim() || user.email?.trim() || ''
+  if (!source) return '??'
+  const parts = source.split(/[\s@.]+/).filter(Boolean)
+  return (parts[0]?.[0] ?? '' + (parts[1]?.[0] ?? '')).toUpperCase().slice(0, 2) || source.slice(0, 2).toUpperCase()
 }
-
-const globalAdmin: NavigationItem[] = [
-  { name: 'Clientes', href: '/clients', icon: Building2, exact: true },
-  { name: 'Auditoria', href: '/clients/audit', icon: ClipboardList, exact: true },
-  { name: 'Usuários', href: '/users', icon: Users, exact: true },
-  { name: 'Segurança', href: '/security', icon: Shield, exact: true },
-  { name: 'Configurações', href: '/settings', icon: Settings, exact: true },
-]
 
 function NavigationSection({
   title,
@@ -90,6 +78,8 @@ function NavigationSection({
   items: NavigationItem[]
   pathname: string
 }) {
+  if (items.length === 0) return null
+
   return (
     <div>
       <h2 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -120,19 +110,54 @@ function NavigationSection({
   )
 }
 
-export function Sidebar({ tenant, userRole }: { tenant?: TenantShellInfo; userRole?: AppRole | null }) {
+export function Sidebar({ tenant, user }: { tenant?: TenantShellInfo; user?: SidebarUser }) {
   const pathname = usePathname()
-  const tenantNavigation = tenant ? getTenantNavigation(tenant.slug) : null
-  const user = getPermissionUser({ role: userRole ?? null })
-  const filteredTenantNavigation = tenantNavigation
-    ? {
-        navigation: tenantNavigation.navigation,
-        management: tenantNavigation.management.filter((item) =>
-          item.href.endsWith('/audit') ? canViewTenantAdminNavigation(user) : true
-        ),
-      }
-    : null
-  const filteredGlobalAdmin = canAccessGlobalAdmin(user) || !user.role ? globalAdmin : []
+  const permissionUser = getPermissionUser({ role: user?.role ?? null })
+
+  const platformAdmin = isPlatformAdmin(permissionUser)
+  const orgAdmin = isOrgAdmin(permissionUser)
+  const orgOperator = isOrgOperator(permissionUser)
+  // Fail-closed: papel desconhecido nao ve nenhum menu. A versao anterior fazia
+  // `canAccessGlobalAdmin(user) || !user.role`, ou seja, mostrava o menu
+  // administrativo inteiro justamente quando o papel nao era reconhecido.
+  const canSeeAccountArea = platformAdmin || orgAdmin
+  const canSeeManagement = platformAdmin || orgAdmin || orgOperator
+
+  const inventory: NavigationItem[] = tenant
+    ? [
+        { name: 'Visão geral', href: getTenantBasePath(tenant.slug), icon: LayoutDashboard, exact: true },
+        { name: 'Máquinas', href: getTenantPath(tenant.slug, 'computers'), icon: Monitor },
+        { name: 'Servidores', href: getTenantPath(tenant.slug, 'servers'), icon: Server },
+        { name: 'Armazenamento', href: getTenantPath(tenant.slug, 'storage'), icon: HardDrive },
+        { name: 'Processadores', href: getTenantPath(tenant.slug, 'processors'), icon: Cpu },
+        { name: 'Rede', href: getTenantPath(tenant.slug, 'network'), icon: Network },
+      ]
+    : []
+
+  const management: NavigationItem[] = tenant
+    ? [
+        ...(canSeeManagement
+          ? [{ name: 'Relatórios', href: getTenantPath(tenant.slug, 'reports'), icon: BarChart3 }]
+          : []),
+        ...(canSeeAccountArea
+          ? [{ name: 'Auditoria', href: getTenantPath(tenant.slug, 'audit'), icon: ClipboardList }]
+          : []),
+      ]
+    : []
+
+  const account: NavigationItem[] = canSeeAccountArea
+    ? [
+        { name: 'Clientes', href: '/clients', icon: Building2, exact: true },
+        ...(platformAdmin
+          ? [
+              { name: 'Auditoria global', href: '/clients/audit', icon: ClipboardList, exact: true },
+              { name: 'Usuários', href: '/users', icon: Users, exact: true },
+              { name: 'Segurança', href: '/security', icon: Shield, exact: true },
+              { name: 'Configurações', href: '/settings', icon: Settings, exact: true },
+            ]
+          : []),
+      ]
+    : []
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar">
@@ -141,90 +166,64 @@ export function Sidebar({ tenant, userRole }: { tenant?: TenantShellInfo; userRo
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <Monitor className="h-5 w-5 text-primary-foreground" />
           </div>
-          <div>
-            <h1 className="text-sm font-semibold text-sidebar-foreground">Inventário TI</h1>
-            <p className="text-xs text-muted-foreground">v2.0.0</p>
-          </div>
+          <h1 className="text-sm font-semibold text-sidebar-foreground">Inventário TI</h1>
         </div>
 
-        <div className="p-4">
-          <div className="flex items-center gap-2 rounded-lg bg-sidebar-accent px-3 py-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              name="search"
-              autoComplete="off"
-              placeholder="Buscar..."
-              className="flex-1 bg-transparent text-sm text-sidebar-foreground placeholder:text-muted-foreground focus:outline-none"
-            />
-            <kbd className="rounded bg-sidebar-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              ⌘K
-            </kbd>
-          </div>
-        </div>
-
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
+        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
           {tenant ? (
-            <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
-                  <MapPinned className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Cliente atual</p>
-                  <p className="truncate text-sm font-semibold text-sidebar-foreground">{tenant.name}</p>
-                </div>
-              </div>
+            <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cliente</p>
+              <p className="truncate text-sm font-semibold text-sidebar-foreground" title={tenant.name}>
+                {tenant.name}
+              </p>
+              {canSeeAccountArea && (
+                <Link
+                  href="/clients"
+                  className="mt-1 inline-block text-xs text-muted-foreground underline-offset-4 hover:text-sidebar-foreground hover:underline"
+                >
+                  Trocar cliente
+                </Link>
+              )}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-sm text-muted-foreground">
-              Selecione uma empresa em <span className="font-medium text-sidebar-foreground">Clientes</span> para abrir o painel dela.
-            </div>
+            canSeeAccountArea && (
+              <div className="rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs text-muted-foreground">
+                Escolha um cliente em <span className="font-medium text-sidebar-foreground">Clientes</span> para
+                abrir o inventário dele.
+              </div>
+            )
           )}
 
-          {tenantNavigation ? (
-            <>
-              <NavigationSection title="Visão Geral" items={filteredTenantNavigation?.navigation ?? []} pathname={pathname} />
-              {(filteredTenantNavigation?.management.length ?? 0) > 0 ? (
-                <NavigationSection title="Gerenciamento" items={filteredTenantNavigation?.management ?? []} pathname={pathname} />
-              ) : null}
-              <div className="rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs text-muted-foreground">
-                A área administrativa global permanece separada e pode ser acessada a partir de <span className="font-medium text-sidebar-foreground">/clients</span>.
-              </div>
-            </>
-          ) : (
-            <NavigationSection title="Administração" items={filteredGlobalAdmin} pathname={pathname} />
-          )}
+          <NavigationSection title="Inventário" items={inventory} pathname={pathname} />
+          <NavigationSection title="Gestão" items={management} pathname={pathname} />
+          <NavigationSection title="Conta" items={account} pathname={pathname} />
         </nav>
 
-        <div className="border-t border-sidebar-border p-4">
+        <div className="border-t border-sidebar-border p-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground shadow-sm">
-                  AD
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                  {user ? getInitials(user) : '??'}
                 </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-sidebar-foreground">Admin TI</p>
-                  <p className="text-xs text-muted-foreground">admin@corp.local</p>
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-medium text-sidebar-foreground">
+                    {user?.name || user?.email || 'Sessão'}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {user?.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
+                  </p>
                 </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="w-56 bg-sidebar border-sidebar-border">
-              <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-sidebar-border" />
-              <DropdownMenuItem className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground cursor-pointer">
-                <User className="mr-2 h-4 w-4" />
-                Perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground cursor-pointer">
-                <Settings className="mr-2 h-4 w-4" />
-                Configurações
-              </DropdownMenuItem>
+            <DropdownMenuContent side="right" align="end" className="w-60 border-sidebar-border bg-sidebar">
+              <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                {user?.email ?? 'Não identificado'}
+              </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-sidebar-border" />
               <DropdownMenuItem
-                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+                className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
                 onClick={() => signOut({ callbackUrl: '/login' })}
               >
                 <LogOut className="mr-2 h-4 w-4" />
@@ -240,36 +239,42 @@ export function Sidebar({ tenant, userRole }: { tenant?: TenantShellInfo; userRo
 
 function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
   if (!tenant) {
-    if (pathname.startsWith('/clients/audit')) return 'Auditoria'
+    if (pathname.startsWith('/clients/audit')) return 'Auditoria global'
+    if (pathname.startsWith('/clients/novo')) return 'Novo cliente'
     if (pathname.startsWith('/clients')) return 'Clientes'
     if (pathname.startsWith('/users')) return 'Usuários'
     if (pathname.startsWith('/security')) return 'Segurança'
     if (pathname.startsWith('/settings')) return 'Configurações'
-    return 'Painel administrativo'
+    return 'Painel'
   }
 
   const basePath = getTenantBasePath(tenant.slug)
   const titles: Array<{ match: string; title: string }> = [
-    { match: `${basePath}/computers`, title: 'Computadores' },
+    { match: `${basePath}/computers`, title: 'Máquinas' },
     { match: `${basePath}/servers`, title: 'Servidores' },
     { match: `${basePath}/storage`, title: 'Armazenamento' },
     { match: `${basePath}/processors`, title: 'Processadores' },
     { match: `${basePath}/network`, title: 'Rede' },
     { match: `${basePath}/reports`, title: 'Relatórios' },
     { match: `${basePath}/audit`, title: 'Auditoria' },
-    { match: `${basePath}/assets`, title: 'Detalhe do ativo' },
+    { match: `${basePath}/assets`, title: 'Detalhe da máquina' },
   ]
 
-  const matched = titles.find((item) => pathname.startsWith(item.match))
-  return matched?.title ?? 'Dashboard'
+  return titles.find((item) => pathname.startsWith(item.match))?.title ?? 'Visão geral'
 }
 
-export function Header({ tenant, lastCollectionAt }: { tenant?: TenantShellInfo; lastCollectionAt?: string | null }) {
+export function Header({
+  tenant,
+  lastCollectionAt,
+}: {
+  tenant?: TenantShellInfo
+  lastCollectionAt?: string | null
+}) {
   const pathname = usePathname()
   const title = getHeaderTitle(pathname, tenant)
 
   function formatRelative(iso: string | null | undefined): string {
-    if (!iso) return 'Sem coletas'
+    if (!iso) return 'sem coletas'
     const diffMs = Date.now() - new Date(iso).getTime()
     const mins = Math.floor(diffMs / 60000)
     if (mins < 1) return 'agora mesmo'
@@ -282,26 +287,16 @@ export function Header({ tenant, lastCollectionAt }: { tenant?: TenantShellInfo;
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex items-center gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-          <p className="text-xs text-muted-foreground">
-            {tenant ? tenant.name : 'Escopo global / administrativo'}
-          </p>
-        </div>
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        {tenant && <p className="text-xs text-muted-foreground">{tenant.name}</p>}
       </div>
 
-      <div className="flex items-center gap-4">
-        <button className="relative rounded-lg p-2 hover:bg-muted">
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-        </button>
-        <div className="h-8 w-px bg-border" />
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">Última coleta:</span>
-          <span className="text-sm text-foreground">{formatRelative(lastCollectionAt)}</span>
-        </div>
-      </div>
+      {tenant && (
+        <p className="text-sm text-muted-foreground">
+          Última coleta: <span className="text-foreground">{formatRelative(lastCollectionAt)}</span>
+        </p>
+      )}
     </header>
   )
 }
