@@ -5,6 +5,7 @@ import {
   canAccessGlobalAdmin,
   canPossiblyAccessTenantSlug,
   getPermissionUser,
+  isClientViewer,
   isOrgAdmin,
 } from "@/lib/permissions"
 
@@ -32,6 +33,15 @@ export default auth((req) => {
   // If it's a private route and user is NOT authenticated, redirect to login
   if (!isAuthenticated && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", nextUrl))
+  }
+
+  // O portal e superficie exclusiva do cliente. Operadores e admins de conta
+  // trabalham em /tenant/[slug]; deixa-los entrar aqui so criaria uma segunda
+  // rota para os mesmos dados, com regras diferentes.
+  if (isAuthenticated && nextUrl.pathname.startsWith("/portal")) {
+    if (!isClientViewer(getPermissionUser(session?.user))) {
+      return NextResponse.redirect(new URL("/dashboard", nextUrl))
+    }
   }
 
   // Portao GROSSEIRO de tenant. O middleware roda no Edge e nao tem banco, entao

@@ -85,13 +85,17 @@ export function canAccessGlobalAdmin(user: PermissionUser | null | undefined) {
   return isPlatformAdmin(user)
 }
 
-/** Ver os dados do tenant. Inclui o portal somente leitura. */
+/**
+ * Acesso a superficie de OPERACAO (/tenant/[slug]).
+ * CLIENT_VIEWER nao entra aqui de proposito: o cliente final usa /portal, que
+ * deriva o cliente da sessao e nao expoe acao nenhuma. Manter os dois caminhos
+ * abertos para o mesmo dado significaria duas regras para manter em sincronia.
+ */
 export function canAccessTenant(user: PermissionUser | null | undefined, tenant: TenantRef) {
   if (isPlatformAdmin(user)) return true
   if (isOrgAdmin(user) || isOrgOperator(user)) {
     return user?.organizationId === tenant.organizationId
   }
-  if (isClientViewer(user)) return user?.clientId === tenant.id
   return false
 }
 
@@ -132,10 +136,9 @@ export function canViewTenantAdminNavigation(user: PermissionUser | null | undef
  */
 export function canPossiblyAccessTenantSlug(
   user: PermissionUser | null | undefined,
-  tenantSlug: string
+  _tenantSlug: string
 ) {
   if (isPlatformAdmin(user)) return true
   if (isOrgAdmin(user) || isOrgOperator(user)) return !!user?.organizationId
-  if (isClientViewer(user)) return user?.clientSlug === tenantSlug
   return false
 }

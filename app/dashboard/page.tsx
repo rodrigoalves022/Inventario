@@ -24,16 +24,10 @@ export default async function DashboardRedirectPage() {
     redirect('/clients')
   }
 
+  // O portal deriva o cliente da sessao, entao nao precisa de slug na URL.
   if (role === 'CLIENT_VIEWER') {
     if (!clientId) redirect('/login?error=no-tenant')
-
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { slug: true },
-    })
-
-    if (!client) redirect('/login?error=tenant-not-found')
-    redirect(`/tenant/${client.slug}`)
+    redirect('/portal')
   }
 
   // ORG_ADMIN / ORG_OPERATOR: entram pelo cliente vinculado; se a conta tiver
