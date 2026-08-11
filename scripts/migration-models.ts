@@ -4,6 +4,7 @@
  * viola foreign key (ex.: `user.clientId` exige que `client` ja exista).
  */
 export const MIGRATION_MODELS = [
+  'organization',
   'client',
   'user',
   'agentAuth',

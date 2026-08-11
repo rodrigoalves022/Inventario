@@ -1,7 +1,12 @@
 import NextAuth from "next-auth"
 import { NextResponse } from "next/server"
 import { authConfig } from "@/auth.config"
-import { canAccessGlobalAdmin, canPossiblyAccessTenantSlug, getPermissionUser } from "@/lib/permissions"
+import {
+  canAccessGlobalAdmin,
+  canPossiblyAccessTenantSlug,
+  getPermissionUser,
+  isOrgAdmin,
+} from "@/lib/permissions"
 
 // Instância edge-safe: usa só authConfig (sem CredentialsProvider/bcryptjs),
 // evitando puxar módulos Node-only pro bundle do middleware (Edge Runtime).
@@ -43,20 +48,24 @@ export default auth((req) => {
     }
   }
 
-  // Protect /clients and other global admin routes
-  if (
-    isAuthenticated &&
-    (
-      nextUrl.pathname === "/clients" ||
-      nextUrl.pathname.startsWith("/clients/") ||
-      nextUrl.pathname.startsWith("/api/clients") ||
-      nextUrl.pathname === "/users" ||
-      nextUrl.pathname === "/security" ||
-      nextUrl.pathname === "/settings"
-    )
-  ) {
+  // Area de conta: gerir clientes e usuarios. ORG_ADMIN entra, mas so enxerga a
+  // propria organizacao — o filtro por organizationId e aplicado nas paginas.
+  const isAccountArea =
+    nextUrl.pathname === "/clients" ||
+    nextUrl.pathname.startsWith("/clients/") ||
+    nextUrl.pathname.startsWith("/api/clients") ||
+    nextUrl.pathname === "/users"
+
+  // Area exclusiva da plataforma.
+  const isPlatformArea = nextUrl.pathname === "/security"
+
+  if (isAuthenticated && (isAccountArea || isPlatformArea)) {
     const user = getPermissionUser(session?.user)
-    if (!canAccessGlobalAdmin(user)) {
+    const allowed = isPlatformArea
+      ? canAccessGlobalAdmin(user)
+      : canAccessGlobalAdmin(user) || isOrgAdmin(user)
+
+    if (!allowed) {
       return NextResponse.redirect(new URL("/dashboard", nextUrl))
     }
   }

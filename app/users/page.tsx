@@ -1,20 +1,47 @@
 import { notFound } from 'next/navigation'
-import { auth } from '@/auth'
 import { Sidebar, Header } from '@/components/sidebar'
-import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
+import { auth } from '@/auth'
+import prisma from '@/lib/prisma'
+import {
+  getSessionPermissionUser,
+  isOrgAdmin,
+  isPlatformAdmin,
+  type AppRole,
+} from '@/lib/permissions'
+import { cn } from '@/lib/utils'
+
+const ROLE_LABELS: Record<AppRole, string> = {
+  PLATFORM_ADMIN: 'Administrador da plataforma',
+  ORG_ADMIN: 'Administrador da conta',
+  ORG_OPERATOR: 'Operador',
+  CLIENT_VIEWER: 'Portal do cliente',
+}
 
 export default async function UsersPage() {
   const session = await auth()
   const user = getSessionPermissionUser(session)
-  if (!canAccessGlobalAdmin(user)) {
+
+  if (!isPlatformAdmin(user) && !isOrgAdmin(user)) {
     notFound()
   }
 
-  const users = [
-    { id: 1, name: 'João Silva', email: 'joao@corp.local', role: 'Admin', status: 'Ativo' },
-    { id: 2, name: 'Maria Santos', email: 'maria@corp.local', role: 'Gerente', status: 'Ativo' },
-    { id: 3, name: 'Pedro Costa', email: 'pedro@corp.local', role: 'Usuário', status: 'Ativo' },
-  ]
+  // PLATFORM_ADMIN ve todos; ORG_ADMIN so os da propria organizacao.
+  const users = await prisma.user.findMany({
+    where: isPlatformAdmin(user)
+      ? undefined
+      : { organizationId: user.organizationId ?? '__sem_organizacao__' },
+    orderBy: [{ role: 'asc' }, { email: 'asc' }],
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+      organization: { select: { name: true } },
+      client: { select: { name: true } },
+    },
+  })
 
   return (
     <div className="flex min-h-screen">
@@ -25,35 +52,67 @@ export default async function UsersPage() {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Usuários</h1>
-              <p className="text-muted-foreground">Gerenciar usuários do sistema</p>
+              <p className="text-muted-foreground">
+                {isPlatformAdmin(user)
+                  ? 'Todos os usuários da plataforma.'
+                  : 'Usuários da sua organização.'}
+              </p>
             </div>
 
-            <div className="bg-card rounded-lg border border-border overflow-hidden">
+            <div className="overflow-hidden rounded-xl border bg-card">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-secondary/50">
-                    <th className="px-4 py-3 text-left font-semibold">Nome</th>
-                    <th className="px-4 py-3 text-left font-semibold">Email</th>
-                    <th className="px-4 py-3 text-left font-semibold">Função</th>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
+                  <tr className="border-b bg-secondary/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Usuário</th>
+                    <th className="px-4 py-3 font-medium">Papel</th>
+                    <th className="px-4 py-3 font-medium">Escopo</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
-                  {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-secondary/30">
-                      <td className="px-4 py-3 font-medium">{user.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{user.role}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-success/10 text-success">
-                          {user.status}
-                        </span>
+                <tbody>
+                  {users.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-muted-foreground">
+                        Nenhum usuário encontrado.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    users.map((row) => (
+                      <tr key={row.id} className="border-b last:border-0 hover:bg-muted/40">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-foreground">{row.name ?? '—'}</p>
+                          <p className="text-xs text-muted-foreground">{row.email}</p>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {ROLE_LABELS[row.role as AppRole] ?? row.role}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {row.client?.name ?? row.organization?.name ?? 'Plataforma'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={cn(
+                              'rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                              row.isActive
+                                ? 'border-success/30 bg-success/10 text-success'
+                                : 'border-border bg-muted/40 text-muted-foreground'
+                            )}
+                          >
+                            {row.isActive ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              A criação e o convite de usuários pelo painel ainda não estão implementados — hoje os
+              usuários são criados por <code className="font-mono">scripts/seed-rbac.ts</code> ou por{' '}
+              <code className="font-mono">POST /api/auth/signup</code>.
+            </p>
           </div>
         </main>
       </div>

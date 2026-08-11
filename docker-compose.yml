@@ -31,8 +31,12 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-inventario}:${POSTGRES_PASSWORD:-inventario}@db:5432/${POSTGRES_DB:-inventario}?schema=public
-      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET obrigatorio}
-      ADMIN_SECRET: ${ADMIN_SECRET:?ADMIN_SECRET obrigatorio}
+      # Sem `:?` de proposito: o Compose interpola o arquivo inteiro no parse,
+      # entao exigir a variavel aqui impediria ate `docker compose up -d db`.
+      # Ambas sao obrigatorias para o servico `app` funcionar de verdade —
+      # a aplicacao falha fechada se elas estiverem ausentes.
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      ADMIN_SECRET: ${ADMIN_SECRET:-}
       INVENTARIO_PROVISIONING_SECRET: ${INVENTARIO_PROVISIONING_SECRET:-}
       INVENTARIO_SERVER_URL: ${INVENTARIO_SERVER_URL:-}
       NODE_ENV: production

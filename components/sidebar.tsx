@@ -153,7 +153,6 @@ export function Sidebar({ tenant, user }: { tenant?: TenantShellInfo; user?: Sid
               { name: 'Auditoria global', href: '/clients/audit', icon: ClipboardList, exact: true },
               { name: 'Usuários', href: '/users', icon: Users, exact: true },
               { name: 'Segurança', href: '/security', icon: Shield, exact: true },
-              { name: 'Configurações', href: '/settings', icon: Settings, exact: true },
             ]
           : []),
       ]
@@ -244,7 +243,6 @@ function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
     if (pathname.startsWith('/clients')) return 'Clientes'
     if (pathname.startsWith('/users')) return 'Usuários'
     if (pathname.startsWith('/security')) return 'Segurança'
-    if (pathname.startsWith('/settings')) return 'Configurações'
     return 'Painel'
   }
 
