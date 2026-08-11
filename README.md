@@ -9,8 +9,7 @@ Plataforma de inventário corporativo de TI com arquitetura **agent-based**, foc
 | Web / API | Next.js 16, React 19, TypeScript |
 | UI | Tailwind CSS v4, shadcn/ui, Radix UI, Recharts |
 | ORM | Prisma v5 |
-| Banco (dev) | SQLite |
-| Banco (prod) | PostgreSQL |
+| Banco | PostgreSQL 16 (via Docker) |
 | Agente coletor | Go 1.25 (`agent-go/`) |
 
 ## Capacidades atuais
@@ -44,7 +43,13 @@ docs/                 → Documentação técnica
 ## Desenvolvimento
 
 ```bash
+cp .env.example .env      # preencha AUTH_SECRET e ADMIN_SECRET
 npm install
+docker compose up -d db   # PostgreSQL 16 em localhost:5432
 npx prisma db push
-npm run dev         # http://localhost:3000
+node scripts/seed-rbac.ts # usuários iniciais dos 4 papéis
+npm run dev               # http://localhost:3000
 ```
+
+Para migrar dados de uma base existente: `node scripts/export-data.ts` na origem
+e `node scripts/import-data.ts` no destino.

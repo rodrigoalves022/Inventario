@@ -6,10 +6,8 @@ Last-reviewed: 2026-04-02
 
 Schema Prisma v5 com:
 
-- **SQLite** no estado atual de desenvolvimento
-- **PostgreSQL** como alvo de produção
+- **PostgreSQL 16** em desenvolvimento e produção (via `docker compose up -d db`)
 
-> Observação: o `schema.prisma` atual ainda declara `provider = "sqlite"`. A diretriz de produção continua sendo PostgreSQL.
 
 ## Relacionamentos principais
 

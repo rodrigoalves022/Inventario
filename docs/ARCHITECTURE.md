@@ -33,7 +33,7 @@ flowchart TD
 
     subgraph Data Layer
         PRISMA[Prisma Client]
-        DB[(SQLite dev / PostgreSQL prod)]
+        DB[(PostgreSQL)]
     end
 
     WA -->|HTTPS + credenciais| API

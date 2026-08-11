@@ -234,9 +234,11 @@ Ordenado por dependência: cada fase evita retrabalho da seguinte.
 
 ### Fase A — Fundação *(bloqueante; nada novo antes disso)*
 
-**A1. PostgreSQL + Docker**
-Infra já escrita (`docker-compose.yml`, `Dockerfile`, `.dockerignore`, `scripts/export-data.ts`, `scripts/import-data.ts`). Falta subir o Docker Desktop, trocar o provider e migrar os dados.
-*Por que primeiro*: série temporal e fila de comandos multi-tenant não são viáveis em SQLite.
+**A1. PostgreSQL + Docker ✅ Concluído**
+PostgreSQL 16 via `docker compose up -d db`; provider trocado e 829 registros
+migrados do SQLite (1 organização, 1 cliente, 4 usuários, 7 agentes, 3 máquinas,
+429 softwares, 352 logs de coleta, 18 de auditoria) sem órfãos. O SQLite anterior
+ficou preservado em `prisma/dev.db.backup-pre-postgres`.
 
 **A2. Hierarquia `Organization` + RBAC de 4 papéis**
 Criar `Organization`, vincular `Client`, migrar papéis, desnormalizar `clientId` em `Device`.
@@ -297,4 +299,4 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
 | Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" |
 | Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
 | Retenção de métricas | Sem expurgo, a base cresce indefinidamente |
-| SQLite em uso | Concorrência de múltiplos agentes é frágil |
+| Fila de comandos sem uso real | Validada por HTTP, mas nenhum agente Go instalado exercitou o ciclo completo ainda |

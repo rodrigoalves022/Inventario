@@ -42,3 +42,7 @@ prisma/export/
 agent-go/*.exe
 agent-go/dist/
 public/*.exe
+
+# Backups locais do SQLite (contem hashes de credenciais)
+prisma/*.db
+prisma/dev.db.backup*
