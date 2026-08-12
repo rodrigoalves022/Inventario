@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, HardDrive, Cpu, Network, Package, Terminal, LayoutGrid } from 'lucide-react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ export type DeviceDisk = {
   tipo: string | null
   capacidadeGb: number | null
   espacoLivreGb: number | null
+  criptografia: string | null
 }
 
 export type DeviceNetwork = {
@@ -51,6 +52,26 @@ export type DeviceCommand = {
   resultJson: string | null
 }
 
+export type DeviceSecurity = {
+  antivirusNome: string | null
+  antivirusAtivo: boolean | null
+  antivirusAtualizado: boolean | null
+  firewallAtivo: boolean | null
+  secureBootAtivo: boolean | null
+  tpmPresente: boolean | null
+  uacAtivo: boolean | null
+  observacao: string | null
+  coletadoEm: string
+}
+
+export type DeviceLocalAccount = {
+  id: string
+  usuario: string
+  isAdmin: boolean
+  habilitada: boolean
+  senhaNuncaExpira: boolean
+}
+
 type Props = {
   device: {
     hostname: string
@@ -68,6 +89,8 @@ type Props = {
   software: DeviceSoftware[]
   commands: DeviceCommand[]
   canRunCommands: boolean
+  security: DeviceSecurity | null
+  localAccounts: DeviceLocalAccount[]
 }
 
 const COMMAND_TYPE_LABELS: Record<string, string> = {
@@ -89,6 +112,51 @@ function Field({ label, value }: { label: string; value: string | null | undefin
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm font-medium text-foreground">{value || 'Não informado'}</p>
+    </div>
+  )
+}
+
+/**
+ * Indicador de tres estados. `null` significa "nao apurado" e NUNCA pode ser
+ * pintado como problema: o agente deixa nulo quando nao consegue consultar
+ * (Windows Server sem SecurityCenter2, BitLocker ausente, falta de privilegio).
+ * Mostrar isso como "desativado" geraria alarme falso de compliance.
+ */
+function SecurityIndicator({
+  label,
+  value,
+  detail,
+  goodWhen = true,
+}: {
+  label: string
+  value: boolean | null
+  detail?: string | null
+  goodWhen?: boolean
+}) {
+  const unknown = value === null || value === undefined
+  const isGood = !unknown && value === goodWhen
+
+  return (
+    <div
+      className={cn(
+        'rounded-xl border p-4 space-y-1',
+        unknown && 'border-dashed bg-muted/20',
+        !unknown && isGood && 'border-success/30 bg-success/5',
+        !unknown && !isGood && 'border-destructive/30 bg-destructive/5'
+      )}
+    >
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'text-lg font-semibold',
+          unknown && 'text-muted-foreground',
+          !unknown && isGood && 'text-success',
+          !unknown && !isGood && 'text-destructive'
+        )}
+      >
+        {unknown ? 'Não apurado' : value ? 'Ativo' : 'Inativo'}
+      </p>
+      {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
     </div>
   )
 }
@@ -139,6 +207,8 @@ export function DeviceDetailTabs({
   software,
   commands,
   canRunCommands,
+  security,
+  localAccounts,
 }: Props) {
   const [query, setQuery] = useState('')
 
@@ -165,6 +235,9 @@ export function DeviceDetailTabs({
         <TabsTrigger value="software" className="gap-1.5">
           <Package className="h-3.5 w-3.5" /> Software
           <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">{software.length}</span>
+        </TabsTrigger>
+        <TabsTrigger value="security" className="gap-1.5">
+          <ShieldCheck className="h-3.5 w-3.5" /> Segurança
         </TabsTrigger>
         <TabsTrigger value="network" className="gap-1.5">
           <Network className="h-3.5 w-3.5" /> Rede
@@ -319,6 +392,126 @@ export function DeviceDetailTabs({
             </div>
           )}
         </div>
+      </TabsContent>
+
+      {/* ---------- Segurança ---------- */}
+      <TabsContent value="security" className="space-y-6">
+        {!security ? (
+          <Panel>
+            <p className="text-sm text-muted-foreground">
+              Este agente ainda não enviou dados de segurança. Atualize o agente e aguarde a próxima
+              coleta.
+            </p>
+          </Panel>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <SecurityIndicator
+                label="Antivírus"
+                value={security.antivirusAtivo}
+                detail={
+                  security.antivirusNome ??
+                  (security.antivirusAtualizado === false ? 'Assinaturas desatualizadas' : undefined)
+                }
+              />
+              <SecurityIndicator label="Firewall" value={security.firewallAtivo} />
+              <SecurityIndicator label="Secure Boot" value={security.secureBootAtivo} />
+              <SecurityIndicator label="TPM" value={security.tpmPresente} detail="Módulo de plataforma confiável" />
+              <SecurityIndicator label="UAC" value={security.uacAtivo} detail="Controle de conta de usuário" />
+              <SecurityIndicator
+                label="Assinaturas do antivírus"
+                value={security.antivirusAtualizado}
+                detail={security.antivirusAtualizado === null ? undefined : 'Atualizadas'}
+              />
+            </div>
+
+            {security.observacao && (
+              <div className="flex gap-3 rounded-xl border border-dashed p-4">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium text-foreground">Por que há itens não apurados</p>
+                  <p className="text-sm text-muted-foreground">{security.observacao}</p>
+                </div>
+              </div>
+            )}
+
+            <Panel title="Criptografia de disco">
+              {disks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum disco reportado.</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {disks.map((disk) => (
+                    <div key={disk.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <span className="text-sm font-medium">{disk.unidade ?? 'Disco'}</span>
+                      <span
+                        className={cn(
+                          'rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                          disk.criptografia === 'on' && 'border-success/30 bg-success/10 text-success',
+                          disk.criptografia === 'off' &&
+                            'border-destructive/30 bg-destructive/10 text-destructive',
+                          (!disk.criptografia || disk.criptografia === 'unknown') &&
+                            'border-dashed text-muted-foreground'
+                        )}
+                      >
+                        {disk.criptografia === 'on'
+                          ? 'Criptografado'
+                          : disk.criptografia === 'off'
+                            ? 'Sem criptografia'
+                            : 'Não apurado'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+
+            <Panel title={`Contas locais (${localAccounts.length})`}>
+              {localAccounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma conta local reportada. Em controladores de domínio isso é o esperado — todas
+                  as contas são de domínio.
+                </p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="py-2 font-medium">Usuário</th>
+                      <th className="py-2 font-medium">Administrador</th>
+                      <th className="py-2 font-medium">Situação</th>
+                      <th className="py-2 font-medium">Senha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {localAccounts.map((account) => (
+                      <tr key={account.id} className="border-b last:border-0">
+                        <td className="py-2 font-medium">{account.usuario}</td>
+                        <td className="py-2">
+                          {account.isAdmin ? (
+                            <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+                              Sim
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Não</span>
+                          )}
+                        </td>
+                        <td className="py-2 text-muted-foreground">
+                          {account.habilitada ? 'Habilitada' : 'Desabilitada'}
+                        </td>
+                        <td className="py-2 text-muted-foreground">
+                          {account.senhaNuncaExpira ? 'Nunca expira' : 'Expira'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Panel>
+
+            <p className="text-xs text-muted-foreground">
+              Coletado em {new Date(security.coletadoEm).toLocaleString('pt-BR')}.
+            </p>
+          </>
+        )}
       </TabsContent>
 
       {/* ---------- Rede ---------- */}

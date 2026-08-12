@@ -58,6 +58,8 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
       networks: { orderBy: [{ isPrimary: 'desc' }, { ip: 'asc' }] },
       software: { orderBy: { nome: 'asc' } },
       logs: { orderBy: { coletadoEm: 'desc' }, take: 1 },
+      security: true,
+      localAccounts: { orderBy: [{ isAdmin: 'desc' }, { usuario: 'asc' }] },
     },
   })
 
@@ -159,6 +161,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
           tipo: disk.tipo,
           capacidadeGb: disk.capacidadeGb,
           espacoLivreGb: disk.espacoLivreGb,
+          criptografia: disk.criptografia,
         }))}
         networks={asset.networks.map((network) => ({
           id: network.id,
@@ -184,6 +187,28 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
           resultJson: command.resultJson,
         }))}
         canRunCommands={canRunCommands}
+        security={
+          asset.security
+            ? {
+                antivirusNome: asset.security.antivirusNome,
+                antivirusAtivo: asset.security.antivirusAtivo,
+                antivirusAtualizado: asset.security.antivirusAtualizado,
+                firewallAtivo: asset.security.firewallAtivo,
+                secureBootAtivo: asset.security.secureBootAtivo,
+                tpmPresente: asset.security.tpmPresente,
+                uacAtivo: asset.security.uacAtivo,
+                observacao: asset.security.observacao,
+                coletadoEm: asset.security.coletadoEm.toISOString(),
+              }
+            : null
+        }
+        localAccounts={asset.localAccounts.map((account) => ({
+          id: account.id,
+          usuario: account.usuario,
+          isAdmin: account.isAdmin,
+          habilitada: account.habilitada,
+          senhaNuncaExpira: account.senhaNuncaExpira,
+        }))}
       />
     </div>
   )

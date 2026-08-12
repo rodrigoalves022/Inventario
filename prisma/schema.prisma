@@ -98,6 +98,8 @@ model Device {
   software    Software[]
   logs        CollectionLog[]
   checkLogs   AgentCheckLog[]
+  security    SecurityPosture?
+  localAccounts LocalAccount[]
 
   @@index([hostname])
   @@index([status])
@@ -151,6 +153,11 @@ model Disk {
   tipo          String?
   capacidadeGb  Int?
   espacoLivreGb Int?
+  /// Estado do BitLocker no volume: "on" | "off" | "unknown".
+  /// Nulo quando o agente nao conseguiu consultar (falta de privilegio ou
+  /// namespace de criptografia ausente) — diferente de "off", que e uma
+  /// afirmacao de que o volume esta desprotegido.
+  criptografia  String?
 
   @@index([deviceId])
   @@map("disks")
@@ -220,6 +227,47 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+/// Postura de seguranca do endpoint, 1:1 com Device.
+/// Todos os campos sao opcionais de proposito: `null` significa "nao foi
+/// possivel apurar" e nunca deve ser exibido como "desativado". Em Windows
+/// Server, por exemplo, o namespace SecurityCenter2 nao existe, entao antivirus
+/// e firewall vem nulos mesmo havendo protecao ativa.
+model SecurityPosture {
+  id                  String   @id @default(cuid())
+  deviceId            String   @unique
+  device              Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  antivirusNome       String?
+  antivirusAtivo      Boolean?
+  antivirusAtualizado Boolean?
+  firewallAtivo       Boolean?
+  secureBootAtivo     Boolean?
+  tpmPresente         Boolean?
+  uacAtivo            Boolean?
+
+  /// Motivo pelo qual parte da coleta ficou indisponivel, quando aplicavel.
+  observacao          String?
+  coletadoEm          DateTime @default(now())
+
+  @@map("security_postures")
+}
+
+/// Contas locais do endpoint. Conta administradora habilitada e o achado que
+/// mais aparece em auditoria de compliance.
+model LocalAccount {
+  id                   String  @id @default(cuid())
+  deviceId             String
+  device               Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  usuario              String
+  isAdmin              Boolean @default(false)
+  habilitada           Boolean @default(true)
+  senhaNuncaExpira     Boolean @default(false)
+
+  @@index([deviceId])
+  @@map("local_accounts")
 }
 
 model AgentCommand {

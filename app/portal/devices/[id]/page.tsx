@@ -76,6 +76,7 @@ export default async function PortalDeviceDetailPage({
           tipo: disk.tipo,
           capacidadeGb: disk.capacidadeGb,
           espacoLivreGb: disk.espacoLivreGb,
+          criptografia: disk.criptografia,
         }))}
         networks={device.networks.map((network) => ({
           id: network.id,
@@ -95,6 +96,28 @@ export default async function PortalDeviceDetailPage({
         }))}
         commands={[]}
         canRunCommands={false}
+        security={
+          device.security
+            ? {
+                antivirusNome: device.security.antivirusNome,
+                antivirusAtivo: device.security.antivirusAtivo,
+                antivirusAtualizado: device.security.antivirusAtualizado,
+                firewallAtivo: device.security.firewallAtivo,
+                secureBootAtivo: device.security.secureBootAtivo,
+                tpmPresente: device.security.tpmPresente,
+                uacAtivo: device.security.uacAtivo,
+                observacao: device.security.observacao,
+                coletadoEm: device.security.coletadoEm.toISOString(),
+              }
+            : null
+        }
+        localAccounts={device.localAccounts.map((account) => ({
+          id: account.id,
+          usuario: account.usuario,
+          isAdmin: account.isAdmin,
+          habilitada: account.habilitada,
+          senhaNuncaExpira: account.senhaNuncaExpira,
+        }))}
       />
     </div>
   )

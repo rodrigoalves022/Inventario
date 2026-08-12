@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
           tipo: disk.tipo,
           capacidadeGb: disk.capacidadeGb,
           espacoLivreGb: disk.espacoLivreGb,
+          criptografia: disk.criptografia,
         })),
       })
     }
@@ -171,6 +172,42 @@ export async function POST(req: NextRequest) {
           versao: software.versao,
           editor: software.editor,
           installadoEm: software.installadoEm ? new Date(software.installadoEm) : null,
+        })),
+      })
+    }
+
+    if (body.seguranca) {
+      const security = body.seguranca
+      const securityData = {
+        antivirusNome: security.antivirusNome ?? null,
+        antivirusAtivo: security.antivirusAtivo ?? null,
+        antivirusAtualizado: security.antivirusAtualizado ?? null,
+        firewallAtivo: security.firewallAtivo ?? null,
+        secureBootAtivo: security.secureBootAtivo ?? null,
+        tpmPresente: security.tpmPresente ?? null,
+        uacAtivo: security.uacAtivo ?? null,
+        observacao: security.observacao ?? null,
+        coletadoEm: new Date(),
+      }
+
+      await prisma.securityPosture.upsert({
+        where: { deviceId: device.id },
+        create: { deviceId: device.id, ...securityData },
+        update: securityData,
+      })
+    }
+
+    // Reconciliacao total: uma conta removida na maquina precisa sumir aqui,
+    // senao o painel mostraria administrador que ja nao existe.
+    if (body.contasLocais && body.contasLocais.length > 0) {
+      await prisma.localAccount.deleteMany({ where: { deviceId: device.id } })
+      await prisma.localAccount.createMany({
+        data: body.contasLocais.map((account) => ({
+          deviceId: device.id,
+          usuario: account.usuario,
+          isAdmin: account.isAdmin,
+          habilitada: account.habilitada,
+          senhaNuncaExpira: account.senhaNuncaExpira,
         })),
       })
     }

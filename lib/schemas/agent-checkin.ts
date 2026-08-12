@@ -15,6 +15,30 @@ const diskSchema = z.object({
   tipo: z.string().max(50).optional().nullable(),
   capacidadeGb: z.number().int().optional().nullable(),
   espacoLivreGb: z.number().int().optional().nullable(),
+  criptografia: z.enum(['on', 'off', 'unknown']).optional().nullable(),
+})
+
+/**
+ * Booleanos opcionais e nulaveis de proposito: ausente/nulo significa
+ * "nao apurado", nunca "desativado". Windows Server nao expoe o namespace
+ * SecurityCenter2, entao antivirus e firewall chegam nulos mesmo com protecao.
+ */
+const securitySchema = z.object({
+  antivirusNome: z.string().max(255).optional().nullable(),
+  antivirusAtivo: z.boolean().optional().nullable(),
+  antivirusAtualizado: z.boolean().optional().nullable(),
+  firewallAtivo: z.boolean().optional().nullable(),
+  secureBootAtivo: z.boolean().optional().nullable(),
+  tpmPresente: z.boolean().optional().nullable(),
+  uacAtivo: z.boolean().optional().nullable(),
+  observacao: z.string().max(500).optional().nullable(),
+})
+
+const localAccountSchema = z.object({
+  usuario: z.string().min(1).max(255),
+  isAdmin: z.boolean().optional().default(false),
+  habilitada: z.boolean().optional().default(true),
+  senhaNuncaExpira: z.boolean().optional().default(false),
 })
 
 const softwareSchema = z.object({
@@ -56,7 +80,12 @@ export const agentCheckinSchema = z.object({
 
   redes: z.array(networkSchema).max(20).optional().default([]),
   discos: z.array(diskSchema).max(20).optional().default([]),
-  software: z.array(softwareSchema).max(300).optional().default([]),
+  // 300 era baixo demais: uma estacao Windows comum passa de 300 entradas, e
+  // estourar o limite rejeitava o check-in INTEIRO (400), nao so a lista.
+  software: z.array(softwareSchema).max(2000).optional().default([]),
+
+  seguranca: securitySchema.optional().nullable(),
+  contasLocais: z.array(localAccountSchema).max(200).optional().default([]),
 
   eventLogs: z.array(eventLogSchema).max(500).optional().default([]),
 })

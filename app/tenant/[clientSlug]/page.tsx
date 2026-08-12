@@ -109,7 +109,7 @@ export default async function TenantDashboardPage({ params }: PageProps<'/tenant
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
+        {/* Titulo fica no cabecalho fixo; aqui so o contexto. */}
         <p className="text-muted-foreground">
           Monitoramento em tempo real dos ativos de TI da empresa <span className="font-medium text-foreground">{tenant.name}</span>.
         </p>

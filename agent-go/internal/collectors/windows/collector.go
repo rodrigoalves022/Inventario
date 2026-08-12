@@ -144,6 +144,8 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 		}
 	}
 
+	encryptionByDrive := collectDiskEncryption()
+
 	var disks []Win32_LogicalDisk
 	if err := wmi.Query("SELECT DeviceID, Size, FreeSpace, DriveType FROM Win32_LogicalDisk WHERE DriveType=3", &disks); err == nil {
 		var drives []Win32_DiskDrive
@@ -169,12 +171,29 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 			if len(drives) > 0 {
 				info.Modelo = strings.TrimSpace(drives[0].Model)
 			}
+			// Mapa vazio (consulta falhou) deixa o campo em branco de proposito:
+			// nao ha como afirmar que o volume esta desprotegido.
+			info.Criptografia = encryptionByDrive[strings.ToUpper(disk.DeviceID)]
 			payload.Discos = append(payload.Discos, info)
 		}
 	}
 
 	payload.Usuario = os.Getenv("USERNAME")
 	payload.Software = collectSoftwareFromRegistry()
+	payload.Seguranca = collectSecurity()
+
+	accounts, accountsNote := collectLocalAccounts()
+	payload.ContasLocais = accounts
+	if accountsNote != "" && payload.Seguranca != nil {
+		if payload.Seguranca.Observacao == "" {
+			payload.Seguranca.Observacao = accountsNote
+		} else {
+			payload.Seguranca.Observacao += "; " + accountsNote
+		}
+		if len(payload.Seguranca.Observacao) > 500 {
+			payload.Seguranca.Observacao = payload.Seguranca.Observacao[:500]
+		}
+	}
 
 	return payload, nil
 }

@@ -22,6 +22,29 @@ type Payload struct {
 	Redes             []NetworkInfo  `json:"redes,omitempty"`
 	Discos            []DiskInfo     `json:"discos,omitempty"`
 	Software          []SoftwareInfo `json:"software,omitempty"`
+	Seguranca         *SecurityInfo  `json:"seguranca,omitempty"`
+	ContasLocais      []LocalAccountInfo `json:"contasLocais,omitempty"`
+}
+
+// SecurityInfo usa ponteiros de proposito: nil significa "nao foi possivel
+// apurar", que e diferente de false ("apurado e desativado"). Reportar um
+// desconhecido como desativado geraria alarme falso de compliance.
+type SecurityInfo struct {
+	AntivirusNome       string  `json:"antivirusNome,omitempty"`
+	AntivirusAtivo      *bool   `json:"antivirusAtivo,omitempty"`
+	AntivirusAtualizado *bool   `json:"antivirusAtualizado,omitempty"`
+	FirewallAtivo       *bool   `json:"firewallAtivo,omitempty"`
+	SecureBootAtivo     *bool   `json:"secureBootAtivo,omitempty"`
+	TpmPresente         *bool   `json:"tpmPresente,omitempty"`
+	UacAtivo            *bool   `json:"uacAtivo,omitempty"`
+	Observacao          string  `json:"observacao,omitempty"`
+}
+
+type LocalAccountInfo struct {
+	Usuario          string `json:"usuario"`
+	IsAdmin          bool   `json:"isAdmin"`
+	Habilitada       bool   `json:"habilitada"`
+	SenhaNuncaExpira bool   `json:"senhaNuncaExpira"`
 }
 
 type NetworkInfo struct {
@@ -39,6 +62,8 @@ type DiskInfo struct {
 	Tipo          string `json:"tipo,omitempty"`
 	CapacidadeGb  int    `json:"capacidadeGb,omitempty"`
 	EspacoLivreGb int    `json:"espacoLivreGb,omitempty"`
+	// "on" | "off" | "unknown" — vazio quando nao consultado.
+	Criptografia  string `json:"criptografia,omitempty"`
 }
 
 type SoftwareInfo struct {

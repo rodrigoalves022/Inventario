@@ -72,6 +72,8 @@ export async function requirePortalDevice(deviceId: string, clientId: string) {
       networks: { orderBy: [{ isPrimary: 'desc' }, { ip: 'asc' }] },
       software: { orderBy: { nome: 'asc' } },
       logs: { orderBy: { coletadoEm: 'desc' }, take: 1 },
+      security: true,
+      localAccounts: { orderBy: [{ isAdmin: 'desc' }, { usuario: 'asc' }] },
     },
   })
 

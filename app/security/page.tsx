@@ -1,10 +1,10 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, KeyRound, ShieldOff, WifiOff } from 'lucide-react'
 import { Sidebar, Header } from '@/components/sidebar'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
+import { cn } from '@/lib/utils'
 
 const OFFLINE_THRESHOLD_DAYS = 7
 
@@ -18,11 +18,32 @@ export default async function SecurityPage() {
 
   const offlineSince = new Date(Date.now() - OFFLINE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000)
 
-  const [devicesWarning, devicesStale, revokedAgents, credentialViews] = await Promise.all([
+  const [
+    devicesWarning,
+    devicesStale,
+    revokedAgents,
+    credentialViews,
+    totalDevices,
+    withPosture,
+    firewallOff,
+    secureBootOff,
+    uacOff,
+    antivirusOff,
+    adminAccounts,
+  ] = await Promise.all([
     prisma.device.count({ where: { status: 'warning' } }),
     prisma.device.count({ where: { updatedAt: { lt: offlineSince } } }),
     prisma.agentAuth.count({ where: { isActive: false } }),
     prisma.auditLog.count({ where: { action: 'credentials.view' } }),
+    prisma.device.count(),
+    prisma.securityPosture.count(),
+    // `false` explicito, nunca `null`: nulo significa nao apurado e nao pode
+    // ser contado como problema.
+    prisma.securityPosture.count({ where: { firewallAtivo: false } }),
+    prisma.securityPosture.count({ where: { secureBootAtivo: false } }),
+    prisma.securityPosture.count({ where: { uacAtivo: false } }),
+    prisma.securityPosture.count({ where: { antivirusAtivo: false } }),
+    prisma.localAccount.count({ where: { isAdmin: true, habilitada: true } }),
   ])
 
   const indicators = [
@@ -79,20 +100,67 @@ export default async function SecurityPage() {
               ))}
             </div>
 
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-sm font-semibold text-foreground">Postura de segurança</h2>
+                <p className="text-xs text-muted-foreground">
+                  {withPosture} de {totalDevices} máquinas já reportaram
+                </p>
+              </div>
+
+              {withPosture === 0 ? (
+                <div className="rounded-xl border border-dashed p-6">
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma máquina reportou postura de segurança ainda. O agente precisa ser
+                    atualizado para a versão que coleta esses dados.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                    {[
+                      { label: 'Antivírus inativo', value: antivirusOff },
+                      { label: 'Firewall desativado', value: firewallOff },
+                      { label: 'Secure Boot desativado', value: secureBootOff },
+                      { label: 'UAC desativado', value: uacOff },
+                      { label: 'Contas admin habilitadas', value: adminAccounts },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className={cn(
+                          'rounded-xl border p-4',
+                          item.value > 0 ? 'border-destructive/30 bg-destructive/5' : 'bg-card'
+                        )}
+                      >
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {item.label}
+                        </p>
+                        <p
+                          className={cn(
+                            'mt-1 text-2xl font-bold',
+                            item.value > 0 ? 'text-destructive' : 'text-foreground'
+                          )}
+                        >
+                          {item.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Só entram nestas contagens as máquinas que reportaram o item como desativado.
+                    O que o agente não conseguiu apurar — antivírus em Windows Server, BitLocker
+                    ausente, TPM sem privilégio — fica de fora em vez de ser contado como problema.
+                  </p>
+                </>
+              )}
+            </div>
+
             <div className="rounded-xl border border-dashed p-6 space-y-2">
               <h2 className="text-sm font-semibold text-foreground">Ainda não coletado</h2>
               <p className="text-sm text-muted-foreground">
-                Antivírus, firewall, BitLocker, Secure Boot, atualizações pendentes e contas locais
-                administradoras dependem da coleta de segurança, que ainda não foi implementada no
-                agente. Enquanto isso, esta página mostra apenas o que existe de fato — nenhum
-                indicador aqui é estimado.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Escopo definido em{' '}
-                <Link href="/clients/audit" className="underline underline-offset-4">
-                  auditoria
-                </Link>{' '}
-                e no documento de produto (Fase B1).
+                Atualizações pendentes do Windows exigem a API do Windows Update Agent e ainda não
+                são coletadas. Nenhum indicador desta página é estimado.
               </p>
             </div>
           </div>

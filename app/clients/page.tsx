@@ -81,14 +81,13 @@ export default async function ClientsPage() {
         <Header />
         <main className="p-6">
           <div className="space-y-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Clientes</h1>
-                <p className="text-muted-foreground">
-                  Cadastre empresas, gere instaladores e gerencie os agentes de cada cliente.
-                </p>
-              </div>
-              <Button asChild className="gap-2">
+            {/* Sem h1 aqui: o cabecalho fixo ja exibe "Clientes". Repetir o
+                titulo logo abaixo dele gastava altura util sem informar nada. */}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <p className="text-sm text-muted-foreground">
+                Cadastre empresas, gere instaladores e gerencie os agentes de cada cliente.
+              </p>
+              <Button asChild size="sm" className="gap-2">
                 <Link href="/clients/novo">
                   <Plus className="h-4 w-4" />
                   Novo cliente

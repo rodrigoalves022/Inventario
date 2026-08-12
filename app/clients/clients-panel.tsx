@@ -399,21 +399,7 @@ export function ClientsPanel({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Clientes</CardTitle>
-              <CardDescription>
-                Gerencie empresas, baixe instaladores e emita novos pacotes.
-              </CardDescription>
-            </div>
-            <Button onClick={() => setShowCreateForm(true)} disabled={showCreateForm}>
-              <PlusCircle className="h-4 w-4" />
-              Novo cliente
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {sortedClients.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
               Nenhum cliente cadastrado. Clique em <strong>Novo cliente</strong> para começar.
