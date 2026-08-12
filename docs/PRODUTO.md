@@ -240,13 +240,19 @@ migrados do SQLite (1 organização, 1 cliente, 4 usuários, 7 agentes, 3 máqui
 429 softwares, 352 logs de coleta, 18 de auditoria) sem órfãos. O SQLite anterior
 ficou preservado em `prisma/dev.db.backup-pre-postgres`.
 
-**A2. Hierarquia `Organization` + RBAC de 4 papéis**
-Criar `Organization`, vincular `Client`, migrar papéis, desnormalizar `clientId` em `Device`.
-*Por que antes de tudo*: muda o escopo de **toda** consulta do sistema. Feito depois, obriga a reescrever tudo que vier antes.
+**A2. Hierarquia `Organization` + RBAC de 4 papéis ✅ Concluído**
+`Organization → Client → AgentAuth → Device`; papéis `PLATFORM_ADMIN`, `ORG_ADMIN`,
+`ORG_OPERATOR`, `CLIENT_VIEWER`; `clientId` desnormalizado em `Device`;
+autorização de tenant concentrada em `requireTenantContext` (fail-closed, responde
+`notFound()` para não revelar tenant de outra organização).
 
-**A3. Consolidação de rotas**
-Reorganizar em `/admin`, `/app`, `/portal`; apagar os 8 stubs legados.
-*Por que aqui*: define onde cada feature nova será colocada.
+**A3. Consolidação de rotas — parcial**
+Feito: removidos 7 stubs mortos (`/computers`, `/network`, `/processors`, `/servers`,
+`/storage`, `/reports`, `/assets/[id]`), `/settings` (fingia salvar), e substituídos os
+dados fabricados de `/users` e `/security` por dados reais.
+**Pendente**: renomear `/tenant/[slug]/*` → `/app/*` e `/clients` → `/admin/*`.
+Mexe em ~12 páginas e em todas as URLs; é churn estrutural sem ganho funcional
+imediato, então ficou por último dentro da fase.
 
 ### Fase A4 — Redesenho do frontend *(direcionado, não reconstrução)*
 
@@ -261,24 +267,47 @@ Fluxo novo, em 3 passos com estado explícito:
 2. **Instalação** — download do `.exe` como ação única em destaque (a config vai embutida, não exige digitar nada); chave em aviso âmbar de exibição única; PowerShell/manual recolhidos em "outras formas de instalar", para GPO/Intune
 3. **Primeira máquina** — a tela consulta `GET /api/clients/[id]/status` a cada 5s e vira "«hostname» conectou" quando o primeiro check-in chega; fecha o ciclo que antes ficava em aberto
 
-**Prioridade 2 — Detalhe da máquina.** Hoje é uma lista longa de cartões; com segurança, métricas, periféricos e patrimônio entrando, vira ingovernável. Precisa das abas definidas na seção 5.2.
+**Prioridade 2 — Detalhe da máquina. ✅ Implementado.** Seis abas (Visão geral ·
+Hardware · Software · Segurança · Rede · Comandos). O software coletado
+(121–174 por máquina) não era exibido em lugar nenhum e agora tem aba com busca.
 
-**Prioridade 3 — Navegação e hierarquia.** A sidebar precisa refletir `Organization → Client → Device` e o papel do usuário, em vez do menu plano atual.
+**Prioridade 3 — Navegação. ✅ Implementado.** Sidebar por papel, com usuário real
+no rodapé. Corrigido um fail-open: a versão anterior liberava o menu administrativo
+completo quando o papel **não** era reconhecido.
 
-**Prioridade 4 — Layout do portal do cliente.** Superfície própria, mais enxuta que a de operação.
+**Prioridade 4 — Portal do cliente. ✅ Implementado** (ver C1).
 
-> Manter: paleta, componentes shadcn/ui, tema claro/escuro. Trocar: disposição, densidade de informação, fluxo de tarefa.
+**Prioridade 5 — Tipografia. ✅ Corrigido.** O CSS apontava para `'Geist'`, fonte que
+nunca era carregada, e a pilha não tinha fallback genérico — o navegador caía na
+serifada padrão. Agora Inter (UI) + JetBrains Mono (valores técnicos) via `next/font`,
+números tabulares e tracking negativo em títulos.
+
+**Pendente — modal "Credenciais ativas"** (`app/clients/clients-panel.tsx`). Ainda é a
+tela antiga que despeja seis caminhos de instalação simultâneos, mesmo problema já
+resolvido em `/clients/novo`. É o retrabalho de UI mais visível que resta.
+
+> Manter: paleta, componentes shadcn/ui. Trocar: disposição, densidade, fluxo de tarefa.
 
 ### Fase B — Coleta ampliada
 Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
 
-- **B1. Segurança/compliance** — maior valor comercial imediato
-- **B2. Métricas / série temporal** — inclui política de retenção e expurgo
+- **B1. Segurança/compliance ✅ Concluído.** Antivírus, firewall, Secure Boot, TPM,
+  UAC, BitLocker por volume e contas locais. Regra que atravessa as três camadas:
+  `null` = "não apurado", nunca "desativado" (`*bool` no Go, `nullable` no Zod,
+  coluna opcional, três estados na UI). Trata Windows Server sem SecurityCenter2,
+  BitLocker ausente e controlador de domínio sem contas locais.
+  **Não coletado ainda**: atualizações pendentes (exige a API do Windows Update Agent).
+- **B2. Métricas / série temporal** — inclui política de retenção e expurgo.
+  *Próximo item natural.* Tabela que mais cresce (~4.300 amostras/máquina/mês):
+  exige índice `(deviceId, collectedAt)` e rotina de expurgo desde o primeiro dia.
 - **B3. Periféricos e monitores**
 - **B4. Patrimônio** — só formulário, sem agente
 
 ### Fase C — Valor operacional
-- **C1. Portal do cliente** (`/portal`) — depende de A2 e A3
+- **C1. Portal do cliente ✅ Concluído.** `/portal` deriva o cliente da **sessão**,
+  nunca da URL — sem slug não há o que enumerar. Shell próprio, que não importa a
+  Sidebar de operação. `CLIENT_VIEWER` foi removido de `canAccessTenant`: a separação
+  vale nos dois sentidos, para não manter duas regras de autorização em sincronia.
 - **C2. Relatórios CSV/PDF** — depende de B para ter o que reportar
 - **C3. Alertas por regra** — evolui os limiares fixos de hoje
 - **C4. Ampliar catálogo de comandos** — depende de A2 (papel `ORG_OPERATOR`)
@@ -291,7 +320,37 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
 
 ---
 
-## 9. Riscos conhecidos em aberto
+## 9. Como retomar em uma sessão nova
+
+Este documento é **o plano**; o `git log` é **o que de fato aconteceu**. As mensagens
+de commit descrevem o porquê de cada decisão, os bugs encontrados no caminho e como
+cada entrega foi verificada.
+
+Não existe arquivo de status mantido à mão — o projeto já teve um (`CURRENT_STATE.md`)
+e ele virou ficção: afirmava que DPAPI e auditoria estavam pendentes quando ambos já
+existiam no código. Estado se apura no código e no histórico.
+
+Ordem para retomar:
+
+1. Ler as seções 1 a 7 deste arquivo (modelo de negócio, papéis, dados, páginas, agente)
+2. `git log --oneline -15` e ler a mensagem completa do commit mais recente relevante
+3. Conferir o que está de pé: `docker compose up -d db` e `npm run dev`
+4. Pegar o próximo item não concluído da seção 8
+
+**Ambiente:** PostgreSQL em Docker (`docker compose up -d db`) — sem ele a aplicação
+não sobe. Usuários de teste vêm de `node scripts/seed-rbac.ts`, todos com senha `admin`:
+`admin@inventario.local` (PLATFORM_ADMIN), `admin@core-ti-expert.local` (ORG_ADMIN),
+`operador@core-ti-expert.local` (ORG_OPERATOR), `portal@core-ti-expert.local`
+(CLIENT_VIEWER). Senha fraca proposital, só para desenvolvimento.
+
+**Verificação esperada de qualquer entrega:** `npx tsc --noEmit`, `npm run lint`,
+`npm run build` e — quando tocar em permissão — teste com login real nos quatro papéis,
+porque erro de RBAC não aparece em typecheck. Mudança no agente: `go vet ./...` e build
+para Windows e Linux.
+
+---
+
+## 10. Riscos conhecidos em aberto
 
 | Risco | Situação |
 |---|---|
@@ -300,3 +359,5 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
 | Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
 | Retenção de métricas | Sem expurgo, a base cresce indefinidamente |
 | Fila de comandos sem uso real | Validada por HTTP, mas nenhum agente Go instalado exercitou o ciclo completo ainda |
+| Modal "Credenciais ativas" não redesenhado | Mantém os seis caminhos de instalação simultâneos que o assistente `/clients/novo` já resolveu |
+| Atualizações pendentes não coletadas | Exige a API do Windows Update Agent (COM); nenhum indicador da UI é estimado enquanto isso |
