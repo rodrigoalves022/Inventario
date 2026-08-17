@@ -282,9 +282,9 @@ nunca era carregada, e a pilha não tinha fallback genérico — o navegador ca�
 serifada padrão. Agora Inter (UI) + JetBrains Mono (valores técnicos) via `next/font`,
 números tabulares e tracking negativo em títulos.
 
-**Pendente — modal "Credenciais ativas"** (`app/clients/clients-panel.tsx`). Ainda é a
-tela antiga que despeja seis caminhos de instalação simultâneos, mesmo problema já
-resolvido em `/clients/novo`. É o retrabalho de UI mais visível que resta.
+**Modal "Credenciais ativas" ✅ Redesenhado.** Mesmo padrão do assistente `/clients/novo`
+(botão primário + chave em caixa de aviso + "outras formas de instalar" recolhido),
+com `CopyField` extraído para componente compartilhado entre os dois pontos de entrada.
 
 > Manter: paleta, componentes shadcn/ui. Trocar: disposição, densidade, fluxo de tarefa.
 
@@ -396,5 +396,4 @@ e reiniciar o serviço (`sc stop/start InventarioAgent` ou o binário `stop`/`st
 | `public/inventario-agent.exe` e `agent-go/dist/inventario-agent.exe` divergem | Sem processo único de publish |
 | Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" |
 | Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
-| Modal "Credenciais ativas" não redesenhado | Mantém os seis caminhos de instalação simultâneos que o assistente `/clients/novo` já resolveu |
 | Atualizações pendentes não coletadas | Exige a API do Windows Update Agent (COM); nenhum indicador da UI é estimado enquanto isso |
