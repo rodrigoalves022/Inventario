@@ -297,18 +297,33 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
   coluna opcional, três estados na UI). Trata Windows Server sem SecurityCenter2,
   BitLocker ausente e controlador de domínio sem contas locais.
   **Não coletado ainda**: atualizações pendentes (exige a API do Windows Update Agent).
-- **B2. Métricas / série temporal** — inclui política de retenção e expurgo.
-  *Próximo item natural.* Tabela que mais cresce (~4.300 amostras/máquina/mês):
-  exige índice `(deviceId, collectedAt)` e rotina de expurgo desde o primeiro dia.
-- **B3. Periféricos e monitores**
-- **B4. Patrimônio** — só formulário, sem agente
+- **B2. Métricas / série temporal ✅ Concluído.** Ciclo novo no agente (~10 min,
+  independente do inventário completo de 1h): CPU%, RAM usada/total, disco usado/livre
+  da unidade do sistema, uptime. Índice `(deviceId, collectedAt)` e expurgo por
+  retenção (`Client.metricsRetentionDays`, padrão 90 dias) nasceram junto com a
+  coleta — o expurgo roda a cada ingestão (`DELETE` indexado por `deviceId`), não em
+  job separado, porque o projeto ainda não tem onde rodar um cron. Aba "Métricas" com
+  gráficos reais (recharts) em `/tenant/.../assets/[id]` e no portal.
+- **B3. Periféricos e monitores ✅ Concluído.** Monitores via `WmiMonitorID` (namespace
+  `root\wmi` — `Win32_DesktopMonitor` não tem fabricante/serial reais), impressoras via
+  `Win32_Printer`, USB via `Win32_PnPEntity` filtrando hubs e deduplicando por
+  VID+PID+serial. Roda no ciclo de inventário completo (1h), não no de métricas.
+- **B4. Patrimônio ✅ Concluído.** Só formulário — `AssetRecord` nunca é tocado pelo
+  check-in, por construção (a rota de checkin não sabe que a tabela existe). Editável
+  por quem tem `canManageAssetRecord` (= `canOperateTenant`: ORG_ADMIN + ORG_OPERATOR,
+  dado operacional, não credencial); somente leitura no portal.
 
 ### Fase C — Valor operacional
 - **C1. Portal do cliente ✅ Concluído.** `/portal` deriva o cliente da **sessão**,
   nunca da URL — sem slug não há o que enumerar. Shell próprio, que não importa a
   Sidebar de operação. `CLIENT_VIEWER` foi removido de `canAccessTenant`: a separação
   vale nos dois sentidos, para não manter duas regras de autorização em sincronia.
-- **C2. Relatórios CSV/PDF** — depende de B para ter o que reportar
+- **C2. Relatórios CSV/PDF ✅ Concluído.** CSV sem dependência (geração direta, com BOM
+  UTF-8 explícito pra acentuação não quebrar no Excel). PDF via `pdfkit` (nova
+  dependência) — precisou `serverExternalPackages: ['pdfkit']` no `next.config.mjs`
+  porque o webpack do Next quebra a leitura dos arquivos `.afm` de fonte que a lib lê
+  do disco em runtime. Mesma consulta (`lib/reports/device-report.ts`) reaproveitada
+  por `/tenant/[clientSlug]/reports` e `/portal/reports` (rota nova).
 - **C3. Alertas por regra** — evolui os limiares fixos de hoje
 - **C4. Ampliar catálogo de comandos** — depende de A2 (papel `ORG_OPERATOR`)
 
@@ -357,7 +372,6 @@ para Windows e Linux.
 | `public/inventario-agent.exe` e `agent-go/dist/inventario-agent.exe` divergem | Sem processo único de publish |
 | Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" |
 | Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
-| Retenção de métricas | Sem expurgo, a base cresce indefinidamente |
 | Fila de comandos sem uso real | Validada por HTTP, mas nenhum agente Go instalado exercitou o ciclo completo ainda |
 | Modal "Credenciais ativas" não redesenhado | Mantém os seis caminhos de instalação simultâneos que o assistente `/clients/novo` já resolveu |
 | Atualizações pendentes não coletadas | Exige a API do Windows Update Agent (COM); nenhum indicador da UI é estimado enquanto isso |
