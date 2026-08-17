@@ -211,7 +211,21 @@ Servidor enfileira → agente busca no próximo ciclo → executa → reporta re
 
 ### 6.5 Plataformas
 - **Windows**: suportado
-- **Linux/macOS**: a estrutura já suporta (`factory_windows.go` / `factory_stub.go`); falta implementar os coletores
+- **Linux ✅ Suportado.** Coleta via `/proc`, `/sys` e `/etc/os-release` — sem WMI, sem
+  dependência externa além de `dpkg` (Debian/Ubuntu) para a lista de software. Serviço via
+  systemd (`inventario-agent install` escreve a unit, não um timer+oneshot como o script
+  antigo em `scripts/agent/install-linux-agent.sh`) — processo persistente com os mesmos
+  três ciclos do Windows (inventário 1h, métricas 10min, comandos 90s), não uma execução
+  horária isolada. Postura de segurança e periféricos ficam de fora desta primeira versão
+  (exigem detecção específica de distro: ufw/iptables, CUPS, lsusb) — campos ficam ausentes,
+  nunca inventados. Testado de ponta a ponta em WSL2 Ubuntu 24.04 real (não só cross-compile):
+  `install` → registro → systemd → check-in completo → métricas, com e sem privilégio de
+  root (afeta só se `/etc/shadow` é lido para status de conta local).
+
+  Para reproduzir: `cd agent-go && GOOS=linux GOARCH=amd64 go build -o dist/inventario-agent-linux ./cmd/inventario-agent`,
+  copiar para dentro do WSL/Linux, `sudo ./inventario-agent-linux install -server <url> -client <slug> -key <chave>`.
+- **macOS**: não suportado — só o stub (`factory_stub.go`) responde "coletor nativo ainda
+  não implementado"
 
 ---
 
@@ -348,7 +362,7 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
   `npm run build:agent` (Node puro, roda em qualquer ambiente) e `make windows`
   (`agent-go/Makefile`, reescrito — a versão antiga usava sintaxe de env var do
   PowerShell dentro da receita, inválida em `sh`) publicam o mesmo destino.
-- Coletores Linux/macOS
+- **Coletor Linux ✅ Concluído** (ver 6.5). macOS continua pendente.
 - Deploy assistido (GPO/Intune)
 
 ---
@@ -390,9 +404,17 @@ instalando de verdade em vez de só testar via curl/dados inseridos direto no ba
 que criados (commit 9ce4df5) — o cliente Go seguia o redirect pro `/login` e via HTTP 200
 genérico da página, sem nunca reportar erro. Teste HTTP com sessão de navegador ou SQL
 direto no banco não pega esse tipo de bug; só o agente real, sem sessão, de ponta a ponta,
-pega. Rebuildar o binário depois de mexer em `agent-go/`:
-`cd agent-go && GOOS=windows GOARCH=amd64 go build -o /c/ProgramData/InventarioAgent/inventario-agent.exe ./cmd/inventario-agent`
-e reiniciar o serviço (`sc stop/start InventarioAgent` ou o binário `stop`/`start`).
+pega. Rebuildar o binário depois de mexer em `agent-go/`: `npm run build:agent` (publica em
+`public/inventario-agent.exe`, fonte única — ver 6.4) e reiniciar o serviço (`sc stop/start
+InventarioAgent` ou o binário `stop`/`start`).
+
+**Agente Linux real rodando em WSL2 Ubuntu 24.04** (`wsl -d Ubuntu`), serviço systemd
+`inventario-agent`, mesmo tenant `core-ti-expert`, registrado como dispositivo `WSL-LINUX-TEST`
+→ hostname coletado `SRV-VS` (WSL2 compartilha o hostname do Windows host por padrão — mais
+uma colisão de hostname real, mesma razão pela qual a identidade nunca pode ser o hostname).
+Usado para validar o coletor Linux (seção 6.5) de ponta a ponta, não só cross-compile. Para
+invocar `wsl.exe` a partir deste Git Bash sem o path-mangling do MSYS (`/home/...` virando
+`C:/Program Files/Git/home/...`): prefixar com `MSYS2_ARG_CONV_EXCL="*"`.
 
 ---
 

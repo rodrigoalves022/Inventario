@@ -1,3 +1,9 @@
+//go:build windows
+
+// Package dpapistore usa a API DPAPI do Windows (via github.com/billgraziano/dpapi),
+// que so builda no Windows. So' importado por store_windows.go — a tag aqui
+// evita que `go build ./...`/`go vet ./...` para outra plataforma tentem
+// compilar este pacote so por ele existir na arvore do modulo.
 package dpapistore
 
 import (
