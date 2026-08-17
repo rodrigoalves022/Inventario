@@ -206,7 +206,8 @@ Servidor enfileira → agente busca no próximo ciclo → executa → reporta re
 - Segredo local protegido por DPAPI
 - Auto-update **só aplica binário cujo SHA-256 confere** com o informado pelo servidor
 - Pendente: assinatura Authenticode (remove aviso de "fornecedor desconhecido")
-- Pendente: unificar a fonte do binário (`public/` e `agent-go/dist/` divergem hoje)
+- ✅ Fonte única do binário: `public/inventario-agent.exe`, publicado por `npm run
+  build:agent` (ou `make windows` em `agent-go/`, para quem tem `make`)
 
 ### 6.5 Plataformas
 - **Windows**: suportado
@@ -339,8 +340,14 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
   (`collect_metrics_now`, `restart_computer` — este com diálogo de confirmação).
 
 ### Fase D — Distribuição
-- Assinatura Authenticode do agente
-- Unificar publish do binário
+- Assinatura Authenticode do agente — precisa de certificado de assinatura de código
+- **Unificar publish do binário ✅ Concluído.** `public/inventario-agent.exe` era servido
+  pelo auto-updater e por `/api/agent/download-exe`, enquanto `/api/agent/download` lia
+  `agent-go/dist/inventario-agent.exe` — duas cópias, datas de build diferentes, nenhum
+  processo as sincronizando. `/api/agent/download` passou a ler o mesmo arquivo publicado;
+  `npm run build:agent` (Node puro, roda em qualquer ambiente) e `make windows`
+  (`agent-go/Makefile`, reescrito — a versão antiga usava sintaxe de env var do
+  PowerShell dentro da receita, inválida em `sh`) publicam o mesmo destino.
 - Coletores Linux/macOS
 - Deploy assistido (GPO/Intune)
 
@@ -393,7 +400,6 @@ e reiniciar o serviço (`sc stop/start InventarioAgent` ou o binário `stop`/`st
 
 | Risco | Situação |
 |---|---|
-| `public/inventario-agent.exe` e `agent-go/dist/inventario-agent.exe` divergem | Sem processo único de publish |
 | Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" |
 | Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
 | Atualizações pendentes não coletadas | Exige a API do Windows Update Agent (COM); nenhum indicador da UI é estimado enquanto isso |
