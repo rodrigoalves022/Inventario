@@ -72,19 +72,35 @@ export default async function PortalReportsPage() {
         )}
       </div>
 
-      {summary.storageCapacityGb > 0 && (
+      {summary.diskUsageDistribution.some((bucket) => bucket.count > 0) && (
         <div className="rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Uso geral de armazenamento</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {summary.storageUsedGb} GB usados de {summary.storageCapacityGb} GB
-              </span>
-              <span className="font-semibold">{summary.storageUsedPercent}%</span>
-            </div>
-            <div className="h-3 rounded-full bg-secondary">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${summary.storageUsedPercent}%` }} />
-            </div>
+          <h2 className="mb-1 text-lg font-semibold text-foreground">Uso de disco por máquina</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Quantidade de máquinas por faixa de uso — máquinas diferentes têm discos de tamanhos
+            diferentes, então um percentual único somando tudo não representa nenhuma delas.
+          </p>
+          <div className="space-y-3">
+            {summary.diskUsageDistribution.map((bucket) => {
+              const maxCount = Math.max(...summary.diskUsageDistribution.map((b) => b.count), 1)
+              const percent = Math.round((bucket.count / maxCount) * 100)
+              const critical = bucket.label.includes('crítico')
+              return (
+                <div key={bucket.label}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className={critical ? 'font-medium text-destructive' : 'text-foreground'}>
+                      {bucket.label}
+                    </span>
+                    <span className="text-muted-foreground">{bucket.count}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-secondary">
+                    <div
+                      className={`h-full rounded-full ${critical ? 'bg-destructive' : 'bg-primary'}`}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

@@ -19,6 +19,8 @@ export type DeviceReportRow = {
   responsavel: string | null
 }
 
+export type UsageBucket = { label: string; count: number }
+
 export type DeviceReportSummary = {
   totalDevices: number
   online: number
@@ -26,10 +28,14 @@ export type DeviceReportSummary = {
   warning: number
   availabilityPercent: string
   osDistribution: Array<{ name: string; value: number }>
+  /** Buckets por maquina, nao um blend: uma "% usado" unica misturando
+   * discos de tamanhos bem diferentes nao representa nenhuma maquina real. */
+  ramDistribution: UsageBucket[]
+  diskUsageDistribution: UsageBucket[]
+  /** Somas brutas da frota — informativas, sem alegar uma proporcao "usada". */
   storageCapacityGb: number
   storageFreeGb: number
   storageUsedGb: number
-  storageUsedPercent: number
 }
 
 function summarizeOs(osName: string) {
@@ -38,6 +44,25 @@ function summarizeOs(osName: string) {
   if (osName.includes('Server')) return 'Windows Server'
   if (osName.toLowerCase().includes('linux')) return 'Linux'
   return osName
+}
+
+const RAM_BUCKET_ORDER = ['≤ 8 GB', '9 - 16 GB', '17 - 32 GB', '33 - 64 GB', '65+ GB']
+
+function bucketRam(value: number) {
+  if (value <= 8) return '≤ 8 GB'
+  if (value <= 16) return '9 - 16 GB'
+  if (value <= 32) return '17 - 32 GB'
+  if (value <= 64) return '33 - 64 GB'
+  return '65+ GB'
+}
+
+const DISK_USAGE_BUCKET_ORDER = ['Até 50% usado', '50–80% usado', '80–95% usado', '95%+ usado (crítico)']
+
+function bucketDiskUsage(usedPercent: number) {
+  if (usedPercent < 50) return 'Até 50% usado'
+  if (usedPercent < 80) return '50–80% usado'
+  if (usedPercent < 95) return '80–95% usado'
+  return '95%+ usado (crítico)'
 }
 
 /** Busca os dados-fonte do relatorio de inventario, ja escopados por tenant
@@ -96,10 +121,31 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportS
     .map(([name, value]) => ({ name, value }))
     .sort((left, right) => right.value - left.value)
 
+  const ramMap = new Map<string, number>()
+  for (const row of rows) {
+    if (row.ramTotalGb == null) continue
+    const key = bucketRam(row.ramTotalGb)
+    ramMap.set(key, (ramMap.get(key) ?? 0) + 1)
+  }
+  const ramDistribution = RAM_BUCKET_ORDER.map((label) => ({ label, count: ramMap.get(label) ?? 0 }))
+
+  // Bucket por maquina (cada uma com sua propria % de uso), nao um blend de
+  // todos os discos somados — ver nota no tipo DeviceReportSummary.
+  const diskUsageMap = new Map<string, number>()
+  for (const row of rows) {
+    if (row.discoCapacidadeGb == null || row.discoCapacidadeGb <= 0 || row.discoLivreGb == null) continue
+    const usedPercent = Math.round(((row.discoCapacidadeGb - row.discoLivreGb) / row.discoCapacidadeGb) * 100)
+    const key = bucketDiskUsage(usedPercent)
+    diskUsageMap.set(key, (diskUsageMap.get(key) ?? 0) + 1)
+  }
+  const diskUsageDistribution = DISK_USAGE_BUCKET_ORDER.map((label) => ({
+    label,
+    count: diskUsageMap.get(label) ?? 0,
+  }))
+
   const storageCapacityGb = rows.reduce((sum, row) => sum + (row.discoCapacidadeGb ?? 0), 0)
   const storageFreeGb = rows.reduce((sum, row) => sum + (row.discoLivreGb ?? 0), 0)
   const storageUsedGb = Math.max(storageCapacityGb - storageFreeGb, 0)
-  const storageUsedPercent = storageCapacityGb > 0 ? Math.round((storageUsedGb / storageCapacityGb) * 100) : 0
 
   return {
     totalDevices,
@@ -108,10 +154,11 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportS
     warning,
     availabilityPercent,
     osDistribution,
+    ramDistribution,
+    diskUsageDistribution,
     storageCapacityGb,
     storageFreeGb,
     storageUsedGb,
-    storageUsedPercent,
   }
 }
 
@@ -230,8 +277,12 @@ export function renderDeviceReportPdf(
     )
     if (summary.storageCapacityGb > 0) {
       doc.text(
-        `Armazenamento: ${summary.storageUsedGb} GB usados de ${summary.storageCapacityGb} GB (${summary.storageUsedPercent}%)`
+        `Armazenamento (soma da frota): ${summary.storageFreeGb} GB livres de ${summary.storageCapacityGb} GB — total informativo, não uma % de uso (máquinas com discos de tamanhos diferentes não se resumem a um único número)`
       )
+    }
+    const diskBucketsWithData = summary.diskUsageDistribution.filter((bucket) => bucket.count > 0)
+    if (diskBucketsWithData.length > 0) {
+      doc.text('Uso de disco por máquina: ' + diskBucketsWithData.map((b) => `${b.label} (${b.count})`).join(', '))
     }
     if (summary.osDistribution.length > 0) {
       doc.text(
