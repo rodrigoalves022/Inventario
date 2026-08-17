@@ -26,6 +26,9 @@ export default async function PortalLayout({ children }: { children: React.React
           </Link>
 
           <div className="flex items-center gap-4">
+            <Link href="/portal/reports" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Relatórios
+            </Link>
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {context.viewerName || context.viewerEmail}
             </span>

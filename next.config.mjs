@@ -24,7 +24,11 @@ const nextConfig = {
       './node_modules/next/dist/compiled/**',
     ],
   },
-  serverExternalPackages: ['bcryptjs'],
+  // pdfkit le seus arquivos .afm de fonte do disco via caminho relativo ao
+  // __dirname em runtime; empacotado pelo webpack, esse caminho fica errado
+  // (resolve pra um "root" virtual de trace, nao o node_modules real) e a
+  // geracao de PDF falha com ENOENT. Externalizar mantem o require() nativo.
+  serverExternalPackages: ['bcryptjs', 'pdfkit'],
   experimental: {
   }
 }

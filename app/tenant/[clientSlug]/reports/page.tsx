@@ -1,4 +1,6 @@
+import { Download, FileText } from 'lucide-react'
 import prisma from '@/lib/prisma'
+import { Button } from '@/components/ui/button'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere, getTenantDiskWhere, getTenantHardwareWhere } from '@/lib/tenant-scope'
 
@@ -81,9 +83,25 @@ export default async function TenantReportsPage({ params }: PageProps<'/tenant/[
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
-        <p className="text-muted-foreground">Resumo operacional baseado exclusivamente nos dados reais do cliente atual.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
+          <p className="text-muted-foreground">Resumo operacional baseado exclusivamente nos dados reais do cliente atual.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            <a href={`/api/tenant/${tenantSlug}/reports/csv`}>
+              <Download className="h-4 w-4" />
+              Baixar CSV
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            <a href={`/api/tenant/${tenantSlug}/reports/pdf`}>
+              <FileText className="h-4 w-4" />
+              Baixar PDF
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
