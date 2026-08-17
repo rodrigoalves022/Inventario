@@ -67,6 +67,22 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
     notFound()
   }
 
+  // Busca as amostras mais recentes em ordem decrescente (usa o indice
+  // deviceId+collectedAt) e inverte para o grafico, que espera ordem
+  // cronologica. 500 amostras a ~10 min cobre ~3,5 dias.
+  const [recentMetrics, clientRetention] = await Promise.all([
+    prisma.metricSample.findMany({
+      where: { deviceId: asset.id },
+      orderBy: { collectedAt: 'desc' },
+      take: 500,
+    }),
+    prisma.client.findUnique({
+      where: { id: tenant.id },
+      select: { metricsRetentionDays: true },
+    }),
+  ])
+  const metrics = recentMetrics.reverse()
+
   const permissionUser = getSessionPermissionUser(session)
   const canDeleteAsset = canDeleteTenantAsset(permissionUser, tenant)
   const canRunCommands = canOperateTenant(permissionUser, tenant)
@@ -209,6 +225,16 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
           habilitada: account.habilitada,
           senhaNuncaExpira: account.senhaNuncaExpira,
         }))}
+        metrics={metrics.map((sample) => ({
+          collectedAt: sample.collectedAt.toISOString(),
+          cpuPercent: sample.cpuPercent,
+          ramUsadaGb: sample.ramUsadaGb,
+          ramTotalGb: sample.ramTotalGb,
+          discoUsadoGb: sample.discoUsadoGb,
+          discoLivreGb: sample.discoLivreGb,
+          uptimeSegundos: sample.uptimeSegundos,
+        }))}
+        metricsRetentionDays={clientRetention?.metricsRetentionDays ?? 90}
       />
     </div>
   )

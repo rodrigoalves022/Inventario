@@ -7,8 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { initialAlertSettingsState, saveTenantAlertSettingsAction } from '@/app/tenant/[clientSlug]/computers/actions'
+import { saveTenantAlertSettingsAction, type AlertSettingsActionState } from '@/app/tenant/[clientSlug]/computers/actions'
 import type { InventoryAlertSettings } from '@/lib/inventory-alerts'
+
+// Objeto simples, nao pode viver no arquivo "use server" de actions.ts: esse
+// tipo de arquivo so pode exportar funcoes async, nunca valores.
+const initialAlertSettingsState: AlertSettingsActionState = { status: 'idle', message: null }
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -51,7 +55,7 @@ export function TenantAlertSettingsForm({
         <form action={formAction} className="border-t p-4 space-y-6">
           <input type="hidden" name="tenantSlug" value={tenantSlug} />
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-4">
             <div className="space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Capacidade</h3>
               <div className="space-y-3">
@@ -93,6 +97,25 @@ export function TenantAlertSettingsForm({
                   <input name="alertWebhookEnabled" type="checkbox" defaultChecked={settings.alertWebhookEnabled} className="h-4 w-4 rounded border-input" />
                   Habilitar envio automático
                 </Label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Métricas</h3>
+              <div className="space-y-1.5">
+                <Label htmlFor="metricsRetentionDays" className="text-xs">Retenção da série temporal (dias)</Label>
+                <Input
+                  id="metricsRetentionDays"
+                  name="metricsRetentionDays"
+                  type="number"
+                  min={7}
+                  max={730}
+                  defaultValue={settings.metricsRetentionDays}
+                  className="h-8"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Amostras de CPU/RAM/disco mais antigas que isso são expurgadas automaticamente.
+                </p>
               </div>
             </div>
           </div>

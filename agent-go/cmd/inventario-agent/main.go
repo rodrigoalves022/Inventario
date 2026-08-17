@@ -191,6 +191,8 @@ func main() {
 		handleCollect()
 	case "checkin":
 		handleCheckin()
+	case "metrics":
+		handleMetrics()
 	case "version", "--version", "-v":
 		fmt.Printf("inventario-agent v%s\n", version)
 	default:
@@ -284,6 +286,24 @@ func handleCheckin() {
 	fmt.Printf("[+] Checkin enviado com sucesso. Hostname: %s\n", payload.Hostname)
 }
 
+func handleMetrics() {
+	fs := flag.NewFlagSet("metrics", flag.ExitOnError)
+	configPath := fs.String("config", config.DefaultPath(), "Caminho do arquivo de configuracao")
+	fs.Parse(os.Args[2:])
+
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("[!] Falha ao carregar config: %v\n", err)
+	}
+
+	payload, err := checkin.SendMetricsOnce(cfg)
+	if err != nil {
+		log.Fatalf("[!] Envio de metricas falhou: %v\n", err)
+	}
+
+	fmt.Printf("[+] Metricas enviadas com sucesso. Hostname: %s\n", payload.Hostname)
+}
+
 func printUsage() {
 	fmt.Printf(`inventario-agent v%s - Agente de Inventario Enterprise
 
@@ -295,6 +315,7 @@ Uso:
   inventario-agent.exe debug
   inventario-agent.exe collect
   inventario-agent.exe checkin [-config CAMINHO]
+  inventario-agent.exe metrics [-config CAMINHO]
   inventario-agent.exe version
 
 Exemplos:

@@ -40,6 +40,10 @@ model Client {
   alertDiskThresholdGb      Int         @default(10)
   alertRamThresholdGb       Int         @default(4)
   alertOfflineHours         Int         @default(24)
+  /// Dias de retencao de MetricSample antes do expurgo. Aplicado a cada
+  /// ingestao de metrica (nao ha job separado): a tabela cresce ~4.300
+  /// amostras/maquina/mes e nao pode ficar sem expurgo entre deploys.
+  metricsRetentionDays      Int         @default(90)
   isActive                  Boolean     @default(true)
   createdAt                 DateTime    @default(now())
   updatedAt                 DateTime    @updatedAt
@@ -100,6 +104,7 @@ model Device {
   checkLogs   AgentCheckLog[]
   security    SecurityPosture?
   localAccounts LocalAccount[]
+  metrics     MetricSample[]
 
   @@index([hostname])
   @@index([status])
@@ -268,6 +273,39 @@ model LocalAccount {
 
   @@index([deviceId])
   @@map("local_accounts")
+}
+
+/// Serie temporal de uso (CPU/RAM/disco/uptime), amostrada a cada ~10 min
+/// pelo agente. E' a tabela que mais cresce no sistema (~4.300 amostras por
+/// maquina/mes) — por isso o indice composto (deviceId, collectedAt), que
+/// atende tanto o grafico de uma maquina quanto o corte por tenant, nasce
+/// junto com a coleta, e o expurgo por retencao roda a cada ingestao em vez
+/// de depender de um job externo que este projeto ainda nao tem onde rodar.
+///
+/// Campos numericos ficam nulos (nao 0) quando a coleta falhou: 0% de CPU
+/// livre pareceria uma maquina ociosa em vez de um dado ausente.
+model MetricSample {
+  id             String   @id @default(cuid())
+  deviceId       String
+  device         Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  /// Desnormalizado a partir de device.clientId, mesmo motivo do Device:
+  /// evita JOIN em toda consulta de retencao/corte por tenant nesta tabela
+  /// grande.
+  clientId       String?
+
+  cpuPercent     Float?
+  ramUsadaGb     Float?
+  ramTotalGb     Float?
+  discoUsadoGb   Float?
+  discoLivreGb   Float?
+  uptimeSegundos Int?
+
+  collectedAt    DateTime @default(now())
+
+  @@index([deviceId, collectedAt])
+  @@index([collectedAt])
+  @@index([clientId, collectedAt])
+  @@map("metric_samples")
 }
 
 model AgentCommand {

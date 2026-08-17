@@ -9,6 +9,7 @@ type RawAlertSettingsRow = {
   alertDiskThresholdGb: number | string | null
   alertRamThresholdGb: number | string | null
   alertOfflineHours: number | string | null
+  metricsRetentionDays: number | string | null
 }
 
 export type TenantAlertSettingsRecord = InventoryAlertSettings & {
@@ -27,6 +28,7 @@ function mapRow(row: RawAlertSettingsRow | undefined | null): TenantAlertSetting
       alertDiskThresholdGb: row.alertDiskThresholdGb,
       alertRamThresholdGb: row.alertRamThresholdGb,
       alertOfflineHours: row.alertOfflineHours,
+      metricsRetentionDays: row.metricsRetentionDays,
     }),
   }
 }
@@ -40,7 +42,8 @@ export async function getTenantAlertSettingsBySlug(clientSlug: string) {
       "alertWebhookUrl",
       "alertDiskThresholdGb",
       "alertRamThresholdGb",
-      "alertOfflineHours"
+      "alertOfflineHours",
+      "metricsRetentionDays"
     FROM "clients"
     WHERE "slug" = ${clientSlug}
     LIMIT 1
@@ -60,7 +63,8 @@ export async function getTenantAlertSettingsByClientId(clientId: string | null |
       "alertWebhookUrl",
       "alertDiskThresholdGb",
       "alertRamThresholdGb",
-      "alertOfflineHours"
+      "alertOfflineHours",
+      "metricsRetentionDays"
     FROM "clients"
     WHERE "id" = ${clientId}
     LIMIT 1
@@ -78,7 +82,8 @@ export async function updateTenantAlertSettings(clientId: string, settings: Inve
       "alertWebhookUrl" = ${settings.alertWebhookUrl},
       "alertDiskThresholdGb" = ${settings.alertDiskThresholdGb},
       "alertRamThresholdGb" = ${settings.alertRamThresholdGb},
-      "alertOfflineHours" = ${settings.alertOfflineHours}
+      "alertOfflineHours" = ${settings.alertOfflineHours},
+      "metricsRetentionDays" = ${settings.metricsRetentionDays}
     WHERE "id" = ${clientId}
   `
 }

@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info } from 'lucide-react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity } from 'lucide-react'
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -72,6 +73,16 @@ export type DeviceLocalAccount = {
   senhaNuncaExpira: boolean
 }
 
+export type DeviceMetricSample = {
+  collectedAt: string
+  cpuPercent: number | null
+  ramUsadaGb: number | null
+  ramTotalGb: number | null
+  discoUsadoGb: number | null
+  discoLivreGb: number | null
+  uptimeSegundos: number | null
+}
+
 type Props = {
   device: {
     hostname: string
@@ -91,6 +102,8 @@ type Props = {
   canRunCommands: boolean
   security: DeviceSecurity | null
   localAccounts: DeviceLocalAccount[]
+  metrics: DeviceMetricSample[]
+  metricsRetentionDays: number
 }
 
 const COMMAND_TYPE_LABELS: Record<string, string> = {
@@ -199,6 +212,86 @@ function DiskBar({ disk }: { disk: DeviceDisk }) {
   )
 }
 
+function formatUptime(seconds: number | null) {
+  if (seconds === null || seconds === undefined) return 'Não apurado'
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  if (days > 0) return `${days}d ${hours}h`
+  const minutes = Math.floor((seconds % 3600) / 60)
+  return `${hours}h ${minutes}min`
+}
+
+function formatChartTime(value: string) {
+  return new Date(value).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function MetricChart({
+  title,
+  unit,
+  data,
+  dataKey,
+  color,
+  domain,
+}: {
+  title: string
+  unit: string
+  data: DeviceMetricSample[]
+  dataKey: keyof DeviceMetricSample
+  color: string
+  domain?: [number, number]
+}) {
+  return (
+    <Panel title={title}>
+      <div className="h-[220px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
+            <XAxis
+              dataKey="collectedAt"
+              tickFormatter={formatChartTime}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
+              tickLine={false}
+              minTickGap={40}
+            />
+            <YAxis
+              stroke="var(--muted-foreground)"
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+              domain={domain ?? ['auto', 'auto']}
+              width={36}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                color: 'var(--card-foreground)',
+              }}
+              labelFormatter={(value) => formatChartTime(String(value))}
+              formatter={(value: number) => [`${value.toFixed(1)} ${unit}`, title]}
+            />
+            <Line
+              type="monotone"
+              dataKey={dataKey}
+              stroke={color}
+              strokeWidth={2}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </Panel>
+  )
+}
+
 export function DeviceDetailTabs({
   device,
   hardware,
@@ -209,6 +302,8 @@ export function DeviceDetailTabs({
   canRunCommands,
   security,
   localAccounts,
+  metrics,
+  metricsRetentionDays,
 }: Props) {
   const [query, setQuery] = useState('')
 
@@ -222,6 +317,14 @@ export function DeviceDetailTabs({
         (item.versao ?? '').toLowerCase().includes(term)
     )
   }, [query, software])
+
+  const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null
+  const diskUsagePercent =
+    latestMetric?.discoUsadoGb != null && latestMetric?.discoLivreGb != null
+      ? Math.round(
+          (latestMetric.discoUsadoGb / (latestMetric.discoUsadoGb + latestMetric.discoLivreGb)) * 100
+        )
+      : null
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
@@ -238,6 +341,9 @@ export function DeviceDetailTabs({
         </TabsTrigger>
         <TabsTrigger value="security" className="gap-1.5">
           <ShieldCheck className="h-3.5 w-3.5" /> Segurança
+        </TabsTrigger>
+        <TabsTrigger value="metrics" className="gap-1.5">
+          <Activity className="h-3.5 w-3.5" /> Métricas
         </TabsTrigger>
         <TabsTrigger value="network" className="gap-1.5">
           <Network className="h-3.5 w-3.5" /> Rede
@@ -509,6 +615,79 @@ export function DeviceDetailTabs({
 
             <p className="text-xs text-muted-foreground">
               Coletado em {new Date(security.coletadoEm).toLocaleString('pt-BR')}.
+            </p>
+          </>
+        )}
+      </TabsContent>
+
+      {/* ---------- Métricas ---------- */}
+      <TabsContent value="metrics" className="space-y-6">
+        {metrics.length === 0 ? (
+          <Panel>
+            <p className="text-sm text-muted-foreground">
+              Nenhuma métrica coletada ainda. O ciclo de métricas roda a cada ~10 minutos, separado
+              da coleta completa — se o agente acabou de ser instalado, aguarde a próxima amostra.
+            </p>
+          </Panel>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Panel>
+                <p className="text-xs text-muted-foreground">CPU agora</p>
+                <p className="text-2xl font-semibold text-foreground">
+                  {latestMetric?.cpuPercent != null ? `${latestMetric.cpuPercent.toFixed(0)}%` : 'Não apurado'}
+                </p>
+              </Panel>
+              <Panel>
+                <p className="text-xs text-muted-foreground">RAM em uso</p>
+                <p className="text-2xl font-semibold text-foreground">
+                  {latestMetric?.ramUsadaGb != null && latestMetric?.ramTotalGb != null
+                    ? `${latestMetric.ramUsadaGb.toFixed(1)} / ${latestMetric.ramTotalGb.toFixed(1)} GB`
+                    : 'Não apurado'}
+                </p>
+              </Panel>
+              <Panel>
+                <p className="text-xs text-muted-foreground">Disco (unidade do sistema)</p>
+                <p className="text-2xl font-semibold text-foreground">
+                  {diskUsagePercent != null ? `${diskUsagePercent}% usado` : 'Não apurado'}
+                </p>
+              </Panel>
+              <Panel>
+                <p className="text-xs text-muted-foreground">Uptime</p>
+                <p className="text-2xl font-semibold text-foreground">
+                  {formatUptime(latestMetric?.uptimeSegundos ?? null)}
+                </p>
+              </Panel>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <MetricChart
+                title="CPU"
+                unit="%"
+                data={metrics}
+                dataKey="cpuPercent"
+                color="var(--chart-1)"
+                domain={[0, 100]}
+              />
+              <MetricChart
+                title="RAM usada"
+                unit="GB"
+                data={metrics}
+                dataKey="ramUsadaGb"
+                color="var(--chart-2)"
+              />
+              <MetricChart
+                title="Disco usado (unidade do sistema)"
+                unit="GB"
+                data={metrics}
+                dataKey="discoUsadoGb"
+                color="var(--chart-3)"
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {metrics.length} amostras · retenção de {metricsRetentionDays} dias configurada para
+              este cliente · lacunas no gráfico indicam períodos sem coleta, não zero.
             </p>
           </>
         )}

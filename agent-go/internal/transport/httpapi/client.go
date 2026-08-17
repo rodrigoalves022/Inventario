@@ -11,6 +11,7 @@ import (
 
 	"inventario-agent/internal/app/updater"
 	"inventario-agent/internal/config"
+	"inventario-agent/internal/domain/inventory"
 )
 
 type Client struct {
@@ -207,6 +208,39 @@ func (c *Client) ReportCommandResult(commandID string, result CommandResult) err
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("servidor retornou %d ao reportar resultado: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+// SendMetrics envia a amostra leve de uso para o ciclo de metricas (~10 min),
+// separado do checkin completo (1h). Sem retry: se uma amostra se perder, a
+// proxima chega em poucos minutos, e nao vale a pena acumular backoff numa
+// serie temporal de alta frequencia.
+func (c *Client) SendMetrics(payload *inventory.MetricsPayload) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("serializacao JSON: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", c.ServerURL+"/api/agent/metrics", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", c.APIKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTP: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return &authError{code: resp.StatusCode}
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("servidor retornou %d: %s", resp.StatusCode, string(body))
 	}
 	return nil
 }

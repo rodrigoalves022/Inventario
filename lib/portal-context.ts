@@ -80,3 +80,13 @@ export async function requirePortalDevice(deviceId: string, clientId: string) {
   if (!device) notFound()
   return device
 }
+
+/** Amostras de metrica mais recentes do dispositivo, ja em ordem cronologica. */
+export async function getPortalDeviceMetrics(deviceId: string) {
+  const recentMetrics = await prisma.metricSample.findMany({
+    where: { deviceId },
+    orderBy: { collectedAt: 'desc' },
+    take: 500,
+  })
+  return recentMetrics.reverse()
+}

@@ -21,6 +21,7 @@ import (
 )
 
 const commandPollInterval = 90 * time.Second
+const metricsPollInterval = 10 * time.Minute
 
 const ServiceName = "InventarioAgent"
 const ServiceDisplayName = "Inventario Enterprise Agent"
@@ -58,6 +59,9 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 	commandTicker := time.NewTicker(commandPollInterval)
 	defer commandTicker.Stop()
 
+	metricsTicker := time.NewTicker(metricsPollInterval)
+	defer metricsTicker.Stop()
+
 	status <- svc.Status{State: svc.Running, Accepts: acceptedCommands}
 
 	for {
@@ -68,6 +72,8 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 			if commandClient != nil {
 				commands.PollAndExecute(commandClient, cfg)
 			}
+		case <-metricsTicker.C:
+			runMetricsCollection(cfg)
 		case change := <-requests:
 			switch change.Cmd {
 			case svc.Stop, svc.Shutdown:
@@ -89,6 +95,16 @@ func runCollection(cfg *config.Config) {
 	}
 
 	log.Printf("[INFO] Coleta enviada com sucesso. Hostname: %s", payload.Hostname)
+}
+
+func runMetricsCollection(cfg *config.Config) {
+	payload, err := checkin.SendMetricsOnce(cfg)
+	if err != nil {
+		log.Printf("[ERROR] Envio de metricas falhou: %v", err)
+		return
+	}
+
+	log.Printf("[INFO] Metricas enviadas. Hostname: %s", payload.Hostname)
 }
 
 func Install() error {

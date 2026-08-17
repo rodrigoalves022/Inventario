@@ -13,11 +13,6 @@ export type AlertSettingsActionState = {
   message: string | null
 }
 
-const initialState: AlertSettingsActionState = {
-  status: 'idle',
-  message: null,
-}
-
 const alertSettingsSchema = z.object({
   tenantSlug: z.string().trim().min(1),
   alertsEnabled: z.boolean().default(false),
@@ -26,6 +21,10 @@ const alertSettingsSchema = z.object({
   alertDiskThresholdGb: z.coerce.number().int().min(1).max(1024),
   alertRamThresholdGb: z.coerce.number().int().min(1).max(1024),
   alertOfflineHours: z.coerce.number().int().min(1).max(720),
+  // Minimo de 7 dias: abaixo disso os graficos de tendencia perdem sentido.
+  // Maximo de 730 (2 anos): a tabela mais cresce do sistema, nao ha motivo
+  // para reter alem disso sem um caso de uso concreto.
+  metricsRetentionDays: z.coerce.number().int().min(7).max(730),
 }).superRefine((value, context) => {
   if (value.alertWebhookEnabled && !value.alertWebhookUrl) {
     context.addIssue({
@@ -35,8 +34,6 @@ const alertSettingsSchema = z.object({
     })
   }
 })
-
-export const initialAlertSettingsState = initialState
 
 export async function saveTenantAlertSettingsAction(
   _previousState: AlertSettingsActionState,
@@ -55,6 +52,7 @@ export async function saveTenantAlertSettingsAction(
     alertDiskThresholdGb: formData.get('alertDiskThresholdGb'),
     alertRamThresholdGb: formData.get('alertRamThresholdGb'),
     alertOfflineHours: formData.get('alertOfflineHours'),
+    metricsRetentionDays: formData.get('metricsRetentionDays'),
   })
 
   if (!parsed.success) {
@@ -81,6 +79,7 @@ export async function saveTenantAlertSettingsAction(
     alertDiskThresholdGb: parsed.data.alertDiskThresholdGb,
     alertRamThresholdGb: parsed.data.alertRamThresholdGb,
     alertOfflineHours: parsed.data.alertOfflineHours,
+    metricsRetentionDays: parsed.data.metricsRetentionDays,
   })
 
   await updateTenantAlertSettings(record.clientId, normalized)

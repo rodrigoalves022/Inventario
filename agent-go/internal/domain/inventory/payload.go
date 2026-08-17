@@ -40,6 +40,21 @@ type SecurityInfo struct {
 	Observacao          string  `json:"observacao,omitempty"`
 }
 
+// MetricsPayload e' a amostra leve enviada a cada ~10 min, separada do
+// Payload completo (que roda a cada 1h). Ponteiros de proposito: nil
+// significa "nao apurado nesta amostra", nunca 0 — 0% de CPU livre pareceria
+// uma maquina ociosa em vez de um dado ausente.
+type MetricsPayload struct {
+	Hostname       string   `json:"hostname"`
+	AgentVersion   string   `json:"agentVersion,omitempty"`
+	CpuPercent     *float64 `json:"cpuPercent,omitempty"`
+	RamUsadaGb     *float64 `json:"ramUsadaGb,omitempty"`
+	RamTotalGb     *float64 `json:"ramTotalGb,omitempty"`
+	DiscoUsadoGb   *float64 `json:"discoUsadoGb,omitempty"`
+	DiscoLivreGb   *float64 `json:"discoLivreGb,omitempty"`
+	UptimeSegundos *int64   `json:"uptimeSegundos,omitempty"`
+}
+
 type LocalAccountInfo struct {
 	Usuario          string `json:"usuario"`
 	IsAdmin          bool   `json:"isAdmin"`

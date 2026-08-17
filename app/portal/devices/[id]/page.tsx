@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs'
-import { requirePortalContext, requirePortalDevice } from '@/lib/portal-context'
+import prisma from '@/lib/prisma'
+import { getPortalDeviceMetrics, requirePortalContext, requirePortalDevice } from '@/lib/portal-context'
 
 export default async function PortalDeviceDetailPage({
   params,
@@ -12,6 +13,10 @@ export default async function PortalDeviceDetailPage({
   const { id } = await params
   const context = await requirePortalContext()
   const device = await requirePortalDevice(id, context.clientId)
+  const [metrics, client] = await Promise.all([
+    getPortalDeviceMetrics(device.id),
+    prisma.client.findUnique({ where: { id: context.clientId }, select: { metricsRetentionDays: true } }),
+  ])
 
   const latestLog = device.logs[0]
   const primaryNetwork = device.networks[0]
@@ -118,6 +123,16 @@ export default async function PortalDeviceDetailPage({
           habilitada: account.habilitada,
           senhaNuncaExpira: account.senhaNuncaExpira,
         }))}
+        metrics={metrics.map((sample) => ({
+          collectedAt: sample.collectedAt.toISOString(),
+          cpuPercent: sample.cpuPercent,
+          ramUsadaGb: sample.ramUsadaGb,
+          ramTotalGb: sample.ramTotalGb,
+          discoUsadoGb: sample.discoUsadoGb,
+          discoLivreGb: sample.discoLivreGb,
+          uptimeSegundos: sample.uptimeSegundos,
+        }))}
+        metricsRetentionDays={client?.metricsRetentionDays ?? 90}
       />
     </div>
   )

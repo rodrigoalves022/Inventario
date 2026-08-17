@@ -5,6 +5,7 @@ export const DEFAULT_ALERT_SETTINGS = {
   alertDiskThresholdGb: 10,
   alertRamThresholdGb: 4,
   alertOfflineHours: 24,
+  metricsRetentionDays: 90,
 } as const
 
 export type InventoryAlertSettings = {
@@ -14,6 +15,7 @@ export type InventoryAlertSettings = {
   alertDiskThresholdGb: number
   alertRamThresholdGb: number
   alertOfflineHours: number
+  metricsRetentionDays: number
 }
 
 export type InventoryIssueCode = 'low_disk' | 'low_ram' | 'stale_collection'
@@ -61,6 +63,10 @@ export function normalizeAlertSettings(value?: Partial<Record<keyof InventoryAle
     alertDiskThresholdGb: toPositiveNumber(value?.alertDiskThresholdGb as any, DEFAULT_ALERT_SETTINGS.alertDiskThresholdGb),
     alertRamThresholdGb: toPositiveNumber(value?.alertRamThresholdGb as any, DEFAULT_ALERT_SETTINGS.alertRamThresholdGb),
     alertOfflineHours: toPositiveNumber(value?.alertOfflineHours as any, DEFAULT_ALERT_SETTINGS.alertOfflineHours),
+    metricsRetentionDays: toPositiveNumber(
+      value?.metricsRetentionDays as any,
+      DEFAULT_ALERT_SETTINGS.metricsRetentionDays
+    ),
   }
 }
 

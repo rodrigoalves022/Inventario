@@ -46,3 +46,7 @@ public/*.exe
 # Backups locais do SQLite (contem hashes de credenciais)
 prisma/*.db
 prisma/dev.db.backup*
+
+# Dumps do Postgres tirados antes de `prisma db push` (seguranca operacional,
+# nao versionado — sao artefatos locais, nao codigo)
+prisma/backups/

@@ -17,3 +17,7 @@ func New() Collector {
 func (unsupportedCollector) Collect() (*inventory.Payload, error) {
 	return nil, errors.New("coletor nativo ainda nao implementado para esta plataforma")
 }
+
+func (unsupportedCollector) CollectMetrics() (*inventory.MetricsPayload, error) {
+	return nil, errors.New("coletor nativo ainda nao implementado para esta plataforma")
+}
