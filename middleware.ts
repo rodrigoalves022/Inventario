@@ -14,7 +14,7 @@ import {
 const { auth } = NextAuth(authConfig)
 
 // List of public routes that don't need authentication
-const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/agent/commands", "/api/collect/windows"]
+const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/metrics", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/agent/download-exe", "/api/agent/commands", "/api/collect/windows"]
 
 export default auth((req) => {
   const { nextUrl } = req
