@@ -3,9 +3,6 @@ import {
   Monitor,
   Server,
   Wifi,
-  AlertTriangle,
-  HardDrive,
-  MemoryStick,
 } from 'lucide-react'
 
 interface StatCardProps {
@@ -86,8 +83,6 @@ interface StatsGridProps {
   online: number
   offline: number
   warning: number
-  totalRam: number
-  totalStorage: number
 }
 
 export function StatsGrid({
@@ -135,42 +130,6 @@ export function StatsGrid({
         subtitle={`${offline} offline, ${warning} alertas`}
         icon={<Wifi className="h-5 w-5" />}
         variant="success"
-      />
-    </div>
-  )
-}
-
-export function SecondaryStats({
-  totalRam,
-  totalStorage,
-  activeAlerts,
-}: {
-  totalRam: number
-  totalStorage: number
-  activeAlerts: number
-}) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <StatCard
-        title="Memória RAM Total"
-        value={`${totalRam} GB`}
-        subtitle="Soma de todos os dispositivos"
-        icon={<MemoryStick className="h-5 w-5" />}
-        variant="default"
-      />
-      <StatCard
-        title="Armazenamento Total"
-        value={`${(totalStorage / 1000).toFixed(1)} TB`}
-        subtitle="Capacidade combinada"
-        icon={<HardDrive className="h-5 w-5" />}
-        variant="default"
-      />
-      <StatCard
-        title="Alertas Ativos"
-        value={activeAlerts}
-        subtitle="Requerem atenção"
-        icon={<AlertTriangle className="h-5 w-5" />}
-        variant="danger"
       />
     </div>
   )

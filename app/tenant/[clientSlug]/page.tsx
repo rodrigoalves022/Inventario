@@ -1,82 +1,11 @@
 import Link from 'next/link'
-import { StatsGrid, SecondaryStats } from '@/components/stat-cards'
+import { StatsGrid } from '@/components/stat-cards'
 import { OsDistributionChart, StatusChart, RamDistributionChart } from '@/components/dashboard-charts'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
-import { getTenantCollectionLogWhere, getTenantDeviceWhere, getTenantDiskWhere, getTenantHardwareWhere } from '@/lib/tenant-scope'
+import { getTenantCollectionLogWhere, getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
-
-async function getStats(tenantSlug: string) {
-  const [total, online, offline, warning, hardware, diskData] = await Promise.all([
-    prisma.device.count({ where: getTenantDeviceWhere(tenantSlug) }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'online' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'offline' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'warning' } }),
-    prisma.hardware.findMany({
-      where: getTenantHardwareWhere(tenantSlug),
-      select: { sistema: true, ramTotalGb: true },
-    }),
-    prisma.disk.findMany({
-      where: getTenantDiskWhere(tenantSlug),
-      select: { capacidadeGb: true },
-    }),
-  ])
-
-  const ramTotal = hardware.reduce((sum, item) => sum + (item.ramTotalGb ?? 0), 0)
-  const storageTotal = diskData.reduce((sum, item) => sum + (item.capacidadeGb ?? 0), 0)
-
-  const win10 = hardware.filter((item) => item.sistema?.includes('10') && !item.sistema?.includes('Server')).length
-  const win11 = hardware.filter((item) => item.sistema?.includes('11') && !item.sistema?.includes('Server')).length
-  const server = hardware.filter((item) => item.sistema?.includes('Server')).length
-
-  return { total, online, offline, warning, activeAlerts: warning, win10, win11, server, totalRam: ramTotal, totalStorage: storageTotal }
-}
-
-async function getChartData(tenantSlug: string) {
-  const hardware = await prisma.hardware.findMany({
-    where: getTenantHardwareWhere(tenantSlug),
-    select: { sistema: true, ramTotalGb: true },
-  })
-
-  const osCount: Record<string, number> = {}
-  for (const item of hardware) {
-    if (!item.sistema) continue
-    const key = item.sistema.includes('11')
-      ? 'Windows 11'
-      : item.sistema.includes('10')
-      ? 'Windows 10'
-      : item.sistema.includes('Server')
-      ? 'Windows Server'
-      : item.sistema
-    osCount[key] = (osCount[key] ?? 0) + 1
-  }
-
-  const osData = Object.entries(osCount).map(([name, value]) => ({ name, value }))
-
-  const [onlineCount, offlineCount, warningCount] = await Promise.all([
-    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'online' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'offline' } }),
-    prisma.device.count({ where: { ...getTenantDeviceWhere(tenantSlug), status: 'warning' } }),
-  ])
-
-  const statusData = [
-    { name: 'Online', value: onlineCount },
-    { name: 'Offline', value: offlineCount },
-    { name: 'Warning', value: warningCount },
-  ]
-
-  const ramGroups: Record<string, number> = { '≤ 8 GB': 0, '9 - 16 GB': 0, '17 - 32 GB': 0, '33+ GB': 0 }
-  for (const item of hardware) {
-    const ram = item.ramTotalGb ?? 0
-    if (ram <= 8) ramGroups['≤ 8 GB'] += 1
-    else if (ram <= 16) ramGroups['9 - 16 GB'] += 1
-    else if (ram <= 32) ramGroups['17 - 32 GB'] += 1
-    else ramGroups['33+ GB'] += 1
-  }
-
-  const ramData = Object.entries(ramGroups).map(([name, value]) => ({ name, value }))
-  return { osData, statusData, ramData }
-}
+import { getDeviceReportRows, buildDeviceReportSummary } from '@/lib/reports/device-report'
 
 async function getRecentDevices(tenantSlug: string) {
   return prisma.device.findMany({
@@ -100,11 +29,28 @@ export default async function TenantDashboardPage({ params }: PageProps<'/tenant
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
-  const [stats, { osData, statusData, ramData }, recentDevices] = await Promise.all([
-    getStats(tenantSlug),
-    getChartData(tenantSlug),
+
+  // Mesma consulta usada pelos relatorios (lib/reports/device-report.ts):
+  // uma so fonte de verdade para agregados de frota, em vez de cada tela
+  // somar hardware/disco do jeito dela.
+  const [rows, recentDevices] = await Promise.all([
+    getDeviceReportRows(getTenantDeviceWhere(tenantSlug)),
     getRecentDevices(tenantSlug),
   ])
+  const summary = buildDeviceReportSummary(rows)
+
+  const win10 = summary.osDistribution.find((item) => item.name === 'Windows 10')?.value ?? 0
+  const win11 = summary.osDistribution.find((item) => item.name === 'Windows 11')?.value ?? 0
+  const server = summary.osDistribution.find((item) => item.name === 'Windows Server')?.value ?? 0
+
+  const osData = summary.osDistribution.map((item) => ({ name: item.name, value: item.value }))
+  const statusData = [
+    { name: 'Online', value: summary.online },
+    { name: 'Offline', value: summary.offline },
+    { name: 'Warning', value: summary.warning },
+  ]
+  const ramData = summary.ramDistribution.map((bucket) => ({ name: bucket.label, value: bucket.count }))
+  const diskData = summary.diskUsageDistribution.map((bucket) => ({ name: bucket.label, value: bucket.count }))
 
   return (
     <div className="space-y-6">
@@ -116,24 +62,25 @@ export default async function TenantDashboardPage({ params }: PageProps<'/tenant
       </div>
 
       <StatsGrid
-        total={stats.total}
-        win10={stats.win10}
-        win11={stats.win11}
-        server={stats.server}
-        online={stats.online}
-        offline={stats.offline}
-        warning={stats.warning}
-        totalRam={stats.totalRam}
-        totalStorage={stats.totalStorage}
+        total={summary.totalDevices}
+        win10={win10}
+        win11={win11}
+        server={server}
+        online={summary.online}
+        offline={summary.offline}
+        warning={summary.warning}
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-2">
         <OsDistributionChart data={osData} />
         <StatusChart data={statusData} />
         <RamDistributionChart data={ramData} />
+        <RamDistributionChart
+          data={diskData}
+          title="Uso de disco por máquina"
+          description="Quantidade de máquinas por faixa de uso — não soma capacidade"
+        />
       </div>
-
-      <SecondaryStats totalRam={stats.totalRam} totalStorage={stats.totalStorage} activeAlerts={stats.activeAlerts} />
 
       <div className="rounded-lg border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3">

@@ -137,17 +137,29 @@ export function StatusChart({ data }: OsChartProps) {
 
 interface RamChartProps {
   data: { name: string; value: number }[]
+  title?: string
+  description?: string
 }
 
-export function RamDistributionChart({ data }: RamChartProps) {
+/**
+ * Apesar do nome, generico o bastante pra qualquer distribuicao "quantidade
+ * de maquinas por faixa" — usado tambem para uso de disco. A alternativa
+ * (somar RAM/disco de todas as maquinas num unico numero) nao representa
+ * nenhuma maquina real quando o parque tem hardware heterogeneo.
+ */
+export function RamDistributionChart({
+  data,
+  title = 'Distribuição de Memória',
+  description = 'Quantidade de RAM por máquina',
+}: RamChartProps) {
   return (
     <Card className="border-border bg-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold text-card-foreground">
-          Distribuição de Memória
+          {title}
         </CardTitle>
         <CardDescription>
-          Quantidade de RAM por máquina
+          {description}
         </CardDescription>
       </CardHeader>
       <CardContent>
