@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  enqueueCollectNowAction,
+  enqueueDeviceCommandAction,
   type EnqueueCommandActionState,
 } from '@/app/tenant/[clientSlug]/assets/[id]/actions'
 
@@ -31,7 +31,7 @@ export function EnqueueCollectNowButton({
   assetId: string
   tenantSlug: string
 }) {
-  const [state, formAction] = useActionState(enqueueCollectNowAction, initialEnqueueCommandState)
+  const [state, formAction] = useActionState(enqueueDeviceCommandAction, initialEnqueueCommandState)
   const [feedback, setFeedback] = useState<string | null>(null)
 
   useEffect(() => {

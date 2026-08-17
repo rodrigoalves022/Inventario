@@ -41,6 +41,10 @@ func execute(cfg *config.Config, cmd *httpapi.PendingCommand) httpapi.CommandRes
 	switch cmd.Type {
 	case "collect_now":
 		return executeCollectNow(cfg)
+	case "collect_metrics_now":
+		return executeCollectMetricsNow(cfg)
+	case "restart_computer":
+		return executeRestartComputer()
 	case "restart_service":
 		var params restartServiceParams
 		if err := json.Unmarshal(cmd.Params, &params); err != nil {
@@ -72,10 +76,23 @@ func executeCollectNow(cfg *config.Config) httpapi.CommandResult {
 	return httpapi.CommandResult{Status: "done", Output: "checkin enviado: " + payload.Hostname}
 }
 
+func executeCollectMetricsNow(cfg *config.Config) httpapi.CommandResult {
+	payload, err := checkin.SendMetricsOnce(cfg)
+	if err != nil {
+		return httpapi.CommandResult{Status: "failed", ErrorMessage: err.Error()}
+	}
+	return httpapi.CommandResult{Status: "done", Output: "metricas enviadas: " + payload.Hostname}
+}
+
 // allowlist espelha lib/agent-commands.ts (RESTARTABLE_SERVICES / SCRIPT_CATALOG_IDS) -
 // o servidor ja valida antes de enfileirar, isto e defesa em profundidade no agente.
-var allowedServices = map[string]bool{"Spooler": true, "wuauserv": true, "BITS": true}
-var allowedScripts = map[string]bool{"flush_dns": true, "clear_temp_files": true, "restart_explorer": true}
+var allowedServices = map[string]bool{"Spooler": true, "wuauserv": true, "BITS": true, "Dnscache": true}
+var allowedScripts = map[string]bool{
+	"flush_dns":           true,
+	"clear_temp_files":    true,
+	"restart_explorer":    true,
+	"flush_print_spooler": true,
+}
 
 func isAllowedService(name string) bool { return allowedServices[name] }
 func isAllowedScript(id string) bool    { return allowedScripts[id] }

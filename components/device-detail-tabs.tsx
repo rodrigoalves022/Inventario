@@ -6,6 +6,8 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { AssetRecordForm, type AssetRecordValues } from '@/components/asset-record-form'
+import { DeviceCommandPanel } from '@/components/device-command-panel'
+import { COMMAND_TYPE_LABELS } from '@/lib/agent-commands'
 import { cn } from '@/lib/utils'
 
 export type DeviceDisk = {
@@ -140,12 +142,6 @@ type Props = {
   /** Presente apenas em /tenant/.../assets/[id]; null no portal, onde patrimonio e' sempre so-leitura. */
   tenantSlug: string | null
   canManageAssetRecord: boolean
-}
-
-const COMMAND_TYPE_LABELS: Record<string, string> = {
-  collect_now: 'Forçar coleta',
-  restart_service: 'Reiniciar serviço',
-  run_script: 'Rodar script',
 }
 
 const COMMAND_STATUS_LABELS: Record<string, string> = {
@@ -928,10 +924,15 @@ export function DeviceDetailTabs({
       {/* ---------- Comandos ---------- */}
       {canRunCommands && (
         <TabsContent value="commands" className="space-y-4">
+          {tenantSlug && (
+            <DeviceCommandPanel tenantSlug={tenantSlug} deviceId={deviceId} hostname={device.hostname} />
+          )}
+
           <div className="rounded-xl border bg-card">
             {commands.length === 0 ? (
               <p className="p-6 text-sm text-muted-foreground">
-                Nenhum comando enviado a esta máquina ainda. Use “Forçar coleta” no topo da página.
+                Nenhum comando enviado a esta máquina ainda. Use o painel acima ou “Forçar coleta” no
+                topo da página.
               </p>
             ) : (
               <div className="divide-y">

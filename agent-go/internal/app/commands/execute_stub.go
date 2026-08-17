@@ -11,3 +11,7 @@ func executeRestartService(name string) httpapi.CommandResult {
 func executeRunScript(scriptID string) httpapi.CommandResult {
 	return httpapi.CommandResult{Status: "failed", ErrorMessage: "run_script nao suportado nesta plataforma"}
 }
+
+func executeRestartComputer() httpapi.CommandResult {
+	return httpapi.CommandResult{Status: "failed", ErrorMessage: "restart_computer nao suportado nesta plataforma"}
+}

@@ -94,9 +94,14 @@ const enqueueCommandFormSchema = z.object({
   tenantSlug: z.string().trim().min(1),
   assetId: z.string().trim().min(1),
   type: z.string(),
+  serviceName: z.string().optional(),
+  scriptId: z.string().optional(),
 })
 
-export async function enqueueCollectNowAction(
+/** Generico: cobre todo o catalogo (lib/agent-commands.ts), nao so collect_now.
+ * `serviceName`/`scriptId` so importam quando o `type` os exige — a validacao
+ * real de qual combinacao e' permitida acontece em agentCommandInputSchema. */
+export async function enqueueDeviceCommandAction(
   _previousState: EnqueueCommandActionState,
   formData: FormData
 ): Promise<EnqueueCommandActionState> {
@@ -105,6 +110,8 @@ export async function enqueueCollectNowAction(
     tenantSlug: formData.get('tenantSlug'),
     assetId: formData.get('assetId'),
     type: formData.get('type'),
+    serviceName: formData.get('serviceName') || undefined,
+    scriptId: formData.get('scriptId') || undefined,
   })
 
   if (!session?.user || !parsed.success) {
@@ -117,9 +124,13 @@ export async function enqueueCollectNowAction(
     return { status: 'error', message: 'Você não pode enfileirar comandos neste tenant.' }
   }
 
-  const commandInput = agentCommandInputSchema.safeParse({ type: parsed.data.type })
+  const commandInput = agentCommandInputSchema.safeParse({
+    type: parsed.data.type,
+    serviceName: parsed.data.serviceName,
+    scriptId: parsed.data.scriptId,
+  })
   if (!commandInput.success) {
-    return { status: 'error', message: 'Tipo de comando inválido.' }
+    return { status: 'error', message: 'Comando inválido.' }
   }
 
   const device = await prisma.device.findFirst({
