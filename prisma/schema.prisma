@@ -50,6 +50,7 @@ model Client {
 
   agents                    AgentAuth[]
   users                     User[]
+  alertRules                AlertRule[]
 
   @@index([name])
   @@index([organizationId])
@@ -109,6 +110,7 @@ model Device {
   printers    Printer[]
   usbDevices  UsbDevice[]
   assetRecord AssetRecord?
+  alertEvents AlertEvent[]
 
   @@index([hostname])
   @@index([status])
@@ -388,6 +390,56 @@ model AssetRecord {
   updatedAt       DateTime  @updatedAt
 
   @@map("asset_records")
+}
+
+/// Regra de alerta configurada pelo cliente, sobre metricas de seguranca ja
+/// coletadas em B1 (antivirus/firewall/UAC/BitLocker) que ate aqui so
+/// apareciam passivamente na aba Seguranca, sem gerar notificacao nem
+/// historico. Catalogo fechado de `metric` em lib/alert-rules.ts — mesmo
+/// principio do catalogo de comandos do agente, sem "regra livre".
+model AlertRule {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  name      String
+  metric    String
+  severity  String   @default("warning") // "warning" | "critical"
+  enabled   Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events    AlertEvent[]
+
+  @@index([clientId])
+  @@map("alert_rules")
+}
+
+/// Um disparo (e sua eventual resolucao) de uma AlertRule para um Device.
+/// `resolvedAt` nulo = alerta aberto. Evita duplicar linha a cada check-in
+/// enquanto a condicao persiste: so abre uma nova linha na transicao
+/// ok->problema, e resolve na transicao problema->ok.
+model AlertEvent {
+  id         String     @id @default(cuid())
+  clientId   String
+  deviceId   String
+  device     Device     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  /// Nulo se a regra foi excluida depois do disparo — o historico do evento
+  /// fica, so perde o vinculo com a regra viva.
+  ruleId     String?
+  rule       AlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  metric     String
+  severity   String
+  message    String
+
+  firedAt    DateTime   @default(now())
+  resolvedAt DateTime?
+
+  @@index([clientId, firedAt])
+  @@index([deviceId, ruleId])
+  @@map("alert_events")
 }
 
 model AgentCommand {

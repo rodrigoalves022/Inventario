@@ -30,6 +30,7 @@ import {
   Building2,
   LogOut,
   ClipboardList,
+  BellRing,
 } from 'lucide-react'
 
 type TenantShellInfo = {
@@ -137,7 +138,10 @@ export function Sidebar({ tenant, user }: { tenant?: TenantShellInfo; user?: Sid
   const management: NavigationItem[] = tenant
     ? [
         ...(canSeeManagement
-          ? [{ name: 'Relatórios', href: getTenantPath(tenant.slug, 'reports'), icon: BarChart3 }]
+          ? [
+              { name: 'Relatórios', href: getTenantPath(tenant.slug, 'reports'), icon: BarChart3 },
+              { name: 'Alertas', href: getTenantPath(tenant.slug, 'alerts'), icon: BellRing },
+            ]
           : []),
         ...(canSeeAccountArea
           ? [{ name: 'Auditoria', href: getTenantPath(tenant.slug, 'audit'), icon: ClipboardList }]
@@ -254,6 +258,7 @@ function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
     { match: `${basePath}/processors`, title: 'Processadores' },
     { match: `${basePath}/network`, title: 'Rede' },
     { match: `${basePath}/reports`, title: 'Relatórios' },
+    { match: `${basePath}/alerts`, title: 'Alertas' },
     { match: `${basePath}/audit`, title: 'Auditoria' },
     { match: `${basePath}/assets`, title: 'Detalhe da máquina' },
   ]

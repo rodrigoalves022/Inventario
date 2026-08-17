@@ -5,6 +5,7 @@ import { getCurrentServerUrl } from '@/lib/server-url'
 import { getAgentBinarySha256 } from '@/lib/agent-binary'
 import { deriveInventoryIssues, getWarningTransitionIssues } from '@/lib/inventory-alerts'
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
+import { reconcileAlertEvents } from '@/lib/alert-rules'
 import { agentCheckinSchema } from '@/lib/schemas/agent-checkin'
 
 const checkinSchema = agentCheckinSchema
@@ -195,6 +196,24 @@ export async function POST(req: NextRequest) {
         create: { deviceId: device.id, ...securityData },
         update: securityData,
       })
+    }
+
+    // Reconcilia as regras de alerta do cliente contra a postura de
+    // seguranca deste check-in. Sem clientId (agente legado sem tenant) nao
+    // ha regra pra avaliar.
+    if (auth.agentAuth.clientId) {
+      await reconcileAlertEvents({
+        clientId: auth.agentAuth.clientId,
+        deviceId: device.id,
+        security: body.seguranca
+          ? {
+              antivirusAtivo: body.seguranca.antivirusAtivo ?? null,
+              firewallAtivo: body.seguranca.firewallAtivo ?? null,
+              uacAtivo: body.seguranca.uacAtivo ?? null,
+            }
+          : null,
+        disks: (body.discos ?? []).map((disk) => ({ criptografia: disk.criptografia ?? null })),
+      }).catch((error) => console.error('[agent/checkin] Falha ao reconciliar alertas:', error))
     }
 
     if (body.monitores && body.monitores.length > 0) {
