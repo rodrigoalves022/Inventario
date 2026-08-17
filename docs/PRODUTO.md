@@ -374,6 +374,19 @@ não sobe. Usuários de teste vêm de `node scripts/seed-rbac.ts`, todos com sen
 porque erro de RBAC não aparece em typecheck. Mudança no agente: `go vet ./...` e build
 para Windows e Linux.
 
+**Agente real instalado nesta máquina** (serviço Windows `InventarioAgent`, binário em
+`C:\ProgramData\InventarioAgent\`, `-server http://localhost:3000 -client core-ti-expert`),
+registrado como dispositivo `SRV-VS` real (coexiste com um `SRV-VS` de dados antigos —
+nomes de host colidem, por isso a identidade é `agentAuthId`, nunca hostname). Achado
+instalando de verdade em vez de só testar via curl/dados inseridos direto no banco:
+`/api/agent/metrics` e `/api/agent/download-exe` estavam bloqueados pelo middleware desde
+que criados (commit 9ce4df5) — o cliente Go seguia o redirect pro `/login` e via HTTP 200
+genérico da página, sem nunca reportar erro. Teste HTTP com sessão de navegador ou SQL
+direto no banco não pega esse tipo de bug; só o agente real, sem sessão, de ponta a ponta,
+pega. Rebuildar o binário depois de mexer em `agent-go/`:
+`cd agent-go && GOOS=windows GOARCH=amd64 go build -o /c/ProgramData/InventarioAgent/inventario-agent.exe ./cmd/inventario-agent`
+e reiniciar o serviço (`sc stop/start InventarioAgent` ou o binário `stop`/`start`).
+
 ---
 
 ## 10. Riscos conhecidos em aberto
@@ -383,6 +396,5 @@ para Windows e Linux.
 | `public/inventario-agent.exe` e `agent-go/dist/inventario-agent.exe` divergem | Sem processo único de publish |
 | Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" |
 | Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
-| Fila de comandos sem uso real | Catálogo inteiro exercitado por HTTP com agente de teste (não o binário Go real rodando como serviço — arriscado demais só para testar UI); nenhum agente Go instalado ainda fechou o ciclo completo |
 | Modal "Credenciais ativas" não redesenhado | Mantém os seis caminhos de instalação simultâneos que o assistente `/clients/novo` já resolveu |
 | Atualizações pendentes não coletadas | Exige a API do Windows Update Agent (COM); nenhum indicador da UI é estimado enquanto isso |
