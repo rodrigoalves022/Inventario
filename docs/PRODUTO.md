@@ -324,7 +324,13 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
   porque o webpack do Next quebra a leitura dos arquivos `.afm` de fonte que a lib lê
   do disco em runtime. Mesma consulta (`lib/reports/device-report.ts`) reaproveitada
   por `/tenant/[clientSlug]/reports` e `/portal/reports` (rota nova).
-- **C3. Alertas por regra** — evolui os limiares fixos de hoje
+- **C3. Alertas por regra ✅ Concluído.** Catálogo fechado de 4 métricas sobre a
+  postura de segurança de B1 (antivírus/firewall/UAC/BitLocker — até então só
+  visíveis passivamente na aba Segurança). Cliente cria quantas `AlertRule`
+  quiser; `AlertEvent` fica aberto (`resolvedAt` nulo) até a próxima coleta
+  confirmar a condição resolvida — sem duplicar linha a cada check-in enquanto
+  o problema persiste. Aditivo: os 3 limiares fixos originais (disco/RAM/
+  offline, ligados ao badge de status e ao webhook) não foram tocados.
 - **C4. Ampliar catálogo de comandos** — depende de A2 (papel `ORG_OPERATOR`)
 
 ### Fase D — Distribuição
