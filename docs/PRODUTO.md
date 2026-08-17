@@ -331,7 +331,12 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
   confirmar a condição resolvida — sem duplicar linha a cada check-in enquanto
   o problema persiste. Aditivo: os 3 limiares fixos originais (disco/RAM/
   offline, ligados ao badge de status e ao webhook) não foram tocados.
-- **C4. Ampliar catálogo de comandos** — depende de A2 (papel `ORG_OPERATOR`)
+- **C4. Ampliar catálogo de comandos ✅ Concluído.** `restart_service` e
+  `run_script` já existiam de ponta a ponta (schema, allowlist no agente,
+  execução Go), mas nenhum componente de UI montava os parâmetros extras —
+  dois terços do catálogo de tool calls estavam inacessíveis. `DeviceCommandPanel`
+  expõe o catálogo inteiro na aba Comandos; dois tipos novos
+  (`collect_metrics_now`, `restart_computer` — este com diálogo de confirmação).
 
 ### Fase D — Distribuição
 - Assinatura Authenticode do agente
@@ -378,6 +383,6 @@ para Windows e Linux.
 | `public/inventario-agent.exe` e `agent-go/dist/inventario-agent.exe` divergem | Sem processo único de publish |
 | Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" |
 | Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
-| Fila de comandos sem uso real | Validada por HTTP, mas nenhum agente Go instalado exercitou o ciclo completo ainda |
+| Fila de comandos sem uso real | Catálogo inteiro exercitado por HTTP com agente de teste (não o binário Go real rodando como serviço — arriscado demais só para testar UI); nenhum agente Go instalado ainda fechou o ciclo completo |
 | Modal "Credenciais ativas" não redesenhado | Mantém os seis caminhos de instalação simultâneos que o assistente `/clients/novo` já resolveu |
 | Atualizações pendentes não coletadas | Exige a API do Windows Update Agent (COM); nenhum indicador da UI é estimado enquanto isso |
