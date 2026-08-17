@@ -16,8 +16,12 @@ import {
 import { Button } from '@/components/ui/button'
 import {
   deleteTenantAssetAction,
-  initialDeleteAssetState,
+  type DeleteAssetActionState,
 } from '@/app/tenant/[clientSlug]/assets/[id]/actions'
+
+// Objeto simples, nao pode viver no arquivo "use server" de actions.ts: esse
+// tipo de arquivo so pode exportar funcoes async, nunca valores.
+const initialDeleteAssetState: DeleteAssetActionState = { status: 'idle', message: null }
 
 function ConfirmDeleteButton() {
   const { pending } = useFormStatus()

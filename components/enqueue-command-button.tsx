@@ -6,8 +6,12 @@ import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   enqueueCollectNowAction,
-  initialEnqueueCommandState,
+  type EnqueueCommandActionState,
 } from '@/app/tenant/[clientSlug]/assets/[id]/actions'
+
+// Objeto simples, nao pode viver no arquivo "use server" de actions.ts: esse
+// tipo de arquivo so pode exportar funcoes async, nunca valores.
+const initialEnqueueCommandState: EnqueueCommandActionState = { status: 'idle', message: null }
 
 function SubmitButton() {
   const { pending } = useFormStatus()

@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb } from 'lucide-react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag } from 'lucide-react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { AssetRecordForm, type AssetRecordValues } from '@/components/asset-record-form'
 import { cn } from '@/lib/utils'
 
 export type DeviceDisk = {
@@ -111,6 +112,7 @@ export type DeviceUsbDevice = {
 }
 
 type Props = {
+  deviceId: string
   device: {
     hostname: string
     serial: string | null
@@ -134,6 +136,10 @@ type Props = {
   monitors: DeviceMonitor[]
   printers: DevicePrinter[]
   usbDevices: DeviceUsbDevice[]
+  assetRecord: AssetRecordValues | null
+  /** Presente apenas em /tenant/.../assets/[id]; null no portal, onde patrimonio e' sempre so-leitura. */
+  tenantSlug: string | null
+  canManageAssetRecord: boolean
 }
 
 const COMMAND_TYPE_LABELS: Record<string, string> = {
@@ -251,6 +257,13 @@ function formatUptime(seconds: number | null) {
   return `${hours}h ${minutes}min`
 }
 
+// Datas de patrimonio sao "so data" (sem hora): formatar em UTC evita que
+// meia-noite UTC vire o dia anterior em fusos negativos (ex: America/Sao_Paulo).
+function formatDateOnly(value: string | null) {
+  if (!value) return null
+  return new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+}
+
 function formatChartTime(value: string) {
   return new Date(value).toLocaleString('pt-BR', {
     day: '2-digit',
@@ -337,6 +350,10 @@ export function DeviceDetailTabs({
   monitors,
   printers,
   usbDevices,
+  deviceId,
+  assetRecord,
+  tenantSlug,
+  canManageAssetRecord,
 }: Props) {
   const [query, setQuery] = useState('')
 
@@ -380,6 +397,9 @@ export function DeviceDetailTabs({
         </TabsTrigger>
         <TabsTrigger value="peripherals" className="gap-1.5">
           <Monitor className="h-3.5 w-3.5" /> Periféricos
+        </TabsTrigger>
+        <TabsTrigger value="asset" className="gap-1.5">
+          <Tag className="h-3.5 w-3.5" /> Patrimônio
         </TabsTrigger>
         <TabsTrigger value="network" className="gap-1.5">
           <Network className="h-3.5 w-3.5" /> Rede
@@ -822,6 +842,54 @@ export function DeviceDetailTabs({
                 ))}
               </tbody>
             </table>
+          )}
+        </Panel>
+      </TabsContent>
+
+      {/* ---------- Patrimônio ---------- */}
+      <TabsContent value="asset" className="space-y-6">
+        <Panel title="Patrimônio / financeiro">
+          {canManageAssetRecord && tenantSlug ? (
+            <AssetRecordForm
+              tenantSlug={tenantSlug}
+              deviceId={deviceId}
+              values={
+                assetRecord ?? {
+                  etiqueta: null,
+                  dataCompra: null,
+                  notaFiscal: null,
+                  fornecedor: null,
+                  valor: null,
+                  garantiaAte: null,
+                  centroCusto: null,
+                  localizacao: null,
+                  responsavel: null,
+                  observacoes: null,
+                }
+              }
+            />
+          ) : !assetRecord ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum dado de patrimônio cadastrado para esta máquina.
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="Etiqueta de patrimônio" value={assetRecord.etiqueta} />
+              <Field label="Data de compra" value={formatDateOnly(assetRecord.dataCompra)} />
+              <Field label="Nota fiscal" value={assetRecord.notaFiscal} />
+              <Field label="Fornecedor" value={assetRecord.fornecedor} />
+              <Field label="Valor" value={assetRecord.valor != null ? `R$ ${assetRecord.valor.toFixed(2)}` : null} />
+              <Field label="Garantia até" value={formatDateOnly(assetRecord.garantiaAte)} />
+              <Field label="Centro de custo" value={assetRecord.centroCusto} />
+              <Field label="Localização" value={assetRecord.localizacao} />
+              <Field label="Responsável" value={assetRecord.responsavel} />
+              {assetRecord.observacoes && (
+                <div className="col-span-full space-y-1">
+                  <p className="text-xs text-muted-foreground">Observações</p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{assetRecord.observacoes}</p>
+                </div>
+              )}
+            </div>
           )}
         </Panel>
       </TabsContent>

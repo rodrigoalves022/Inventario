@@ -123,6 +123,11 @@ export function canManageTenantAlerts(user: PermissionUser | null | undefined, t
   return canManageTenant(user, tenant)
 }
 
+/** Editar patrimonio/financeiro: dado operacional, nao credencial — mesmo escopo de canOperateTenant. */
+export function canManageAssetRecord(user: PermissionUser | null | undefined, tenant: TenantRef) {
+  return canOperateTenant(user, tenant)
+}
+
 export function canViewTenantAdminNavigation(user: PermissionUser | null | undefined) {
   return isPlatformAdmin(user) || isOrgAdmin(user) || isOrgOperator(user)
 }

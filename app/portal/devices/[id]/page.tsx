@@ -46,6 +46,7 @@ export default async function PortalDeviceDetailPage({
 
       {/* canRunCommands=false: a aba de comandos nem e montada no portal. */}
       <DeviceDetailTabs
+        deviceId={device.id}
         device={{
           hostname: device.hostname,
           serial: device.serial,
@@ -157,6 +158,24 @@ export default async function PortalDeviceDetailPage({
           productId: usb.productId,
           serial: usb.serial,
         }))}
+        assetRecord={
+          device.assetRecord
+            ? {
+                etiqueta: device.assetRecord.etiqueta,
+                dataCompra: device.assetRecord.dataCompra?.toISOString() ?? null,
+                notaFiscal: device.assetRecord.notaFiscal,
+                fornecedor: device.assetRecord.fornecedor,
+                valor: device.assetRecord.valor,
+                garantiaAte: device.assetRecord.garantiaAte?.toISOString() ?? null,
+                centroCusto: device.assetRecord.centroCusto,
+                localizacao: device.assetRecord.localizacao,
+                responsavel: device.assetRecord.responsavel,
+                observacoes: device.assetRecord.observacoes,
+              }
+            : null
+        }
+        tenantSlug={null}
+        canManageAssetRecord={false}
       />
     </div>
   )

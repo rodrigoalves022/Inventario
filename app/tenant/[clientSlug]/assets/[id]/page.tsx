@@ -6,7 +6,7 @@ import { DeleteAssetButton } from '@/components/delete-asset-button'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs'
 import { EnqueueCollectNowButton } from '@/components/enqueue-command-button'
 import { Button } from '@/components/ui/button'
-import { canDeleteTenantAsset, canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
+import { canDeleteTenantAsset, canManageAssetRecord, canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -63,6 +63,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
       monitors: true,
       printers: { orderBy: [{ padrao: 'desc' }, { nome: 'asc' }] },
       usbDevices: { orderBy: { nome: 'asc' } },
+      assetRecord: true,
     },
   })
 
@@ -89,6 +90,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
   const permissionUser = getSessionPermissionUser(session)
   const canDeleteAsset = canDeleteTenantAsset(permissionUser, tenant)
   const canRunCommands = canOperateTenant(permissionUser, tenant)
+  const canManageAsset = canManageAssetRecord(permissionUser, tenant)
 
   const commands = canRunCommands
     ? await prisma.agentCommand.findMany({
@@ -145,6 +147,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
       </div>
 
       <DeviceDetailTabs
+        deviceId={asset.id}
         device={{
           hostname: asset.hostname,
           serial: asset.serial,
@@ -262,6 +265,24 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
           productId: usb.productId,
           serial: usb.serial,
         }))}
+        assetRecord={
+          asset.assetRecord
+            ? {
+                etiqueta: asset.assetRecord.etiqueta,
+                dataCompra: asset.assetRecord.dataCompra?.toISOString() ?? null,
+                notaFiscal: asset.assetRecord.notaFiscal,
+                fornecedor: asset.assetRecord.fornecedor,
+                valor: asset.assetRecord.valor,
+                garantiaAte: asset.assetRecord.garantiaAte?.toISOString() ?? null,
+                centroCusto: asset.assetRecord.centroCusto,
+                localizacao: asset.assetRecord.localizacao,
+                responsavel: asset.assetRecord.responsavel,
+                observacoes: asset.assetRecord.observacoes,
+              }
+            : null
+        }
+        tenantSlug={tenantSlug}
+        canManageAssetRecord={canManageAsset}
       />
     </div>
   )

@@ -108,6 +108,7 @@ model Device {
   monitors    Monitor[]
   printers    Printer[]
   usbDevices  UsbDevice[]
+  assetRecord AssetRecord?
 
   @@index([hostname])
   @@index([status])
@@ -359,6 +360,34 @@ model UsbDevice {
 
   @@index([deviceId])
   @@map("usb_devices")
+}
+
+/// Dados de patrimonio/financeiro, 1:1 com Device. Preenchimento manual no
+/// painel — NUNCA chega pelo agente e o check-in nunca escreve aqui. Um
+/// upsert de inventario so toca as tabelas que o payload do agente cobre;
+/// esta fica de fora por construcao, nao por um `if` que alguem podia
+/// esquecer.
+model AssetRecord {
+  id              String    @id @default(cuid())
+  deviceId        String    @unique
+  device          Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  etiqueta        String?
+  dataCompra      DateTime?
+  notaFiscal      String?
+  fornecedor      String?
+  valor           Float?
+  garantiaAte     DateTime?
+  centroCusto     String?
+  localizacao     String?
+  responsavel     String?
+  observacoes     String?
+
+  updatedByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("asset_records")
 }
 
 model AgentCommand {

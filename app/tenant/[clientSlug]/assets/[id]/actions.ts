@@ -6,20 +6,16 @@ import { z } from 'zod'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { recordAuditLog, getSessionAuditActor } from '@/lib/audit-log'
-import { canOperateTenant, canDeleteTenantAsset, getSessionPermissionUser } from '@/lib/permissions'
+import { canOperateTenant, canDeleteTenantAsset, canManageAssetRecord, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantPath } from '@/lib/tenant-links'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { agentCommandInputSchema, toParamsJson, AGENT_COMMAND_TTL_MS } from '@/lib/agent-commands'
+import { assetRecordSchema } from '@/lib/schemas/asset-record'
 
 export type DeleteAssetActionState = {
   status: 'idle' | 'error'
   message: string | null
-}
-
-export const initialDeleteAssetState: DeleteAssetActionState = {
-  status: 'idle',
-  message: null,
 }
 
 const deleteAssetSchema = z.object({
@@ -92,11 +88,6 @@ export async function deleteTenantAssetAction(
 export type EnqueueCommandActionState = {
   status: 'idle' | 'error' | 'success'
   message: string | null
-}
-
-export const initialEnqueueCommandState: EnqueueCommandActionState = {
-  status: 'idle',
-  message: null,
 }
 
 const enqueueCommandFormSchema = z.object({
@@ -174,4 +165,69 @@ export async function enqueueCollectNowAction(
   revalidatePath(getTenantPath(parsed.data.tenantSlug, `assets/${device.id}`))
 
   return { status: 'success', message: 'Comando enfileirado. O agente executa no próximo ciclo (até ~90s).' }
+}
+
+export type AssetRecordActionState = {
+  status: 'idle' | 'success' | 'error'
+  message: string | null
+}
+
+export async function saveAssetRecordAction(
+  _previousState: AssetRecordActionState,
+  formData: FormData
+): Promise<AssetRecordActionState> {
+  const session = await auth()
+  if (!session?.user) {
+    return { status: 'error', message: 'Sessão inválida.' }
+  }
+
+  const tenantSlug = String(formData.get('tenantSlug') ?? '')
+  const deviceId = String(formData.get('deviceId') ?? '')
+
+  const tenant = await getTenantContext(tenantSlug)
+  if (!tenant || !canManageAssetRecord(getSessionPermissionUser(session), tenant)) {
+    return { status: 'error', message: 'Você não pode editar o patrimônio desta máquina.' }
+  }
+
+  // Reconfirma que o dispositivo pertence a este tenant antes de gravar —
+  // nunca confia so no deviceId vindo do formulario.
+  const device = await prisma.device.findFirst({
+    where: { id: deviceId, ...getTenantDeviceWhere(tenantSlug) },
+    select: { id: true },
+  })
+  if (!device) {
+    return { status: 'error', message: 'Máquina não encontrada neste tenant.' }
+  }
+
+  const parsed = assetRecordSchema.safeParse({
+    etiqueta: formData.get('etiqueta'),
+    dataCompra: formData.get('dataCompra'),
+    notaFiscal: formData.get('notaFiscal'),
+    fornecedor: formData.get('fornecedor'),
+    valor: formData.get('valor'),
+    garantiaAte: formData.get('garantiaAte'),
+    centroCusto: formData.get('centroCusto'),
+    localizacao: formData.get('localizacao'),
+    responsavel: formData.get('responsavel'),
+    observacoes: formData.get('observacoes'),
+  })
+
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+
+  const data = {
+    ...parsed.data,
+    updatedByUserId: session.user.id ?? null,
+  }
+
+  await prisma.assetRecord.upsert({
+    where: { deviceId: device.id },
+    create: { deviceId: device.id, ...data },
+    update: data,
+  })
+
+  revalidatePath(`/tenant/${tenantSlug}/assets/${deviceId}`)
+
+  return { status: 'success', message: 'Patrimônio salvo.' }
 }

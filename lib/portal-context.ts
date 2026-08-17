@@ -77,6 +77,7 @@ export async function requirePortalDevice(deviceId: string, clientId: string) {
       monitors: true,
       printers: { orderBy: [{ padrao: 'desc' }, { nome: 'asc' }] },
       usbDevices: { orderBy: { nome: 'asc' } },
+      assetRecord: true,
     },
   })
 
