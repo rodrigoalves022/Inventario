@@ -2,10 +2,11 @@ import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
-// Este é o binário efetivamente servido em `${serverUrl}/inventario-agent.exe`
-// (usado pelo auto-updater do agente) — arquivo estático em public/, que hoje
-// pode divergir de agent-go/dist/inventario-agent.exe (usado no bootstrap manual
-// via /api/agent/download). Unificar as duas fontes de publish é um TODO em aberto.
+// Fonte única de publish: o binário efetivamente servido em
+// `${serverUrl}/inventario-agent.exe` (estático, usado pelo auto-updater do
+// agente) — e o mesmo arquivo que /api/agent/download e /api/agent/download-exe
+// leem. `make windows` em agent-go/ publica aqui direto; não existe mais uma
+// segunda cópia em agent-go/dist/ podendo divergir sem aviso.
 const BINARY_PATH = path.join(process.cwd(), 'public', 'inventario-agent.exe')
 
 let cache: { mtimeMs: number; sha256: string } | null = null

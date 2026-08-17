@@ -11,7 +11,9 @@
     "test": "node scripts/verification/noop-test.mjs",
     "lint:strict": "eslint scripts/verification/**/*.mjs eslint.config.mjs --max-warnings=0",
     "verify:phase1b": "node scripts/verification/phase1b-report.mjs",
-    "build:verify": "node scripts/verification/run-build.mjs"
+    "build:verify": "node scripts/verification/run-build.mjs",
+    "build:agent": "node scripts/build-agent.mjs windows",
+    "build:agent:all": "node scripts/build-agent.mjs all"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
