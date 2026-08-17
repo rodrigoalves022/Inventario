@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity } from 'lucide-react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb } from 'lucide-react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -83,6 +83,33 @@ export type DeviceMetricSample = {
   uptimeSegundos: number | null
 }
 
+export type DeviceMonitor = {
+  id: string
+  fabricante: string | null
+  modelo: string | null
+  serial: string | null
+  polegadas: number | null
+  conexao: string | null
+  ano: number | null
+}
+
+export type DevicePrinter = {
+  id: string
+  nome: string
+  porta: string | null
+  driver: string | null
+  padrao: boolean
+  deRede: boolean
+}
+
+export type DeviceUsbDevice = {
+  id: string
+  nome: string
+  vendorId: string | null
+  productId: string | null
+  serial: string | null
+}
+
 type Props = {
   device: {
     hostname: string
@@ -104,6 +131,9 @@ type Props = {
   localAccounts: DeviceLocalAccount[]
   metrics: DeviceMetricSample[]
   metricsRetentionDays: number
+  monitors: DeviceMonitor[]
+  printers: DevicePrinter[]
+  usbDevices: DeviceUsbDevice[]
 }
 
 const COMMAND_TYPE_LABELS: Record<string, string> = {
@@ -304,6 +334,9 @@ export function DeviceDetailTabs({
   localAccounts,
   metrics,
   metricsRetentionDays,
+  monitors,
+  printers,
+  usbDevices,
 }: Props) {
   const [query, setQuery] = useState('')
 
@@ -344,6 +377,9 @@ export function DeviceDetailTabs({
         </TabsTrigger>
         <TabsTrigger value="metrics" className="gap-1.5">
           <Activity className="h-3.5 w-3.5" /> Métricas
+        </TabsTrigger>
+        <TabsTrigger value="peripherals" className="gap-1.5">
+          <Monitor className="h-3.5 w-3.5" /> Periféricos
         </TabsTrigger>
         <TabsTrigger value="network" className="gap-1.5">
           <Network className="h-3.5 w-3.5" /> Rede
@@ -691,6 +727,103 @@ export function DeviceDetailTabs({
             </p>
           </>
         )}
+      </TabsContent>
+
+      {/* ---------- Periféricos ---------- */}
+      <TabsContent value="peripherals" className="space-y-6">
+        <Panel title={`Monitores (${monitors.length})`}>
+          {monitors.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum monitor com EDID legível reportado. Comum em servidores sem monitor
+              físico, máquinas virtuais e sessões remotas.
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {monitors.map((monitor) => (
+                <div key={monitor.id} className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold">
+                      {monitor.fabricante || monitor.modelo
+                        ? [monitor.fabricante, monitor.modelo].filter(Boolean).join(' ')
+                        : 'Monitor sem identificação'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Número de série" value={monitor.serial} />
+                    <Field label="Tamanho" value={monitor.polegadas ? `${monitor.polegadas}"` : null} />
+                    <Field label="Conexão" value={monitor.conexao} />
+                    <Field label="Ano de fabricação" value={monitor.ano ? String(monitor.ano) : null} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title={`Impressoras (${printers.length})`}>
+          {printers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma impressora instalada reportada.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2 font-medium">Nome</th>
+                  <th className="py-2 font-medium">Porta</th>
+                  <th className="py-2 font-medium">Driver</th>
+                  <th className="py-2 font-medium">Padrão</th>
+                  <th className="py-2 font-medium">Rede</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printers.map((printer) => (
+                  <tr key={printer.id} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{printer.nome}</td>
+                    <td className="py-2 font-mono text-xs text-muted-foreground">{printer.porta ?? '—'}</td>
+                    <td className="py-2 text-muted-foreground">{printer.driver ?? '—'}</td>
+                    <td className="py-2">
+                      {printer.padrao ? (
+                        <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          Padrão
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="py-2 text-muted-foreground">{printer.deRede ? 'Sim' : 'Não'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+
+        <Panel title={`Dispositivos USB (${usbDevices.length})`}>
+          {usbDevices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum dispositivo USB reportado.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2 font-medium">Nome</th>
+                  <th className="py-2 font-medium">VID</th>
+                  <th className="py-2 font-medium">PID</th>
+                  <th className="py-2 font-medium">Identificador</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usbDevices.map((usb) => (
+                  <tr key={usb.id} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{usb.nome}</td>
+                    <td className="py-2 font-mono text-xs text-muted-foreground">{usb.vendorId ?? '—'}</td>
+                    <td className="py-2 font-mono text-xs text-muted-foreground">{usb.productId ?? '—'}</td>
+                    <td className="py-2 font-mono text-xs text-muted-foreground">{usb.serial ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
       </TabsContent>
 
       {/* ---------- Rede ---------- */}

@@ -105,6 +105,9 @@ model Device {
   security    SecurityPosture?
   localAccounts LocalAccount[]
   metrics     MetricSample[]
+  monitors    Monitor[]
+  printers    Printer[]
+  usbDevices  UsbDevice[]
 
   @@index([hostname])
   @@index([status])
@@ -306,6 +309,56 @@ model MetricSample {
   @@index([collectedAt])
   @@index([clientId, collectedAt])
   @@map("metric_samples")
+}
+
+/// Monitor fisico conectado, apurado via WmiMonitorID (root\wmi) — Win32_DesktopMonitor
+/// nao expoe fabricante/serie reais. Campos nulos quando o monitor nao reporta EDID
+/// (comum em conexoes analogicas antigas ou monitores virtuais de RDP).
+model Monitor {
+  id         String  @id @default(cuid())
+  deviceId   String
+  device     Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  fabricante String?
+  modelo     String?
+  serial     String?
+  polegadas  Float?
+  conexao    String?
+  ano        Int?
+
+  @@index([deviceId])
+  @@map("monitors")
+}
+
+model Printer {
+  id       String  @id @default(cuid())
+  deviceId String
+  device   Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  nome     String
+  porta    String?
+  driver   String?
+  padrao   Boolean @default(false)
+  deRede   Boolean @default(false)
+
+  @@index([deviceId])
+  @@map("printers")
+}
+
+/// Dispositivos USB reais (nao hubs), identificados a partir do DeviceID do
+/// Win32_PnPEntity (formato USB\VID_xxxx&PID_xxxx\serial).
+model UsbDevice {
+  id        String  @id @default(cuid())
+  deviceId  String
+  device    Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  nome      String
+  vendorId  String?
+  productId String?
+  serial    String?
+
+  @@index([deviceId])
+  @@map("usb_devices")
 }
 
 model AgentCommand {

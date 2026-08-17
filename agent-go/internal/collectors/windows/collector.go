@@ -181,6 +181,9 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 	payload.Usuario = os.Getenv("USERNAME")
 	payload.Software = collectSoftwareFromRegistry()
 	payload.Seguranca = collectSecurity()
+	payload.Monitores = collectMonitors()
+	payload.Impressoras = collectPrinters()
+	payload.DispositivosUsb = collectUsbDevices()
 
 	accounts, accountsNote := collectLocalAccounts()
 	payload.ContasLocais = accounts

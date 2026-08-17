@@ -133,6 +133,30 @@ export default async function PortalDeviceDetailPage({
           uptimeSegundos: sample.uptimeSegundos,
         }))}
         metricsRetentionDays={client?.metricsRetentionDays ?? 90}
+        monitors={device.monitors.map((monitor) => ({
+          id: monitor.id,
+          fabricante: monitor.fabricante,
+          modelo: monitor.modelo,
+          serial: monitor.serial,
+          polegadas: monitor.polegadas,
+          conexao: monitor.conexao,
+          ano: monitor.ano,
+        }))}
+        printers={device.printers.map((printer) => ({
+          id: printer.id,
+          nome: printer.nome,
+          porta: printer.porta,
+          driver: printer.driver,
+          padrao: printer.padrao,
+          deRede: printer.deRede,
+        }))}
+        usbDevices={device.usbDevices.map((usb) => ({
+          id: usb.id,
+          nome: usb.nome,
+          vendorId: usb.vendorId,
+          productId: usb.productId,
+          serial: usb.serial,
+        }))}
       />
     </div>
   )

@@ -48,6 +48,30 @@ const softwareSchema = z.object({
   installadoEm: z.string().max(100).optional().nullable(),
 })
 
+const monitorSchema = z.object({
+  fabricante: z.string().max(255).optional().nullable(),
+  modelo: z.string().max(255).optional().nullable(),
+  serial: z.string().max(255).optional().nullable(),
+  polegadas: z.number().min(0).max(500).optional().nullable(),
+  conexao: z.string().max(50).optional().nullable(),
+  ano: z.number().int().min(1990).max(2100).optional().nullable(),
+})
+
+const printerSchema = z.object({
+  nome: z.string().min(1).max(255),
+  porta: z.string().max(255).optional().nullable(),
+  driver: z.string().max(255).optional().nullable(),
+  padrao: z.boolean().optional().default(false),
+  deRede: z.boolean().optional().default(false),
+})
+
+const usbDeviceSchema = z.object({
+  nome: z.string().min(1).max(255),
+  vendorId: z.string().max(20).optional().nullable(),
+  productId: z.string().max(20).optional().nullable(),
+  serial: z.string().max(255).optional().nullable(),
+})
+
 const eventLogSchema = z
   .object({
     source: z.string().max(255).optional().nullable(),
@@ -86,6 +110,10 @@ export const agentCheckinSchema = z.object({
 
   seguranca: securitySchema.optional().nullable(),
   contasLocais: z.array(localAccountSchema).max(200).optional().default([]),
+
+  monitores: z.array(monitorSchema).max(20).optional().default([]),
+  impressoras: z.array(printerSchema).max(50).optional().default([]),
+  dispositivosUsb: z.array(usbDeviceSchema).max(200).optional().default([]),
 
   eventLogs: z.array(eventLogSchema).max(500).optional().default([]),
 })

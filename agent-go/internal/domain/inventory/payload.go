@@ -24,6 +24,9 @@ type Payload struct {
 	Software          []SoftwareInfo `json:"software,omitempty"`
 	Seguranca         *SecurityInfo  `json:"seguranca,omitempty"`
 	ContasLocais      []LocalAccountInfo `json:"contasLocais,omitempty"`
+	Monitores         []MonitorInfo      `json:"monitores,omitempty"`
+	Impressoras       []PrinterInfo      `json:"impressoras,omitempty"`
+	DispositivosUsb   []UsbDeviceInfo    `json:"dispositivosUsb,omitempty"`
 }
 
 // SecurityInfo usa ponteiros de proposito: nil significa "nao foi possivel
@@ -86,4 +89,36 @@ type SoftwareInfo struct {
 	Versao      string `json:"versao,omitempty"`
 	Editor      string `json:"editor,omitempty"`
 	InstaladoEm string `json:"installadoEm,omitempty"`
+}
+
+// MonitorInfo vem do EDID (WmiMonitorID/WmiMonitorBasicDisplayParams, root\wmi),
+// nao de Win32_DesktopMonitor, que nao expoe fabricante/serie reais. Campos
+// ficam vazios/zero quando o monitor nao reporta EDID (conexao analogica
+// antiga, monitor virtual de RDP) — nunca inventados.
+type MonitorInfo struct {
+	Fabricante string  `json:"fabricante,omitempty"`
+	Modelo     string  `json:"modelo,omitempty"`
+	Serial     string  `json:"serial,omitempty"`
+	Polegadas  float64 `json:"polegadas,omitempty"`
+	Conexao    string  `json:"conexao,omitempty"`
+	Ano        int     `json:"ano,omitempty"`
+}
+
+type PrinterInfo struct {
+	Nome    string `json:"nome"`
+	Porta   string `json:"porta,omitempty"`
+	Driver  string `json:"driver,omitempty"`
+	Padrao  bool   `json:"padrao"`
+	DeRede  bool   `json:"deRede"`
+}
+
+// UsbDeviceInfo identifica dispositivos USB reais (hubs sao filtrados na
+// coleta). VendorId/ProductId/Serial vem do DeviceID do Windows
+// (USB\VID_xxxx&PID_xxxx\serial) — ficam vazios quando o formato foge do
+// padrao esperado.
+type UsbDeviceInfo struct {
+	Nome      string `json:"nome"`
+	VendorId  string `json:"vendorId,omitempty"`
+	ProductId string `json:"productId,omitempty"`
+	Serial    string `json:"serial,omitempty"`
 }

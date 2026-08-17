@@ -60,6 +60,9 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
       logs: { orderBy: { coletadoEm: 'desc' }, take: 1 },
       security: true,
       localAccounts: { orderBy: [{ isAdmin: 'desc' }, { usuario: 'asc' }] },
+      monitors: true,
+      printers: { orderBy: [{ padrao: 'desc' }, { nome: 'asc' }] },
+      usbDevices: { orderBy: { nome: 'asc' } },
     },
   })
 
@@ -235,6 +238,30 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/ten
           uptimeSegundos: sample.uptimeSegundos,
         }))}
         metricsRetentionDays={clientRetention?.metricsRetentionDays ?? 90}
+        monitors={asset.monitors.map((monitor) => ({
+          id: monitor.id,
+          fabricante: monitor.fabricante,
+          modelo: monitor.modelo,
+          serial: monitor.serial,
+          polegadas: monitor.polegadas,
+          conexao: monitor.conexao,
+          ano: monitor.ano,
+        }))}
+        printers={asset.printers.map((printer) => ({
+          id: printer.id,
+          nome: printer.nome,
+          porta: printer.porta,
+          driver: printer.driver,
+          padrao: printer.padrao,
+          deRede: printer.deRede,
+        }))}
+        usbDevices={asset.usbDevices.map((usb) => ({
+          id: usb.id,
+          nome: usb.nome,
+          vendorId: usb.vendorId,
+          productId: usb.productId,
+          serial: usb.serial,
+        }))}
       />
     </div>
   )

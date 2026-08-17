@@ -197,6 +197,48 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    if (body.monitores && body.monitores.length > 0) {
+      await prisma.monitor.deleteMany({ where: { deviceId: device.id } })
+      await prisma.monitor.createMany({
+        data: body.monitores.map((monitor) => ({
+          deviceId: device.id,
+          fabricante: monitor.fabricante,
+          modelo: monitor.modelo,
+          serial: monitor.serial,
+          polegadas: monitor.polegadas,
+          conexao: monitor.conexao,
+          ano: monitor.ano,
+        })),
+      })
+    }
+
+    if (body.impressoras && body.impressoras.length > 0) {
+      await prisma.printer.deleteMany({ where: { deviceId: device.id } })
+      await prisma.printer.createMany({
+        data: body.impressoras.map((printer) => ({
+          deviceId: device.id,
+          nome: printer.nome,
+          porta: printer.porta,
+          driver: printer.driver,
+          padrao: printer.padrao ?? false,
+          deRede: printer.deRede ?? false,
+        })),
+      })
+    }
+
+    if (body.dispositivosUsb && body.dispositivosUsb.length > 0) {
+      await prisma.usbDevice.deleteMany({ where: { deviceId: device.id } })
+      await prisma.usbDevice.createMany({
+        data: body.dispositivosUsb.map((usb) => ({
+          deviceId: device.id,
+          nome: usb.nome,
+          vendorId: usb.vendorId,
+          productId: usb.productId,
+          serial: usb.serial,
+        })),
+      })
+    }
+
     // Reconciliacao total: uma conta removida na maquina precisa sumir aqui,
     // senao o painel mostraria administrador que ja nao existe.
     if (body.contasLocais && body.contasLocais.length > 0) {
