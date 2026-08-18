@@ -143,7 +143,9 @@ Hoje o isolamento é `Device → AgentAuth → Client`, ou seja, **um JOIN em to
 
 ## 5. Páginas do site
 
-Hoje existem **7 páginas globais que são apenas `redirect('/clients')`** (`/computers`, `/network`, `/processors`, `/servers`, `/storage`, `/reports`) e `/security` que é `notFound()`. São peso morto e devem ser removidas na consolidação.
+As 7 páginas globais que eram apenas `redirect('/clients')` já foram removidas (ver A3). O
+que falta da consolidação é renomear `/tenant/[slug]/*` → `/app/*` e `/clients` → `/admin/*`
+— rotas abaixo descritas no nome-alvo, ainda não aplicado.
 
 ### 5.1 `/admin/*` — Plataforma (`PLATFORM_ADMIN`)
 | Rota | Função |
@@ -198,9 +200,12 @@ Hoje existem **7 páginas globais que são apenas `redirect('/clients')`** (`/co
 Servidor enfileira → agente busca no próximo ciclo → executa → reporta resultado.
 
 - Estados: `pending → running → done | failed | expired` (TTL 15 min)
-- **Catálogo fechado**, sem texto livre: `collect_now`, `restart_service` (allowlist de serviços), `run_script` (allowlist de scripts)
+- **Catálogo fechado**, sem texto livre: `collect_now`, `collect_metrics_now`, `restart_service`
+  (allowlist de serviços), `run_script` (allowlist de scripts), `restart_computer`
 - Allowlist validada **nos dois lados** (servidor via Zod, agente via mapa) — defesa em profundidade
 - Toda emissão e todo resultado geram registro de auditoria
+- Rate limiting por `agentAuthId` nas rotas do agente (`lib/rate-limit.ts`), em memória de
+  processo — protege contra um agente comprometido inundando a ingestão
 
 ### 6.4 Segurança do agente
 - Segredo local protegido por DPAPI
@@ -380,7 +385,7 @@ existiam no código. Estado se apura no código e no histórico.
 Ordem para retomar:
 
 1. Ler as seções 1 a 7 deste arquivo (modelo de negócio, papéis, dados, páginas, agente)
-2. `git log --oneline -15` e ler a mensagem completa do commit mais recente relevante
+2. `git log --oneline -30` e ler a mensagem completa do commit mais recente relevante
 3. Conferir o que está de pé: `docker compose up -d db` e `npm run dev`
 4. Pegar o próximo item não concluído da seção 8
 
@@ -395,26 +400,43 @@ não sobe. Usuários de teste vêm de `node scripts/seed-rbac.ts`, todos com sen
 porque erro de RBAC não aparece em typecheck. Mudança no agente: `go vet ./...` e build
 para Windows e Linux.
 
-**Agente real instalado nesta máquina** (serviço Windows `InventarioAgent`, binário em
-`C:\ProgramData\InventarioAgent\`, `-server http://localhost:3000 -client core-ti-expert`),
-registrado como dispositivo `SRV-VS` real (coexiste com um `SRV-VS` de dados antigos —
-nomes de host colidem, por isso a identidade é `agentAuthId`, nunca hostname). Achado
-instalando de verdade em vez de só testar via curl/dados inseridos direto no banco:
-`/api/agent/metrics` e `/api/agent/download-exe` estavam bloqueados pelo middleware desde
-que criados (commit 9ce4df5) — o cliente Go seguia o redirect pro `/login` e via HTTP 200
-genérico da página, sem nunca reportar erro. Teste HTTP com sessão de navegador ou SQL
-direto no banco não pega esse tipo de bug; só o agente real, sem sessão, de ponta a ponta,
-pega. Rebuildar o binário depois de mexer em `agent-go/`: `npm run build:agent` (publica em
-`public/inventario-agent.exe`, fonte única — ver 6.4) e reiniciar o serviço (`sc stop/start
-InventarioAgent` ou o binário `stop`/`start`).
+**Dois agentes reais rodando continuamente** contra este servidor (não são dados fabricados —
+máquinas de verdade reportando pro tenant `core-ti-expert`):
+- **Windows**: serviço `InventarioAgent` nesta máquina, binário em
+  `C:\ProgramData\InventarioAgent\`. Rebuildar depois de mexer em `agent-go/`:
+  `npm run build:agent` (publica em `public/inventario-agent.exe`, fonte única — ver 6.4) e
+  reiniciar o serviço (`sc stop/start InventarioAgent` ou o binário `stop`/`start`).
+- **Linux**: WSL2 Ubuntu 24.04 (`wsl -d Ubuntu`), serviço systemd `inventario-agent`. Hostname
+  coletado é `SRV-VS` nos dois (WSL2 compartilha o hostname do Windows host — mais uma colisão
+  real, mesma razão pela qual a identidade nunca pode ser o hostname). Para invocar `wsl.exe` a
+  partir deste Git Bash sem o path-mangling do MSYS (`/home/...` virando
+  `C:/Program Files/Git/home/...`): prefixar com `MSYS2_ARG_CONV_EXCL="*"`.
 
-**Agente Linux real rodando em WSL2 Ubuntu 24.04** (`wsl -d Ubuntu`), serviço systemd
-`inventario-agent`, mesmo tenant `core-ti-expert`, registrado como dispositivo `WSL-LINUX-TEST`
-→ hostname coletado `SRV-VS` (WSL2 compartilha o hostname do Windows host por padrão — mais
-uma colisão de hostname real, mesma razão pela qual a identidade nunca pode ser o hostname).
-Usado para validar o coletor Linux (seção 6.5) de ponta a ponta, não só cross-compile. Para
-invocar `wsl.exe` a partir deste Git Bash sem o path-mangling do MSYS (`/home/...` virando
-`C:/Program Files/Git/home/...`): prefixar com `MSYS2_ARG_CONV_EXCL="*"`.
+Os dois existem porque bugs reais só apareceram testando de ponta a ponta com o agente de
+verdade, sem sessão de navegador nem dado inserido direto no banco: `/api/agent/metrics` e
+`/api/agent/download-exe` estavam bloqueados pelo middleware desde que foram criados (commit
+9ce4df5) — o cliente Go seguia o redirect pro `/login`, via um HTTP 200 genérico da página, e
+nunca reportava erro. Curl com sessão de navegador ou SQL direto no banco não pega esse tipo de
+bug. Vale o mesmo padrão pra qualquer mudança nova no agente ou nas rotas que ele consome.
+
+**Outro padrão de bug que apareceu duas vezes nesta sessão**: telas somando um campo (RAM,
+disco) de *todas* as máquinas do tenant num único número — sem sentido quando o parque tem
+hardware heterogêneo (commits `4da5f97`, `f1bcbc1`, `5e7b7f6`, este último uma rota de API
+órfã com o mesmo bug, sem nenhum consumidor). O padrão certo, já em uso em
+`lib/reports/device-report.ts`: contar **quantas máquinas** caem em cada faixa (bucket), nunca
+somar valores absolutos de máquinas diferentes. Ao adicionar uma tela nova que agrega hardware
+por tenant, checar essa lib antes de escrever uma consulta nova.
+
+**Próximos passos candidatos** (nenhum bloqueia o outro):
+- **Consolidação de rotas (A3, pendente desde a Fase A)**: renomear `/tenant/[slug]/*` →
+  `/app/*` e `/clients` → `/admin/*`. Puro código, mexe em ~12 páginas e todas as URLs
+  internas — churn estrutural sem ganho funcional imediato, por isso sempre ficou por último,
+  mas nada mais bloqueia.
+- **Deploy assistido GPO/Intune** (Fase D): o único item de Fase D que não depende de recurso
+  externo que só o usuário tem. Mais documentação/scripts `.ps1`/`.mst` do que código de produto.
+- **Bloqueados por recurso externo — não iniciar sem resolver o bloqueio antes**: assinatura
+  Authenticode (precisa de certificado de assinatura de código) e coletor macOS (precisa de uma
+  máquina Mac; diferente do Linux, não há como testar via WSL).
 
 ---
 
