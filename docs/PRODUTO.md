@@ -422,6 +422,6 @@ invocar `wsl.exe` a partir deste Git Bash sem o path-mangling do MSYS (`/home/..
 
 | Risco | Situação |
 |---|---|
-| Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" |
-| Sem rate limiting nas rotas do agente | Um agente comprometido pode inundar a ingestão |
+| Agente sem assinatura Authenticode | Windows alerta "fornecedor desconhecido" — precisa de certificado de assinatura de código |
+| Coletor macOS | Só o stub (`factory_stub.go`) responde "não implementado" |
 | Atualizações pendentes não coletadas | Exige a API do Windows Update Agent (COM); nenhum indicador da UI é estimado enquanto isso |
