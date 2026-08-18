@@ -7,12 +7,20 @@ import { deriveInventoryIssues, getWarningTransitionIssues } from '@/lib/invento
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 import { reconcileAlertEvents } from '@/lib/alert-rules'
 import { agentCheckinSchema } from '@/lib/schemas/agent-checkin'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const checkinSchema = agentCheckinSchema
 
 export async function POST(req: NextRequest) {
   const auth = await validateAgentApiKey(req)
   if (!auth.ok) return authErrorResponse(auth)
+
+  // Ciclo normal e' 1x/hora + coletas forcadas ocasionais (collect_now); um
+  // agente comprometido ou com bug em loop nao deve conseguir inundar a
+  // ingestao. Limite por agente, nao por IP — agentes legitimos atras do
+  // mesmo NAT nao devem se afetar.
+  const limit = rateLimit(`checkin:${auth.agentAuth.id}`, { limit: 10, windowMs: 5 * 60 * 1000 })
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds)
 
   const ipOrigem = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'desconhecido'
 

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { ensureLegacyClient, findClientByIdentifier, getLegacyEnrollmentKey } from '@/lib/clients'
 import { generateApiKey, hasValidAdminSecret, hashSecret } from '@/lib/auth'
+import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
 
 const registerSchema = z.object({
   name: z.string().trim().min(3, 'O campo "name" é obrigatório (mínimo 3 caracteres).'),
@@ -12,6 +13,12 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   const isAdmin = hasValidAdminSecret(req)
+
+  // Sem identidade de agente ainda (e' o proprio registro) — limita por IP.
+  // Generoso o bastante pra provisionar varias maquinas em sequencia, apertado
+  // o bastante pra dificultar forca bruta de enrollmentKey.
+  const limit = rateLimit(`register:${getClientIp(req)}`, { limit: 15, windowMs: 5 * 60 * 1000 })
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds)
 
   try {
     const parsed = registerSchema.safeParse(await req.json())

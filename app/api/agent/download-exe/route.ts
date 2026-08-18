@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getCurrentServerUrl } from '@/lib/server-url'
+import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
 import path from 'path'
 import { promises as fs } from 'fs'
 
@@ -12,6 +13,9 @@ const downloadSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
+  const limit = rateLimit(`download-exe:${getClientIp(req)}`, { limit: 20, windowMs: 5 * 60 * 1000 })
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds)
+
   const parsed = downloadSchema.safeParse({
     client: req.nextUrl.searchParams.get('client'),
     key: req.nextUrl.searchParams.get('key'),

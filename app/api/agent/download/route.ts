@@ -1,10 +1,14 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limit = rateLimit(`download:${getClientIp(req)}`, { limit: 20, windowMs: 5 * 60 * 1000 })
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds)
+
   try {
     // Mesmo arquivo servido em ${serverUrl}/inventario-agent.exe (estatico,
     // usado pelo auto-updater do agente) e por /api/agent/download-exe

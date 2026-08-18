@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { buildBootstrapScript } from '@/lib/provisioning'
 import { getCurrentServerUrl } from '@/lib/server-url'
+import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 
@@ -11,6 +12,11 @@ const bootstrapSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
+  // Publica por design (client+key na query string sao a credencial) —
+  // limite por IP dificulta varredura/forca bruta de chave de instalacao.
+  const limit = rateLimit(`bootstrap:${getClientIp(req)}`, { limit: 20, windowMs: 5 * 60 * 1000 })
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds)
+
   const parsed = bootstrapSchema.safeParse({
     client: req.nextUrl.searchParams.get('client'),
     key: req.nextUrl.searchParams.get('key'),

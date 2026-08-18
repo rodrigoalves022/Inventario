@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { validateAgentApiKey, authErrorResponse } from '@/lib/auth'
 import { agentMetricsSchema } from '@/lib/schemas/agent-metrics'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const DEFAULT_METRICS_RETENTION_DAYS = 90
 
 export async function POST(req: NextRequest) {
   const auth = await validateAgentApiKey(req)
   if (!auth.ok) return authErrorResponse(auth)
+
+  // Ciclo normal e' 1x/10min + coletas forcadas ocasionais (collect_metrics_now).
+  const limit = rateLimit(`metrics:${auth.agentAuth.id}`, { limit: 20, windowMs: 5 * 60 * 1000 })
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds)
 
   const rawBody = await req.json().catch(() => null)
   if (!rawBody) {
