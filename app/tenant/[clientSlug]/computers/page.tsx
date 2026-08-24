@@ -11,11 +11,24 @@ import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/ten
 import { TenantAlertSettingsForm } from '@/components/tenant-alert-settings-form'
 import { TenantComputersTable } from '@/components/tenant-computers-table'
 
-export default async function TenantComputersPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+export default async function TenantComputersPage({ params, searchParams }: PageProps<'/tenant/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
   const session = await auth()
+
+  const resolvedSearchParams = (await searchParams) ?? {}
+  // `search` e o nome generico (usado por /processors ao linkar por nome de
+  // processador); `os` e mantido pelo link legado do grafico de SO no
+  // dashboard (components/dashboard-charts.tsx) — os dois alimentam a mesma
+  // caixa de busca da tabela.
+  const searchFilterParam = resolvedSearchParams.search ?? resolvedSearchParams.os
+  const initialSearch = typeof searchFilterParam === 'string' ? searchFilterParam : (searchFilterParam?.[0] ?? '')
+
+  const statusFilterParam = resolvedSearchParams.status
+  const rawStatus = typeof statusFilterParam === 'string' ? statusFilterParam : statusFilterParam?.[0]
+  const initialStatusFilter: 'all' | 'online' | 'warning' | 'offline' =
+    rawStatus === 'online' || rawStatus === 'warning' || rawStatus === 'offline' ? rawStatus : 'all'
 
   const [allDevices, tenantAlertSettings] = await Promise.all([
     prisma.device.findMany({
@@ -88,7 +101,7 @@ export default async function TenantComputersPage({ params }: PageProps<'/tenant
 
       {canManageAlerts ? <TenantAlertSettingsForm tenantSlug={tenantSlug} settings={settings} /> : null}
 
-      <TenantComputersTable devices={devices} />
+      <TenantComputersTable devices={devices} initialSearch={initialSearch} initialStatusFilter={initialStatusFilter} />
     </div>
   )
 }

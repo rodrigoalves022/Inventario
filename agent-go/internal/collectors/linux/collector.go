@@ -59,6 +59,17 @@ func readOsRelease() map[string]string {
 	return result
 }
 
+// isRunningInWsl detecta WSL (1 ou 2) pela assinatura "microsoft" no release
+// do kernel — presente tanto em "4.4.0-19041-Microsoft" (WSL1) quanto em
+// "5.15.90.1-microsoft-standard-WSL2". Sem essa deteccao, o agente rodando
+// dentro de um shell WSL se anuncia como se fosse um servidor Linux fisico
+// independente, com o mesmo hostname da maquina Windows hospedeira —
+// confundindo esse subsistema com um ativo separado no inventario.
+func isRunningInWsl() bool {
+	release := readFileTrim("/proc/sys/kernel/osrelease")
+	return strings.Contains(strings.ToLower(release), "microsoft")
+}
+
 func readMeminfo() map[string]uint64 {
 	result := make(map[string]uint64)
 	file, err := os.Open("/proc/meminfo")
@@ -91,6 +102,9 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 
 	osRelease := readOsRelease()
 	payload.Sistema = osRelease["PRETTY_NAME"]
+	if isRunningInWsl() {
+		payload.Sistema += " (WSL)"
+	}
 	payload.VersaoSO = osRelease["VERSION_ID"]
 
 	payload.Fabricante = readFileTrim("/sys/class/dmi/id/sys_vendor")

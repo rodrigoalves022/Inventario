@@ -184,9 +184,8 @@ function SecurityIndicator({
   return (
     <div
       className={cn(
-        'rounded-xl border p-4 space-y-1',
+        'rounded-xl border bg-card p-4 space-y-1',
         unknown && 'border-dashed bg-muted/20',
-        !unknown && isGood && 'border-success/30 bg-success/5',
         !unknown && !isGood && 'border-destructive/30 bg-destructive/5'
       )}
     >
@@ -195,7 +194,7 @@ function SecurityIndicator({
         className={cn(
           'text-lg font-semibold',
           unknown && 'text-muted-foreground',
-          !unknown && isGood && 'text-success',
+          !unknown && isGood && 'text-foreground',
           !unknown && !isGood && 'text-destructive'
         )}
       >

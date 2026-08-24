@@ -61,7 +61,7 @@ export function AssetRecordForm({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="etiqueta" className="text-xs">Etiqueta de patrimônio</Label>
-          <Input id="etiqueta" name="etiqueta" defaultValue={values.etiqueta ?? ''} className="h-9" />
+          <Input id="etiqueta" name="etiqueta" maxLength={100} defaultValue={values.etiqueta ?? ''} className="h-9" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="dataCompra" className="text-xs">Data de compra</Label>
@@ -69,15 +69,15 @@ export function AssetRecordForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="notaFiscal" className="text-xs">Nota fiscal</Label>
-          <Input id="notaFiscal" name="notaFiscal" defaultValue={values.notaFiscal ?? ''} className="h-9" />
+          <Input id="notaFiscal" name="notaFiscal" maxLength={100} defaultValue={values.notaFiscal ?? ''} className="h-9" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="fornecedor" className="text-xs">Fornecedor</Label>
-          <Input id="fornecedor" name="fornecedor" defaultValue={values.fornecedor ?? ''} className="h-9" />
+          <Input id="fornecedor" name="fornecedor" maxLength={255} defaultValue={values.fornecedor ?? ''} className="h-9" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="valor" className="text-xs">Valor (R$)</Label>
-          <Input id="valor" name="valor" type="number" min={0} step="0.01" defaultValue={values.valor ?? ''} className="h-9" />
+          <Input id="valor" name="valor" type="number" min={0} max={100_000_000} step="0.01" defaultValue={values.valor ?? ''} className="h-9" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="garantiaAte" className="text-xs">Garantia até</Label>
@@ -85,21 +85,21 @@ export function AssetRecordForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="centroCusto" className="text-xs">Centro de custo</Label>
-          <Input id="centroCusto" name="centroCusto" defaultValue={values.centroCusto ?? ''} className="h-9" />
+          <Input id="centroCusto" name="centroCusto" maxLength={100} defaultValue={values.centroCusto ?? ''} className="h-9" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="localizacao" className="text-xs">Localização</Label>
-          <Input id="localizacao" name="localizacao" defaultValue={values.localizacao ?? ''} className="h-9" />
+          <Input id="localizacao" name="localizacao" maxLength={255} defaultValue={values.localizacao ?? ''} className="h-9" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="responsavel" className="text-xs">Responsável</Label>
-          <Input id="responsavel" name="responsavel" defaultValue={values.responsavel ?? ''} className="h-9" />
+          <Input id="responsavel" name="responsavel" maxLength={255} defaultValue={values.responsavel ?? ''} className="h-9" />
         </div>
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="observacoes" className="text-xs">Observações</Label>
-        <Textarea id="observacoes" name="observacoes" defaultValue={values.observacoes ?? ''} rows={3} />
+        <Textarea id="observacoes" name="observacoes" maxLength={2000} defaultValue={values.observacoes ?? ''} rows={3} />
       </div>
 
       <div className="flex items-center justify-between gap-4 border-t pt-4">

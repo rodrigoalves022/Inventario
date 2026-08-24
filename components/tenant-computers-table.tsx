@@ -2,30 +2,20 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { 
-  AlertTriangle, 
-  HardDrive, 
-  Search, 
-  ServerCrash, 
-  TriangleAlert, 
-  Wifi, 
+import {
+  HardDrive,
+  Search,
+  TriangleAlert,
+  Wifi,
   WifiOff,
-  Filter,
   Monitor,
   Activity,
   History
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import type { InventoryIssue } from '@/lib/inventory-alerts'
 
 export type TenantComputerRow = {
@@ -55,9 +45,104 @@ function getStatusBadge(status: TenantComputerRow['effectiveStatus']) {
   return 'bg-success/10 text-success'
 }
 
-export function TenantComputersTable({ devices }: { devices: TenantComputerRow[] }) {
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | TenantComputerRow['effectiveStatus']>('all')
+/** Compartilhado entre a linha da tabela (desktop) e o card (mobile) — mesmo dado, duas formas. */
+function StatusPill({ status }: { status: TenantComputerRow['effectiveStatus'] }) {
+  return (
+    <div
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm border ${getStatusBadge(status)}`}
+    >
+      {status === 'offline' ? <WifiOff className="h-3 w-3" /> : null}
+      {status === 'warning' ? <TriangleAlert className="h-3 w-3" /> : null}
+      {status === 'online' ? <Wifi className="h-3 w-3" /> : null}
+      {status === 'offline' ? 'Desconectado' : status}
+    </div>
+  )
+}
+
+function IssueBadges({ deviceId, issues }: { deviceId: string; issues: InventoryIssue[] }) {
+  if (issues.length === 0) {
+    return <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Saudável</span>
+  }
+  return (
+    <>
+      {issues.map((issue) => (
+        <Badge
+          key={`${deviceId}-${issue.code}`}
+          variant="outline"
+          className={`px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide transition-all ${
+            issue.severity === 'critical'
+              ? 'border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10'
+              : 'border-warning/40 bg-warning/5 text-warning hover:bg-warning/10'
+          }`}
+          title={issue.message}
+        >
+          {issue.title}
+        </Badge>
+      ))}
+    </>
+  )
+}
+
+const SUMMARY_TONE = {
+  primary: { icon: 'bg-primary/10 text-primary', value: 'text-foreground', ring: 'ring-primary' },
+  warning: { icon: 'bg-warning/10 text-warning', value: 'text-warning', ring: 'ring-warning' },
+  destructive: { icon: 'bg-destructive/10 text-destructive', value: 'text-destructive', ring: 'ring-destructive' },
+} as const
+
+/**
+ * Card de resumo. Quando `onClick` e passado, o card e o proprio controle de
+ * filtro (substitui o antigo dropdown de criticidade — o numero que o usuario
+ * ja olha e o botao que ele aperta, em vez de duas UIs mostrando o mesmo dado).
+ */
+function SummaryCard({
+  icon,
+  label,
+  value,
+  tone,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: number
+  tone: keyof typeof SUMMARY_TONE
+  active?: boolean
+  onClick?: () => void
+}) {
+  const tones = SUMMARY_TONE[tone]
+  const Comp = onClick ? 'button' : 'div'
+
+  return (
+    <Comp
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? active : undefined}
+      className={cn(
+        'rounded-xl border bg-card p-4 text-left transition-all hover:shadow-md',
+        onClick && 'cursor-pointer',
+        active && `ring-2 ${tones.ring}`
+      )}
+    >
+      <div className="flex items-center gap-3 mb-2">
+        <div className={cn('rounded-lg p-2', tones.icon)}>{icon}</div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+      </div>
+      <p className={cn('text-2xl font-bold', tones.value)}>{value}</p>
+    </Comp>
+  )
+}
+
+export function TenantComputersTable({
+  devices,
+  initialSearch = '',
+  initialStatusFilter = 'all',
+}: {
+  devices: TenantComputerRow[]
+  initialSearch?: string
+  initialStatusFilter?: 'all' | TenantComputerRow['effectiveStatus']
+}) {
+  const [search, setSearch] = useState(initialSearch)
+  const [statusFilter, setStatusFilter] = useState<'all' | TenantComputerRow['effectiveStatus']>(initialStatusFilter)
   const [criticalFilter, setCriticalFilter] = useState<'all' | 'low_disk' | 'low_ram' | 'stale_collection'>('all')
 
   const summary = useMemo(() => ({
@@ -76,7 +161,10 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
         normalized.length === 0 ||
         device.hostname.toLowerCase().includes(normalized) ||
         (device.ip ?? '').toLowerCase().includes(normalized) ||
-        (device.sistema ?? '').toLowerCase().includes(normalized)
+        (device.sistema ?? '').toLowerCase().includes(normalized) ||
+        // Precisa bater em processador tambem: /processors linka pra ca com
+        // ?search=<nome do processador> (ver components/tenant-processors-table.tsx).
+        (device.processador ?? '').toLowerCase().includes(normalized)
 
       const matchesStatus = statusFilter === 'all' || device.effectiveStatus === statusFilter
       const matchesCritical =
@@ -86,55 +174,52 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
     })
   }, [criticalFilter, devices, search, statusFilter])
 
+  function toggleCriticalFilter(value: 'low_disk' | 'low_ram' | 'stale_collection') {
+    setCriticalFilter((current) => (current === value ? 'all' : value))
+  }
+
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Summary Cards — os 3 de criticidade dobram como filtro, ver SummaryCard */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-xl border bg-card p-4 transition-all hover:shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="rounded-lg bg-primary/10 p-2 text-primary">
-              <Monitor className="h-4 w-4" />
-            </div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Máquinas</p>
-          </div>
-          <p className="text-2xl font-bold text-foreground">{summary.total}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4 transition-all hover:shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="rounded-lg bg-warning/10 p-2 text-warning">
-              <TriangleAlert className="h-4 w-4" />
-            </div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Warnings Ativos</p>
-          </div>
-          <p className="text-2xl font-bold text-warning">{summary.warning}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4 transition-all hover:shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="rounded-lg bg-destructive/10 p-2 text-destructive">
-              <HardDrive className="h-4 w-4" />
-            </div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pouco Disco</p>
-          </div>
-          <p className="text-2xl font-bold text-destructive">{summary.lowDisk}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4 transition-all hover:shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="rounded-lg bg-warning/20 p-2 text-warning">
-              <Activity className="h-4 w-4" />
-            </div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pouca RAM</p>
-          </div>
-          <p className="text-2xl font-bold text-warning">{summary.lowRam}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4 transition-all hover:shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="rounded-lg bg-destructive/20 p-2 text-destructive">
-              <History className="h-4 w-4" />
-            </div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Coleta Atrasada</p>
-          </div>
-          <p className="text-2xl font-bold text-destructive">{summary.stale}</p>
-        </div>
+        <SummaryCard
+          icon={<Monitor className="h-4 w-4" />}
+          label="Total Máquinas"
+          value={summary.total}
+          tone="primary"
+          active={criticalFilter === 'all'}
+          onClick={() => setCriticalFilter('all')}
+        />
+        <SummaryCard
+          icon={<TriangleAlert className="h-4 w-4" />}
+          label="Warnings Ativos"
+          value={summary.warning}
+          tone="warning"
+        />
+        <SummaryCard
+          icon={<HardDrive className="h-4 w-4" />}
+          label="Pouco Disco"
+          value={summary.lowDisk}
+          tone="destructive"
+          active={criticalFilter === 'low_disk'}
+          onClick={() => toggleCriticalFilter('low_disk')}
+        />
+        <SummaryCard
+          icon={<Activity className="h-4 w-4" />}
+          label="Pouca RAM"
+          value={summary.lowRam}
+          tone="warning"
+          active={criticalFilter === 'low_ram'}
+          onClick={() => toggleCriticalFilter('low_ram')}
+        />
+        <SummaryCard
+          icon={<History className="h-4 w-4" />}
+          label="Coleta Atrasada"
+          value={summary.stale}
+          tone="destructive"
+          active={criticalFilter === 'stale_collection'}
+          onClick={() => toggleCriticalFilter('stale_collection')}
+        />
       </div>
 
       {/* Filter Bar */}
@@ -149,9 +234,9 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
           />
         </div>
 
-        <Tabs 
-          value={statusFilter} 
-          onValueChange={(v) => setStatusFilter(v as any)} 
+        <Tabs
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as any)}
           className="w-full md:w-auto"
         >
           <TabsList className="grid w-full grid-cols-4 h-10">
@@ -161,30 +246,10 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
             <TabsTrigger value="offline" className="text-xs">Offline</TabsTrigger>
           </TabsList>
         </Tabs>
-
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Select 
-            value={criticalFilter} 
-            onValueChange={(v) => setCriticalFilter(v as any)}
-          >
-            <SelectTrigger className="w-full md:w-[200px] h-10 bg-card">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="Criticidade" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Sem filtro crítico</SelectItem>
-              <SelectItem value="low_disk">Pouco disco</SelectItem>
-              <SelectItem value="low_ram">Pouca RAM</SelectItem>
-              <SelectItem value="stale_collection">Coleta atrasada</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+      {/* Table — telas md+; abaixo disso vira lista de cards (ver bloco seguinte) */}
+      <div className="hidden rounded-xl border bg-card overflow-hidden shadow-sm md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -215,7 +280,7 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
                       <Link href={device.detailsPath} className="text-foreground hover:text-primary transition-colors">
                         {device.hostname}
                       </Link>
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter mt-1">
+                      <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide mt-1">
                         {device.sistema ?? 'N/A'}
                       </p>
                     </td>
@@ -225,12 +290,16 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
                       </code>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-3 text-muted-foreground text-xs font-medium">
-                        <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-3 text-xs font-medium">
+                        <div className={`flex items-center gap-1 ${
+                          device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'
+                        }`}>
                           <Activity className="h-3 w-3" />
                           {device.ramTotalGb ? `${device.ramTotalGb}GB` : '—'}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className={`flex items-center gap-1 ${
+                          device.issues.some((issue) => issue.code === 'low_disk') ? 'text-destructive' : 'text-muted-foreground'
+                        }`}>
                           <HardDrive className="h-3 w-3" />
                           {device.lowestDiskFreeGb !== null ? `${device.lowestDiskFreeGb}GB` : device.storageLabel?.split(' ')[0] ?? '—'}
                         </div>
@@ -238,36 +307,14 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-wrap gap-1.5">
-                        {device.issues.length === 0 ? (
-                          <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest italic">Saudável</span>
-                        ) : (
-                          device.issues.map((issue) => (
-                            <Badge
-                              key={`${device.id}-${issue.code}`}
-                              variant="outline"
-                              className={`px-1.5 py-0 text-[10px] font-bold uppercase transition-all ${
-                                issue.severity === 'critical' 
-                                  ? 'border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10' 
-                                  : 'border-warning/40 bg-warning/5 text-warning hover:bg-warning/10'
-                              }`}
-                              title={issue.message}
-                            >
-                              {issue.title}
-                            </Badge>
-                          ))
-                        )}
+                        <IssueBadges deviceId={device.id} issues={device.issues} />
                       </div>
                     </td>
                     <td className="px-5 py-4 text-muted-foreground tabular-nums">
                       {formatLastCollection(device.lastCollectionAt)}
                     </td>
                     <td className="px-5 py-4">
-                      <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-tight shadow-sm border ${getStatusBadge(device.effectiveStatus)}`}>
-                        {device.effectiveStatus === 'offline' ? <WifiOff className="h-3 w-3" /> : null}
-                        {device.effectiveStatus === 'warning' ? <TriangleAlert className="h-3 w-3" /> : null}
-                        {device.effectiveStatus === 'online' ? <Wifi className="h-3 w-3" /> : null}
-                        {device.effectiveStatus === 'offline' ? 'Desconectado' : device.effectiveStatus}
-                      </div>
+                      <StatusPill status={device.effectiveStatus} />
                     </td>
                   </tr>
                 ))
@@ -275,6 +322,67 @@ export function TenantComputersTable({ devices }: { devices: TenantComputerRow[]
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Cards — telas abaixo de md, no lugar da tabela. Mesma linha vira um
+          alvo de toque unico (a linha inteira e' um Link), em vez de so o
+          hostname como na versao desktop. */}
+      <div className="rounded-xl border bg-card md:hidden">
+        {filteredDevices.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-5 py-12 text-center text-muted-foreground">
+            <Search className="h-8 w-8 opacity-20" />
+            <p className="text-base font-medium">Nenhum computador encontrado</p>
+            <p className="text-sm">Tente ajustar os filtros ou limpar a busca.</p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {filteredDevices.map((device) => (
+              <Link
+                key={device.id}
+                href={device.detailsPath}
+                className="block space-y-3 p-4 active:bg-muted/40"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-mono font-medium text-foreground">{device.hostname}</p>
+                    <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide mt-1">
+                      {device.sistema ?? 'N/A'}
+                    </p>
+                  </div>
+                  <StatusPill status={device.effectiveStatus} />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-medium">
+                  <code className="bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                    {device.ip ?? '0.0.0.0'}
+                  </code>
+                  <span className={cn(
+                    'flex items-center gap-1',
+                    device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'
+                  )}>
+                    <Activity className="h-3 w-3" />
+                    {device.ramTotalGb ? `${device.ramTotalGb}GB` : '—'}
+                  </span>
+                  <span className={cn(
+                    'flex items-center gap-1',
+                    device.issues.some((issue) => issue.code === 'low_disk') ? 'text-destructive' : 'text-muted-foreground'
+                  )}>
+                    <HardDrive className="h-3 w-3" />
+                    {device.lowestDiskFreeGb !== null ? `${device.lowestDiskFreeGb}GB` : device.storageLabel?.split(' ')[0] ?? '—'}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  <IssueBadges deviceId={device.id} issues={device.issues} />
+                </div>
+
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  Última coleta: {formatLastCollection(device.lastCollectionAt)}
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

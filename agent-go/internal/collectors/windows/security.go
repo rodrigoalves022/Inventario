@@ -12,9 +12,16 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// ProductState e' documentado pela Microsoft como uint32, mas alguns
+// providers WMI de antivirus de terceiros (dependendo do produto instalado)
+// devolvem o valor como inteiro assinado — causa real e ja reproduzida de um
+// panico "reflect: call of reflect.Value.Uint on int32 Value" ao tentar
+// popular um campo uint32 com esse valor. int32 aceita os dois casos sem
+// perigo de overflow pratico (o valor e' sempre um bitfield pequeno) e o
+// bitmask em decodeProductState funciona identico nos dois tipos.
 type securityCenterProduct struct {
 	DisplayName  string
-	ProductState uint32
+	ProductState int32
 }
 
 type win32Tpm struct {
@@ -58,7 +65,7 @@ func hostnameForWmi() string {
 // Byte do meio indica se esta habilitado; o ultimo byte, se as assinaturas
 // estao atualizadas. E a leitura consagrada da API, que a Microsoft nunca
 // documentou formalmente.
-func decodeProductState(state uint32) (enabled bool, upToDate bool) {
+func decodeProductState(state int32) (enabled bool, upToDate bool) {
 	enabled = state&0x1000 != 0
 	upToDate = state&0x10 == 0
 	return enabled, upToDate

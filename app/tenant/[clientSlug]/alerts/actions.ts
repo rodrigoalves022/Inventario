@@ -7,6 +7,7 @@ import prisma from '@/lib/prisma'
 import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
 import { ALERT_METRICS, ALERT_SEVERITIES } from '@/lib/alert-rules'
+import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
 
 export type AlertRuleActionState = {
   status: 'idle' | 'success' | 'error'
@@ -115,10 +116,34 @@ export async function deleteAlertRuleAction(
     return { status: 'error', message: 'Você não pode gerenciar alertas deste tenant.' }
   }
 
+  const session = await auth()
+  const actor = getSessionAuditActor(getSessionPermissionUser(session))
+
+  const rule = await prisma.alertRule.findFirst({
+    where: { id: parsed.data.ruleId, clientId: tenant.id },
+    select: { id: true, name: true, metric: true },
+  })
+  if (!rule) {
+    return { status: 'error', message: 'Regra não encontrada.' }
+  }
+
   // Nao apaga o historico: AlertEvent.ruleId vira null (onDelete: SetNull no
   // schema), o disparo passado continua visivel, so perde o vinculo com a
   // regra viva.
-  await prisma.alertRule.deleteMany({ where: { id: parsed.data.ruleId, clientId: tenant.id } })
+  await prisma.$transaction(async (tx) => {
+    await tx.alertRule.delete({ where: { id: rule.id } })
+    await recordAuditLog(
+      {
+        action: 'alert_rule.delete',
+        targetType: 'alert_rule',
+        targetId: rule.id,
+        clientId: tenant.id,
+        actor,
+        metadata: { name: rule.name, metric: rule.metric, tenantSlug: parsed.data.tenantSlug },
+      },
+      tx
+    )
+  })
 
   revalidatePath(`/tenant/${parsed.data.tenantSlug}/alerts`)
   return { status: 'success', message: 'Regra excluída.' }

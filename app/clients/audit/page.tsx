@@ -108,12 +108,12 @@ export default async function ClientsAuditPage({
                 </div>
                 <p className="text-2xl font-bold text-foreground">{logs.length}</p>
               </div>
-              <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-blue-500/40">
+              <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-info/40">
                 <div className="flex items-center gap-3 mb-1">
-                  <KeyRound className="h-4 w-4 text-blue-500" />
+                  <KeyRound className="h-4 w-4 text-info" />
                   <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Acesso a Chaves</p>
                 </div>
-                <p className="text-2xl font-bold text-blue-500">{credentialViews}</p>
+                <p className="text-2xl font-bold text-info">{credentialViews}</p>
               </div>
               <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-destructive/40">
                 <div className="flex items-center gap-3 mb-1">

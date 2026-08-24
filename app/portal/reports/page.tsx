@@ -2,11 +2,14 @@ import { Download, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { requirePortalContext } from '@/lib/portal-context'
 import { getDeviceReportRows, buildDeviceReportSummary } from '@/lib/reports/device-report'
+import { getDefaultAlertSettings, getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 
 export default async function PortalReportsPage() {
   const context = await requirePortalContext()
+  const tenantAlertSettings = await getTenantAlertSettingsByClientId(context.clientId)
+  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
 
-  const rows = await getDeviceReportRows({ clientId: context.clientId })
+  const rows = await getDeviceReportRows({ clientId: context.clientId }, alertOfflineHours)
   const summary = buildDeviceReportSummary(rows)
 
   return (

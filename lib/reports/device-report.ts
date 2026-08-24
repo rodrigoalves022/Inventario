@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import PDFDocument from 'pdfkit'
+import { DEFAULT_ALERT_SETTINGS, deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
 
 export type DeviceReportRow = {
   hostname: string
@@ -46,14 +47,21 @@ function summarizeOs(osName: string) {
   return osName
 }
 
-const RAM_BUCKET_ORDER = ['≤ 8 GB', '9 - 16 GB', '17 - 32 GB', '33 - 64 GB', '65+ GB']
-
-function bucketRam(value: number) {
-  if (value <= 8) return '≤ 8 GB'
-  if (value <= 16) return '9 - 16 GB'
-  if (value <= 32) return '17 - 32 GB'
-  if (value <= 64) return '33 - 64 GB'
-  return '65+ GB'
+/**
+ * Agrupa por capacidade exata (11 GB, 18 GB, ...), nao por faixa — um parque
+ * pequeno com valores bem diferentes entre si (comum fora de compra em lote)
+ * fica ilegivel em faixas largas tipo "9-16 GB". Continua "conta maquina",
+ * nunca soma: so troca a chave de agrupamento de faixa pra valor real.
+ */
+function bucketRamByExactValue(rows: Pick<DeviceReportRow, 'ramTotalGb'>[]): UsageBucket[] {
+  const ramMap = new Map<number, number>()
+  for (const row of rows) {
+    if (row.ramTotalGb == null) continue
+    ramMap.set(row.ramTotalGb, (ramMap.get(row.ramTotalGb) ?? 0) + 1)
+  }
+  return Array.from(ramMap.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([gb, count]) => ({ label: `${gb} GB`, count }))
 }
 
 const DISK_USAGE_BUCKET_ORDER = ['Até 50% usado', '50–80% usado', '80–95% usado', '95%+ usado (crítico)']
@@ -65,9 +73,41 @@ function bucketDiskUsage(usedPercent: number) {
   return '95%+ usado (crítico)'
 }
 
-/** Busca os dados-fonte do relatorio de inventario, ja escopados por tenant
- * pelo `where` recebido (getTenantDeviceWhere ou equivalente do portal). */
-export async function getDeviceReportRows(where: Prisma.DeviceWhereInput): Promise<DeviceReportRow[]> {
+/**
+ * Status EFETIVO de uma linha do relatorio, via `deriveInventoryIssues` +
+ * `getEffectiveDeviceStatus` — as mesmas funcoes que o resto do app usa
+ * (dashboard, /computers) — em vez do `device.status` bruto do banco, que
+ * so recebe 'online'/'warning' no checkin e nunca 'offline' (RN010). So a
+ * issue 'stale_collection' e considerada aqui (sem ram/disco), porque essa
+ * e a unica dimensao que falta no `status` bruto; low_disk/low_ram ja vem
+ * refletidos no `status` gravado no checkin. Funcao pura (sem Prisma) para
+ * ser testada isoladamente e reaproveitada por `getDeviceReportRows`.
+ */
+export function getRowEffectiveStatus(
+  row: { status: string; ultimaColeta: Date | string | null; updatedAt?: Date | string | null },
+  alertOfflineHours: number = DEFAULT_ALERT_SETTINGS.alertOfflineHours
+): string {
+  // `updatedAt` e o fallback de `deriveInventoryIssues` quando nunca houve
+  // CollectionLog (ultimaColeta null) — sem ele, um dispositivo "nunca
+  // coletado" nunca seria marcado como stale/offline (mesmo fallback usado
+  // pelo dashboard/computers via device.updatedAt).
+  const issues = deriveInventoryIssues(
+    { lastCollectionAt: row.ultimaColeta, updatedAt: row.updatedAt ?? null },
+    { ...DEFAULT_ALERT_SETTINGS, alertOfflineHours }
+  )
+  return getEffectiveDeviceStatus(row.status, issues)
+}
+
+/**
+ * Busca os dados-fonte do relatorio de inventario, ja escopados por tenant
+ * pelo `where` recebido (getTenantDeviceWhere ou equivalente do portal).
+ * `alertOfflineHours` (default do tenant se nao informado) alimenta
+ * `getRowEffectiveStatus` — ver doc acima.
+ */
+export async function getDeviceReportRows(
+  where: Prisma.DeviceWhereInput,
+  alertOfflineHours: number = DEFAULT_ALERT_SETTINGS.alertOfflineHours
+): Promise<DeviceReportRow[]> {
   const devices = await prisma.device.findMany({
     where,
     orderBy: { hostname: 'asc' },
@@ -84,10 +124,15 @@ export async function getDeviceReportRows(where: Prisma.DeviceWhereInput): Promi
   return devices.map((device) => {
     const capacidadeGb = device.disks.reduce((sum, disk) => sum + (disk.capacidadeGb ?? 0), 0)
     const livreGb = device.disks.reduce((sum, disk) => sum + (disk.espacoLivreGb ?? 0), 0)
+    const ultimaColeta = device.logs[0]?.coletadoEm ?? null
+    const effectiveStatus = getRowEffectiveStatus(
+      { status: device.status, ultimaColeta, updatedAt: device.updatedAt },
+      alertOfflineHours
+    )
 
     return {
       hostname: device.hostname,
-      status: device.status,
+      status: effectiveStatus,
       ip: device.networks[0]?.ip ?? null,
       sistema: device.hardware?.sistema ?? null,
       processador: device.hardware?.processador ?? null,
@@ -96,7 +141,7 @@ export async function getDeviceReportRows(where: Prisma.DeviceWhereInput): Promi
       discoLivreGb: device.disks.length > 0 ? livreGb : null,
       antivirusAtivo: device.security?.antivirusAtivo ?? null,
       firewallAtivo: device.security?.firewallAtivo ?? null,
-      ultimaColeta: device.logs[0]?.coletadoEm ?? null,
+      ultimaColeta,
       etiquetaPatrimonio: device.assetRecord?.etiqueta ?? null,
       localizacao: device.assetRecord?.localizacao ?? null,
       responsavel: device.assetRecord?.responsavel ?? null,
@@ -121,13 +166,7 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportS
     .map(([name, value]) => ({ name, value }))
     .sort((left, right) => right.value - left.value)
 
-  const ramMap = new Map<string, number>()
-  for (const row of rows) {
-    if (row.ramTotalGb == null) continue
-    const key = bucketRam(row.ramTotalGb)
-    ramMap.set(key, (ramMap.get(key) ?? 0) + 1)
-  }
-  const ramDistribution = RAM_BUCKET_ORDER.map((label) => ({ label, count: ramMap.get(label) ?? 0 }))
+  const ramDistribution = bucketRamByExactValue(rows)
 
   // Bucket por maquina (cada uma com sua propria % de uso), nao um blend de
   // todos os discos somados — ver nota no tipo DeviceReportSummary.

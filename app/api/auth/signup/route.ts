@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const existingSuperAdmin = await prisma.user.findFirst({
-    where: { role: 'SUPER_ADMIN' },
+    where: { role: 'PLATFORM_ADMIN' },
     select: { id: true },
   })
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       email,
       name: name ?? null,
       passwordHash,
-      role: 'SUPER_ADMIN',
+      role: 'PLATFORM_ADMIN',
       clientId: null,
     },
     select: {

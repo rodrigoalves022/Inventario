@@ -50,7 +50,10 @@ type Win32_LogicalDisk struct {
 	DeviceID  string
 	Size      uint64
 	FreeSpace uint64
-	DriveType uint32
+	// DriveType e' documentado como uint32, mas alguns providers WMI devolvem
+	// int32 — mesmo caso de ProductState em security.go. int32 funciona igual
+	// pois o valor e' um enum pequeno (0-6).
+	DriveType int32
 }
 
 type Win32_DiskDrive struct {

@@ -21,7 +21,8 @@ type wmiMonitorID struct {
 	ManufacturerName  []uint16
 	SerialNumberID    []uint16
 	UserFriendlyName  []uint16
-	YearOfManufacture uint16
+	// YearOfManufacture e' uint16 na spec EDID, mas alguns drivers devolvem int32.
+	YearOfManufacture int32
 }
 
 // MaxHorizontalImageSize/MaxVerticalImageSize vem do EDID em CENTIMETROS
@@ -33,9 +34,11 @@ type wmiMonitorBasicDisplayParams struct {
 }
 
 // VideoOutputTechnology segue o enum D3DKMDT_VIDEO_OUTPUT_TECHNOLOGY.
+// Documentado como uint32, mas alguns providers WMI devolvem int32 — mesmo
+// padrao de ProductState em security.go. int32 funciona pois e' um enum pequeno.
 type wmiMonitorConnectionParams struct {
 	InstanceName          string
-	VideoOutputTechnology uint32
+	VideoOutputTechnology int32
 }
 
 type win32Printer struct {
@@ -63,7 +66,7 @@ func decodeEdidString(values []uint16) string {
 	return strings.TrimSpace(b.String())
 }
 
-func videoOutputTechnologyLabel(value uint32) string {
+func videoOutputTechnologyLabel(value int32) string {
 	switch value {
 	case 0:
 		return "VGA"
@@ -75,11 +78,11 @@ func videoOutputTechnologyLabel(value uint32) string {
 		return "DisplayPort"
 	case 6:
 		return "LVDS (interno)"
-	case 0x80000000:
+	case -2147483648: // 0x80000000 como int32
 		return "Interno"
 	default:
 		// Tecnologias raras (S-Video, componente, UDI, Miracast...) ou valor
-		// nao inicializado (0xFFFFFFFF) — deixamos em branco em vez de
+		// nao inicializado (-1 = 0xFFFFFFFF) — deixamos em branco em vez de
 		// adivinhar um rotulo.
 		return ""
 	}
@@ -115,7 +118,7 @@ func collectMonitors() []inventory.MonitorInfo {
 		&connParams,
 		`root\wmi`,
 	)
-	connByInstance := make(map[string]uint32, len(connParams))
+	connByInstance := make(map[string]int32, len(connParams))
 	for _, c := range connParams {
 		connByInstance[c.InstanceName] = c.VideoOutputTechnology
 	}

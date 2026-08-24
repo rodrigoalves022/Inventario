@@ -4,23 +4,56 @@ import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { getTenantPath } from '@/lib/tenant-links'
+import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
+import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 
 export default async function TenantServersPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 
-  const allDevices = await prisma.device.findMany({
-    where: getTenantDeviceWhere(tenantSlug),
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      hardware: { select: { sistema: true, processador: true, ramTotalGb: true, tipoArmazenamento: true } },
-      networks: { where: { isPrimary: true }, select: { ip: true, mac: true } },
-      disks: { select: { unidade: true, capacidadeGb: true, espacoLivreGb: true, tipo: true } },
-    },
-  })
+  const [allDevices, tenantAlertSettings] = await Promise.all([
+    prisma.device.findMany({
+      where: getTenantDeviceWhere(tenantSlug),
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        hardware: { select: { sistema: true, processador: true, ramTotalGb: true, tipoArmazenamento: true } },
+        networks: { where: { isPrimary: true }, select: { ip: true, mac: true } },
+        disks: { select: { unidade: true, capacidadeGb: true, espacoLivreGb: true, tipo: true } },
+        logs: { orderBy: { coletadoEm: 'desc' }, take: 1, select: { coletadoEm: true } },
+      },
+    }),
+    getTenantAlertSettingsBySlug(tenantSlug),
+  ])
 
-  const servers = allDevices.filter((device) => isServerOperatingSystem(device.hardware?.sistema))
+  const settings = tenantAlertSettings ?? { clientId: tenant.id, ...getDefaultAlertSettings() }
+
+  // Mesmo padrao de computers/page.tsx e tenant-computers-table.tsx: o status
+  // efetivo (RN010) e' sempre calculado em runtime via deriveInventoryIssues +
+  // getEffectiveDeviceStatus, nunca lido direto de `device.status` bruto (que
+  // so recebe 'online'/'warning' no checkin e nunca 'offline'). Corrige o bug
+  // documentado na Sprint 7 — servidores obsoletos agora aparecem "offline".
+  const servers = allDevices
+    .filter((device) => isServerOperatingSystem(device.hardware?.sistema))
+    .map((device) => {
+      const lastCollectionAt = device.logs[0]?.coletadoEm ?? device.updatedAt
+      const issues = settings.alertsEnabled
+        ? deriveInventoryIssues(
+            {
+              updatedAt: device.updatedAt,
+              lastCollectionAt,
+              hardware: device.hardware,
+              disks: device.disks,
+            },
+            settings
+          )
+        : []
+
+      return {
+        ...device,
+        effectiveStatus: getEffectiveDeviceStatus(device.status, issues) as 'online' | 'warning' | 'offline',
+      }
+    })
 
   return (
     <div className="space-y-6">
@@ -73,13 +106,13 @@ export default async function TenantServersPage({ params }: PageProps<'/tenant/[
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        server.status === 'online'
+                        server.effectiveStatus === 'online'
                           ? 'bg-success/10 text-success'
-                          : server.status === 'offline'
+                          : server.effectiveStatus === 'offline'
                           ? 'bg-destructive/10 text-destructive'
                           : 'bg-warning/10 text-warning'
                       }`}>
-                        {server.status}
+                        {server.effectiveStatus}
                       </span>
                     </td>
                   </tr>

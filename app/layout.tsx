@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 export const dynamic = 'force-dynamic'
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html lang="pt-BR" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans antialiased">
         {children}
+        <Toaster position="bottom-right" />
         <Analytics />
       </body>
     </html>

@@ -23,12 +23,23 @@ export default async function TenantAlertsPage({ params }: PageProps<'/tenant/[c
   const canManage = canManageTenantAlerts(getSessionPermissionUser(session), tenant)
 
   const [rules, events] = await Promise.all([
-    prisma.alertRule.findMany({ where: { clientId: tenant.id }, orderBy: { createdAt: 'asc' } }),
+    prisma.alertRule.findMany({
+      where: { clientId: tenant.id },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, metric: true, severity: true, enabled: true },
+    }),
     prisma.alertEvent.findMany({
       where: { clientId: tenant.id },
       orderBy: { firedAt: 'desc' },
       take: 50,
-      include: { device: { select: { hostname: true } } },
+      select: {
+        id: true,
+        message: true,
+        severity: true,
+        firedAt: true,
+        resolvedAt: true,
+        device: { select: { hostname: true } },
+      },
     }),
   ])
 

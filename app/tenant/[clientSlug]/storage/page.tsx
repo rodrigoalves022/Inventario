@@ -1,45 +1,64 @@
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
+import { getTenantPath } from '@/lib/tenant-links'
+import { getDevicePresence } from '@/lib/inventory-alerts'
+import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
+import { TenantStorageTable } from '@/components/tenant-storage-table'
 
-export default async function TenantStoragePage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+export default async function TenantStoragePage({ params, searchParams }: PageProps<'/tenant/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 
-  const devices = await prisma.device.findMany({
-    where: getTenantDeviceWhere(tenantSlug),
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      disks: {
-        orderBy: { unidade: 'asc' },
-        select: {
-          id: true,
-          unidade: true,
-          tipo: true,
-          capacidadeGb: true,
-          espacoLivreGb: true,
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const tipoParam = resolvedSearchParams.tipo
+  const initialTipo = typeof tipoParam === 'string' ? tipoParam : (tipoParam?.[0] ?? 'all')
+  const faixaParam = resolvedSearchParams.faixa
+  const rawFaixa = typeof faixaParam === 'string' ? faixaParam : faixaParam?.[0]
+  const initialFaixa: 'all' | 'ok' | 'warning' | 'critical' =
+    rawFaixa === 'ok' || rawFaixa === 'warning' || rawFaixa === 'critical' ? rawFaixa : 'all'
+
+  const [devices, tenantAlertSettings] = await Promise.all([
+    prisma.device.findMany({
+      where: getTenantDeviceWhere(tenantSlug),
+      orderBy: { hostname: 'asc' },
+      select: {
+        id: true,
+        hostname: true,
+        usuario: true,
+        disks: {
+          orderBy: { unidade: 'asc' },
+          select: { unidade: true, tipo: true, capacidadeGb: true, espacoLivreGb: true },
         },
+        logs: { orderBy: { coletadoEm: 'desc' }, take: 1, select: { coletadoEm: true } },
       },
-    },
-  })
+    }),
+    getTenantAlertSettingsBySlug(tenantSlug),
+  ])
+
+  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
+  const now = new Date()
 
   const storageDevices = devices
     .map((device) => {
-      const total = device.disks.reduce((sum, disk) => sum + (disk.capacidadeGb ?? 0), 0)
+      const capacity = device.disks.reduce((sum, disk) => sum + (disk.capacidadeGb ?? 0), 0)
       const free = device.disks.reduce((sum, disk) => sum + (disk.espacoLivreGb ?? 0), 0)
-      const used = Math.max(total - free, 0)
-      const primaryType = device.disks[0]?.tipo ?? 'N/A'
+      const used = Math.max(capacity - free, 0)
+      const types = Array.from(new Set(device.disks.map((disk) => disk.tipo).filter((tipo): tipo is string => Boolean(tipo))))
+      const lastCollectionAt = device.logs[0]?.coletadoEm ?? null
 
       return {
         id: device.id,
-        name: device.hostname,
-        capacity: total,
+        hostname: device.hostname,
+        usuario: device.usuario,
+        capacity,
         used,
         free,
-        type: primaryType,
-        status: device.status,
         diskCount: device.disks.length,
+        types,
+        presence: getDevicePresence(lastCollectionAt, alertOfflineHours, now),
+        detailsPath: getTenantPath(tenantSlug, `assets/${device.id}`),
       }
     })
     .filter((device) => device.capacity > 0)
@@ -53,50 +72,7 @@ export default async function TenantStoragePage({ params }: PageProps<'/tenant/[
         </p>
       </div>
 
-      <div className="grid gap-4">
-        {storageDevices.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-            Nenhum dispositivo com discos reportados no cliente selecionado.
-          </div>
-        ) : (
-          storageDevices.map((device) => {
-            const usage = device.capacity > 0 ? Math.round((device.used / device.capacity) * 100) : 0
-            return (
-              <div key={device.id} className="rounded-lg border border-border bg-card p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">{device.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {device.type} - {device.diskCount} disco{device.diskCount !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-sm font-medium ${
-                    device.status === 'online'
-                      ? 'bg-success/10 text-success'
-                      : device.status === 'offline'
-                      ? 'bg-destructive/10 text-destructive'
-                      : 'bg-warning/10 text-warning'
-                  }`}>
-                    {device.status}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {device.used} GB de {device.capacity} GB
-                    </span>
-                    <span className="font-semibold">{usage}%</span>
-                  </div>
-                  <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${usage}%` }} />
-                  </div>
-                  <p className="text-xs text-muted-foreground">{device.free} GB livres</p>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+      <TenantStorageTable devices={storageDevices} initialType={initialTipo} initialUsageRange={initialFaixa} />
     </div>
   )
 }

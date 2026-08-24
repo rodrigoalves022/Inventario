@@ -6,10 +6,11 @@ import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { generateEnrollmentKey } from '@/lib/auth'
 import { slugifyClientName } from '@/lib/clients'
-import { getSessionPermissionUser, isOrgAdmin, isPlatformAdmin } from '@/lib/permissions'
+import { canManageTenant, getSessionPermissionUser, isOrgAdmin, isPlatformAdmin } from '@/lib/permissions'
 import { resolveOrganizationIdForActor } from '@/lib/organizations'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
 import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
+import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
 import { type ProvisioningActionState } from './types'
 
 const createClientSchema = z.object({
@@ -26,6 +27,20 @@ const rotateKeySchema = z.object({
   serverUrl: z.string().trim().url(),
   clientId: z.string().trim().min(1),
 })
+
+const revokeAgentAuthSchema = z.object({
+  agentAuthId: z.string().trim().min(1),
+})
+
+// Um arquivo 'use server' so pode exportar funcoes async (Next.js exige isso
+// em runtime) — por isso, ao contrario de ProvisioningActionState (definido em
+// ./types.ts), o tipo de estado fica so como type-only export aqui: tipos sao
+// apagados na compilacao e nao violam a restricao, mas uma constante de valor
+// (ex.: um "initialState" default) precisaria ir para ./types.ts, nao aqui.
+export type RevokeAgentAuthState = {
+  error: string | null
+  message: string | null
+}
 
 function rejectUnauthorizedAccess(): ProvisioningActionState {
   return {
@@ -45,6 +60,8 @@ async function hasClientsAdminAccess() {
 
 type TransactionLike = {
   client: typeof prisma.client
+  agentAuth: typeof prisma.agentAuth
+  auditLog: typeof prisma.auditLog
   $executeRaw: typeof prisma.$executeRaw
 }
 
@@ -171,9 +188,8 @@ export async function rotateEnrollmentKeyAction(
   formData: FormData
 ): Promise<ProvisioningActionState> {
   try {
-    if (!(await hasClientsAdminAccess())) {
-      return rejectUnauthorizedAccess()
-    }
+    const session = await auth()
+    const user = getSessionPermissionUser(session)
 
     const parsed = rotateKeySchema.safeParse({
       serverUrl: formData.get('serverUrl'),
@@ -188,9 +204,13 @@ export async function rotateEnrollmentKeyAction(
       }
     }
 
+    // Rotacao de chave e emissao de credencial para um tenant JA existente
+    // (nao criacao/edicao de conta), entao usa canManageTenant — mesmo guard
+    // de GET /api/clients/[id]/credentials — e nao o hasClientsAdminAccess
+    // mais permissivo usado em createClientAction. Ver RN015 em docs/PRODUCT.md.
     const client = await prisma.client.findUnique({
       where: { id: parsed.data.clientId },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, organizationId: true },
     })
 
     if (!client) {
@@ -201,7 +221,12 @@ export async function rotateEnrollmentKeyAction(
       }
     }
 
+    if (!canManageTenant(user, client)) {
+      return rejectUnauthorizedAccess()
+    }
+
     const { plaintext, hash } = await generateEnrollmentKey()
+    const actor = getSessionAuditActor(user)
     await prisma.$transaction(async (tx: TransactionLike) => {
       await tx.client.update({
         where: { id: client.id },
@@ -209,6 +234,17 @@ export async function rotateEnrollmentKeyAction(
       })
 
       await persistActiveProvisioningKey(tx, client.id, plaintext)
+      await recordAuditLog(
+        {
+          action: 'credentials.rotate',
+          targetType: 'client',
+          targetId: client.id,
+          clientId: client.id,
+          actor,
+          metadata: { clientSlug: client.slug },
+        },
+        tx
+      )
     })
 
     revalidatePath('/clients')
@@ -226,6 +262,90 @@ export async function rotateEnrollmentKeyAction(
       error: 'Erro interno ao rotacionar a enrollment key.',
       message: null,
       package: null,
+    }
+  }
+}
+
+export async function revokeAgentAuthAction(
+  _previousState: RevokeAgentAuthState,
+  formData: FormData
+): Promise<RevokeAgentAuthState> {
+  try {
+    const session = await auth()
+    const user = getSessionPermissionUser(session)
+
+    const parsed = revokeAgentAuthSchema.safeParse({
+      agentAuthId: formData.get('agentAuthId'),
+    })
+
+    if (!parsed.success) {
+      return {
+        error: parsed.error.issues[0]?.message ?? 'Payload invalido.',
+        message: null,
+      }
+    }
+
+    // Revogar a credencial de um AgentAuth de um tenant JA existente (nao
+    // criacao/edicao de conta), entao usa canManageTenant — mesmo guard de
+    // rotateEnrollmentKeyAction/GET /api/clients/[id]/credentials — e nao o
+    // hasClientsAdminAccess mais permissivo usado em createClientAction.
+    // Ver RN015 e item 4 da Sprint 6 em docs/SPRINTS.md.
+    const agentAuth = await prisma.agentAuth.findUnique({
+      where: { id: parsed.data.agentAuthId },
+      select: {
+        id: true,
+        name: true,
+        client: {
+          select: { id: true, slug: true, organizationId: true },
+        },
+      },
+    })
+
+    // Checagem unica (existencia + autorizacao) numa so condicao, com uma unica
+    // mensagem de erro para ambos os casos: mesmo padrao do fix de oraculo de
+    // existencia em app/api/clients/[id]/credentials/route.ts (GET) — nunca
+    // revelar a um ator sem acesso que um AgentAuth/tenant de outra organizacao
+    // existe. AgentAuth.clientId e opcional no schema (SetNull em cascade), entao
+    // um registro orfao (sem client) tambem cai neste mesmo caminho.
+    if (!agentAuth || !agentAuth.client || !canManageTenant(user, agentAuth.client)) {
+      return {
+        error: 'Credencial de agente nao encontrada.',
+        message: null,
+      }
+    }
+
+    const client = agentAuth.client
+    const actor = getSessionAuditActor(user)
+    await prisma.$transaction(async (tx: TransactionLike) => {
+      await tx.agentAuth.update({
+        where: { id: agentAuth.id },
+        data: { isActive: false, revokedAt: new Date() },
+      })
+
+      await recordAuditLog(
+        {
+          action: 'agent_auth.revoke',
+          targetType: 'agent_auth',
+          targetId: agentAuth.id,
+          clientId: client.id,
+          actor,
+          metadata: { agentAuthName: agentAuth.name, clientSlug: client.slug },
+        },
+        tx
+      )
+    })
+
+    revalidatePath('/clients')
+
+    return {
+      error: null,
+      message: 'Credencial de agente revogada.',
+    }
+  } catch (error) {
+    console.error('[clients/revoke-agent-auth] Erro:', error)
+    return {
+      error: 'Erro interno ao revogar a credencial de agente.',
+      message: null,
     }
   }
 }

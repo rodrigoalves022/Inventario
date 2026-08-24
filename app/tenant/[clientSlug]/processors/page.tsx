@@ -1,6 +1,8 @@
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
-import { getTenantHardwareWhere } from '@/lib/tenant-scope'
+import { getTenantDeviceWhere } from '@/lib/tenant-scope'
+import { getTenantPath } from '@/lib/tenant-links'
+import { TenantProcessorsTable } from '@/components/tenant-processors-table'
 
 function inferVendor(processorName: string) {
   const normalized = processorName.toLowerCase()
@@ -10,28 +12,44 @@ function inferVendor(processorName: string) {
   return 'Nao identificado'
 }
 
-export default async function TenantProcessorsPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
+export default async function TenantProcessorsPage({ params, searchParams }: PageProps<'/tenant/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
 
-  const hardware = await prisma.hardware.findMany({
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const vendorParam = resolvedSearchParams.fabricante
+  const initialVendor = typeof vendorParam === 'string' ? vendorParam : (vendorParam?.[0] ?? 'all')
+
+  const devices = await prisma.device.findMany({
     where: {
-      ...getTenantHardwareWhere(tenantSlug),
-      processador: { not: null },
+      ...getTenantDeviceWhere(tenantSlug),
+      hardware: { is: { processador: { not: null } } },
     },
-    select: { processador: true },
+    select: {
+      id: true,
+      hostname: true,
+      usuario: true,
+      hardware: { select: { processador: true } },
+    },
+    orderBy: { hostname: 'asc' },
   })
 
-  const processorMap = new Map<string, number>()
-  for (const item of hardware) {
-    const name = item.processador?.trim()
+  const processorMap = new Map<
+    string,
+    { name: string; vendor: string; devices: Array<{ id: string; hostname: string; usuario: string | null }> }
+  >()
+
+  for (const device of devices) {
+    const name = device.hardware?.processador?.trim()
     if (!name) continue
-    processorMap.set(name, (processorMap.get(name) ?? 0) + 1)
+    const entry = processorMap.get(name) ?? { name, vendor: inferVendor(name), devices: [] }
+    entry.devices.push({ id: device.id, hostname: device.hostname, usuario: device.usuario })
+    processorMap.set(name, entry)
   }
 
-  const processors = Array.from(processorMap.entries())
-    .map(([name, count]) => ({ name, count, vendor: inferVendor(name) }))
+  const processors = Array.from(processorMap.values())
+    .map((entry) => ({ ...entry, count: entry.devices.length }))
     .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
 
   return (
@@ -43,24 +61,11 @@ export default async function TenantProcessorsPage({ params }: PageProps<'/tenan
         </p>
       </div>
 
-      <div className="space-y-4">
-        {processors.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-            Nenhum processador reportado ainda para este cliente.
-          </div>
-        ) : (
-          processors.map((processor) => (
-            <div key={processor.name} className="rounded-lg border border-border bg-card p-6">
-              <h3 className="text-lg font-semibold text-foreground">{processor.name}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{processor.vendor}</p>
-              <div className="mt-4 border-t border-border pt-4">
-                <p className="text-2xl font-bold text-primary">{processor.count}</p>
-                <p className="text-xs text-muted-foreground">Dispositivos</p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <TenantProcessorsTable
+        processors={processors}
+        initialVendor={initialVendor}
+        computersPath={getTenantPath(tenantSlug, 'computers')}
+      />
     </div>
   )
 }

@@ -4,15 +4,18 @@ import { Button } from '@/components/ui/button'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getDeviceReportRows, buildDeviceReportSummary } from '@/lib/reports/device-report'
+import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 
 export default async function TenantReportsPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
+  const tenantAlertSettings = await getTenantAlertSettingsBySlug(tenantSlug)
+  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
 
   // Mesma consulta usada pelo CSV/PDF (lib/reports/device-report.ts): a tela
   // e' so mais uma vitrine dos mesmos numeros, nunca uma segunda conta.
-  const rows = await getDeviceReportRows(getTenantDeviceWhere(tenantSlug))
+  const rows = await getDeviceReportRows(getTenantDeviceWhere(tenantSlug), alertOfflineHours)
   const summary = buildDeviceReportSummary(rows)
 
   const logs = await prisma.collectionLog.findMany({

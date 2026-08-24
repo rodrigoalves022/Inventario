@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Checkbox } from '@/components/ui/checkbox'
 import { saveTenantAlertSettingsAction, type AlertSettingsActionState } from '@/app/tenant/[clientSlug]/computers/actions'
 import type { InventoryAlertSettings } from '@/lib/inventory-alerts'
 
@@ -76,9 +77,9 @@ export function TenantAlertSettingsForm({
                 <Label htmlFor="alertOfflineHours" className="text-xs">Considerar Offline após (horas)</Label>
                 <Input id="alertOfflineHours" name="alertOfflineHours" type="number" min={1} max={720} defaultValue={settings.alertOfflineHours} className="h-8" />
               </div>
-              <div className="flex flex-col gap-2 pt-1">
-                <Label className="flex items-center gap-2 font-normal text-sm">
-                  <input name="alertsEnabled" type="checkbox" defaultChecked={settings.alertsEnabled} className="h-4 w-4 rounded border-input" />
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox id="alertsEnabled" name="alertsEnabled" defaultChecked={settings.alertsEnabled} />
+                <Label htmlFor="alertsEnabled" className="font-normal text-sm cursor-pointer">
                   Habilitar alertas visuais no painel
                 </Label>
               </div>
@@ -93,10 +94,12 @@ export function TenantAlertSettingsForm({
                   <Label htmlFor="alertWebhookUrl" className="text-xs">Webhook URL (Discord/Slack)</Label>
                   <Input id="alertWebhookUrl" name="alertWebhookUrl" type="url" placeholder="https://hooks.slack.com/..." defaultValue={settings.alertWebhookUrl ?? ''} className="h-8" />
                 </div>
-                <Label className="flex items-center gap-2 font-normal text-sm">
-                  <input name="alertWebhookEnabled" type="checkbox" defaultChecked={settings.alertWebhookEnabled} className="h-4 w-4 rounded border-input" />
-                  Habilitar envio automático
-                </Label>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="alertWebhookEnabled" name="alertWebhookEnabled" defaultChecked={settings.alertWebhookEnabled} />
+                  <Label htmlFor="alertWebhookEnabled" className="font-normal text-sm cursor-pointer">
+                    Habilitar envio automático
+                  </Label>
+                </div>
               </div>
             </div>
 

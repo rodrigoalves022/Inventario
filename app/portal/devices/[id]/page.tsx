@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { DeviceDetailTabs } from '@/components/device-detail-tabs'
+import { DeviceDetailTabs } from '@/components/device-detail-tabs-lazy'
 import prisma from '@/lib/prisma'
 import { getPortalDeviceMetrics, requirePortalContext, requirePortalDevice } from '@/lib/portal-context'
 

@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
+import { toast } from 'sonner'
 import { Activity, Power, RefreshCw, Terminal, Wrench } from 'lucide-react'
 import {
   AlertDialog,
@@ -14,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   enqueueDeviceCommandAction,
   type EnqueueCommandActionState,
@@ -39,17 +41,19 @@ function SubmitButton({ children, variant = 'outline' }: { children: React.React
   )
 }
 
+/** Feedback de comando via toast — confirma a acao e some sozinho, em vez de
+ * um texto fixo que fica ocupando layout ate o proximo envio. */
 function useCommandFeedback(state: EnqueueCommandActionState) {
-  const [feedback, setFeedback] = useState<string | null>(null)
   useEffect(() => {
-    if (state.message) setFeedback(state.message)
+    if (!state.message) return
+    if (state.status === 'error') toast.error(state.message)
+    else toast.success(state.message)
   }, [state])
-  return feedback
 }
 
 function CollectMetricsNowForm({ tenantSlug, deviceId }: { tenantSlug: string; deviceId: string }) {
   const [state, formAction] = useActionState(enqueueDeviceCommandAction, idleState)
-  const feedback = useCommandFeedback(state)
+  useCommandFeedback(state)
 
   return (
     <form action={formAction} className="flex flex-col gap-1.5">
@@ -60,18 +64,13 @@ function CollectMetricsNowForm({ tenantSlug, deviceId }: { tenantSlug: string; d
         <Activity className="h-4 w-4" />
         Coletar métricas agora
       </SubmitButton>
-      {feedback && (
-        <p className={state.status === 'error' ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-          {feedback}
-        </p>
-      )}
     </form>
   )
 }
 
 function RestartServiceForm({ tenantSlug, deviceId }: { tenantSlug: string; deviceId: string }) {
   const [state, formAction] = useActionState(enqueueDeviceCommandAction, idleState)
-  const feedback = useCommandFeedback(state)
+  useCommandFeedback(state)
 
   return (
     <form action={formAction} className="flex flex-col gap-1.5">
@@ -80,31 +79,27 @@ function RestartServiceForm({ tenantSlug, deviceId }: { tenantSlug: string; devi
       <input type="hidden" name="type" value="restart_service" />
       <div className="flex flex-wrap items-center gap-2">
         <Wrench className="h-4 w-4 text-muted-foreground" />
-        <select
-          name="serviceName"
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-          defaultValue={RESTARTABLE_SERVICES[0]}
-        >
-          {RESTARTABLE_SERVICES.map((service) => (
-            <option key={service} value={service}>
-              {RESTARTABLE_SERVICE_LABELS[service]}
-            </option>
-          ))}
-        </select>
+        <Select name="serviceName" defaultValue={RESTARTABLE_SERVICES[0]}>
+          <SelectTrigger size="sm" className="h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RESTARTABLE_SERVICES.map((service) => (
+              <SelectItem key={service} value={service}>
+                {RESTARTABLE_SERVICE_LABELS[service]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <SubmitButton>Reiniciar serviço</SubmitButton>
       </div>
-      {feedback && (
-        <p className={state.status === 'error' ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-          {feedback}
-        </p>
-      )}
     </form>
   )
 }
 
 function RunScriptForm({ tenantSlug, deviceId }: { tenantSlug: string; deviceId: string }) {
   const [state, formAction] = useActionState(enqueueDeviceCommandAction, idleState)
-  const feedback = useCommandFeedback(state)
+  useCommandFeedback(state)
 
   return (
     <form action={formAction} className="flex flex-col gap-1.5">
@@ -113,31 +108,27 @@ function RunScriptForm({ tenantSlug, deviceId }: { tenantSlug: string; deviceId:
       <input type="hidden" name="type" value="run_script" />
       <div className="flex flex-wrap items-center gap-2">
         <Terminal className="h-4 w-4 text-muted-foreground" />
-        <select
-          name="scriptId"
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-          defaultValue={SCRIPT_CATALOG_IDS[0]}
-        >
-          {SCRIPT_CATALOG_IDS.map((script) => (
-            <option key={script} value={script}>
-              {SCRIPT_CATALOG_LABELS[script]}
-            </option>
-          ))}
-        </select>
+        <Select name="scriptId" defaultValue={SCRIPT_CATALOG_IDS[0]}>
+          <SelectTrigger size="sm" className="h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SCRIPT_CATALOG_IDS.map((script) => (
+              <SelectItem key={script} value={script}>
+                {SCRIPT_CATALOG_LABELS[script]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <SubmitButton>Rodar script</SubmitButton>
       </div>
-      {feedback && (
-        <p className={state.status === 'error' ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-          {feedback}
-        </p>
-      )}
     </form>
   )
 }
 
 function RestartComputerForm({ tenantSlug, deviceId, hostname }: { tenantSlug: string; deviceId: string; hostname: string }) {
   const [state, formAction] = useActionState(enqueueDeviceCommandAction, idleState)
-  const feedback = useCommandFeedback(state)
+  useCommandFeedback(state)
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -169,11 +160,6 @@ function RestartComputerForm({ tenantSlug, deviceId, hostname }: { tenantSlug: s
           </form>
         </AlertDialogContent>
       </AlertDialog>
-      {feedback && (
-        <p className={state.status === 'error' ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-          {feedback}
-        </p>
-      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
-import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
+import { canManageTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
 import { decryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { getCurrentServerUrl } from '@/lib/server-url'
@@ -16,11 +16,15 @@ function unauthorized() {
   return NextResponse.json({ error: 'Acesso administrativo nao autorizado.' }, { status: 401 })
 }
 
+// Resposta identica (status + corpo) para "id inexistente" e "id de cliente de
+// outra organizacao" — nunca revelar a um ator sem acesso que um tenant de
+// outra organizacao existe. Mesmo padrao de requireTenantContext() (RNF004).
+function notFound() {
+  return NextResponse.json({ error: 'Cliente nao encontrado.' }, { status: 404 })
+}
+
 export async function GET(req: NextRequest, context: RouteContext<'/api/clients/[id]/credentials'>) {
   const session = await auth()
-  if (!canAccessGlobalAdmin(getSessionPermissionUser(session))) {
-    return unauthorized()
-  }
   if (!session?.user) {
     return unauthorized()
   }
@@ -39,10 +43,11 @@ export async function GET(req: NextRequest, context: RouteContext<'/api/clients/
     id: string
     name: string
     slug: string
+    organizationId: string
     activeProvisioningKeyEnc: string | null
     activeProvisioningSetAt: Date | null
   }>>`
-    SELECT "id", "name", "slug", "activeProvisioningKeyEnc", "activeProvisioningSetAt"
+    SELECT "id", "name", "slug", "organizationId", "activeProvisioningKeyEnc", "activeProvisioningSetAt"
     FROM "clients"
     WHERE "id" = ${id}
     LIMIT 1
@@ -50,8 +55,16 @@ export async function GET(req: NextRequest, context: RouteContext<'/api/clients/
 
   const client = rows[0]
 
-  if (!client) {
-    return NextResponse.json({ error: 'Cliente nao encontrado.' }, { status: 404 })
+  // Mesma resposta (404) tanto para "id nao existe" quanto para "id existe mas
+  // pertence a outra organizacao" — resolver o escopo (canManageTenant) antes
+  // de decidir o status evita que a diferenca 404 vs 401 vaze a existencia de
+  // um tenant de outra organizacao (oraculo de existencia). Credencial e dado
+  // administrativo do tenant: platformAdmin ou orgAdmin da mesma organizacao
+  // do cliente — mesmo escopo de lib/permissions.ts#canManageTenant, nao so
+  // PLATFORM_ADMIN (canAccessGlobalAdmin), que deixava todo ORG_ADMIN sem
+  // acesso ao proprio botao "Ver credenciais" em /clients.
+  if (!client || !canManageTenant(getSessionPermissionUser(session), client)) {
+    return notFound()
   }
 
   if (!client.activeProvisioningKeyEnc) {

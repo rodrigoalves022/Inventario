@@ -17,7 +17,7 @@ Plataforma de inventário corporativo de TI com arquitetura **agent-based**, foc
 - Cadastro de clientes/tenants, com registro de agentes por cliente via `enrollmentKey` e `apiKey`
 - Bootstrap remoto via endpoint web + download do binário Windows, com verificação de integridade (SHA-256) no auto-update
 - Check-in autenticado com validação forte (Zod) e coleta de hardware, redes, discos, software e logs
-- Login e RBAC (`SUPER_ADMIN`/`CLIENT_ADMIN`) com isolamento por tenant no painel
+- Login e RBAC de 4 papéis (`PLATFORM_ADMIN`/`ORG_ADMIN`/`ORG_OPERATOR`/`CLIENT_VIEWER`) com isolamento por tenant no painel
 - Canal de comandos ao agente (força coleta, reinicia serviço, roda script de catálogo pré-aprovado)
 - Log de auditoria (login/logout, credenciais, exclusão de ativos, comandos)
 
@@ -35,10 +35,11 @@ docs/                 → Documentação técnica
 
 ## Documentação
 
-- [Arquitetura](./docs/ARCHITECTURE.md)
-- [API](./docs/API.md)
-- [Banco de Dados](./docs/DATABASE.md)
-- [Agente Go](./docs/AGENT.md)
+- [PRODUTO.md](./docs/PRODUTO.md) — modelo de negócio, papéis, plano de execução, como retomar uma sessão
+- [PRODUCT.md](./docs/PRODUCT.md) — especificação técnica formal: requisitos, regras de negócio, casos de uso, modelagem de dados, arquitetura, RBAC, inventário de APIs, diagrama ER, glossário
+- [SPEC.md](./docs/SPEC.md) — diagramas de sequência, contratos de API do agente, regras de validação Zod, estratégia de segurança
+- [docs/adr/](./docs/adr/) — decisões de arquitetura registradas
+- [BUILD_PRODUCTION.md](./docs/BUILD_PRODUCTION.md) — build de produção do Next.js
 
 ## Desenvolvimento
 

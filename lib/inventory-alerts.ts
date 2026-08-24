@@ -138,3 +138,31 @@ export function getEffectiveDeviceStatus(baseStatus: string, issues: InventoryIs
   if (issues.length > 0) return 'warning'
   return baseStatus
 }
+
+/** Janela fixa e curta pra badge "ao vivo" — nao confundir com alertOfflineHours,
+ * que e o limiar (configuravel por tenant) de quando ALERTAR sobre uma maquina
+ * sumida, nao de quando parar de mostrar o pontinho verde na tela. */
+export const ONLINE_PRESENCE_MINUTES = 30
+
+export type DevicePresence = 'online' | 'ausente' | 'offline'
+
+/**
+ * Presenca em 3 niveis pro dashboard: "online" so nos ultimos ONLINE_PRESENCE_MINUTES
+ * (heartbeat de verdade, nao "status" salvo no banco — esse so muda em cada
+ * checkin e nunca volta a 'offline' sozinho). Entre a janela curta e o limiar
+ * de alerta do tenant, "ausente" (maquina pode estar so desligada). Depois
+ * do limiar (ou sem nenhuma coleta), "offline".
+ */
+export function getDevicePresence(
+  lastCollectionAt: Date | string | null | undefined,
+  alertOfflineHours: number,
+  now: Date = new Date()
+): DevicePresence {
+  const lastDate = getLastCollectionDate({ lastCollectionAt })
+  if (!lastDate) return 'offline'
+
+  const ageMinutes = (now.getTime() - lastDate.getTime()) / 60000
+  if (ageMinutes <= ONLINE_PRESENCE_MINUTES) return 'online'
+  if (ageMinutes / 60 < alertOfflineHours) return 'ausente'
+  return 'offline'
+}

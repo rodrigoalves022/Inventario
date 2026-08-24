@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
-import { ArrowUpRight, Download, Eye, KeyRound, Loader2, ShieldAlert, Terminal, X } from 'lucide-react'
+import { ArrowUpRight, Eye, KeyRound, Loader2, Terminal, X } from 'lucide-react'
 import {
   initialProvisioningState,
   type ProvisioningActionState,
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { CopyField } from '@/components/copy-field'
+import { AgentInstallPackage } from '@/components/agent-install-package'
 
 type ClientRow = {
   id: string
@@ -60,69 +60,6 @@ const emptyCredentialsDialogState: CredentialsDialogState = {
 
 const credentialsLoadError = 'Falha ao carregar credenciais ativas.'
 
-/**
- * Mesmo padrao do assistente /clients/novo (app/clients/novo/new-client-wizard.tsx):
- * uma acao primaria em destaque, chave em caixa de aviso, e os caminhos de
- * instalacao em massa (GPO/Intune/script) recolhidos atras de "outras formas
- * de instalar". Antes desta tela despejava seis caminhos simultaneos — chave,
- * comando bootstrap, .exe, PS1, comando manual e "abrir script" — sem
- * hierarquia nenhuma.
- */
-function PackageFields({ pkg, keyIsFresh }: { pkg: ProvisioningPackage; keyIsFresh: boolean }) {
-  const [showAlternatives, setShowAlternatives] = useState(false)
-
-  return (
-    <div className="space-y-5">
-      <Button asChild size="lg" className="gap-2">
-        <a href={`/api/agent/download-exe?client=${pkg.clientSlug}&key=${pkg.enrollmentKey}`} download>
-          <Download className="h-4 w-4" />
-          Baixar instalador para Windows
-        </a>
-      </Button>
-
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-        <div className="flex gap-3">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <div className="min-w-0 flex-1 space-y-3">
-            <div>
-              <p className="text-sm font-medium">
-                {keyIsFresh ? 'Guarde a chave de instalação agora' : 'Chave ativa deste cliente'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {keyIsFresh
-                  ? 'Ela não será exibida novamente. Só é necessária para instalar em mais máquinas manualmente.'
-                  : 'Continua válida até você emitir um novo pacote — quem acessa esta tela pode vê-la novamente a qualquer momento.'}
-              </p>
-            </div>
-            <CopyField value={pkg.enrollmentKey} label="Chave de instalação" />
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowAlternatives((value) => !value)}
-          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          {showAlternatives ? 'Ocultar' : 'Outras formas de instalar'}
-        </button>
-
-        {showAlternatives && (
-          <div className="mt-4 space-y-4 border-t pt-4">
-            <div className="flex items-start gap-2 text-xs text-muted-foreground">
-              <Terminal className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>Para instalação em massa via GPO, Intune ou script remoto.</span>
-            </div>
-            <CopyField value={pkg.bootstrapCommand} label="PowerShell (uma linha)" />
-            <CopyField value={pkg.installCommand} label="Instalação manual" />
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function PackagePanel({
   pkg,
   message,
@@ -140,7 +77,7 @@ function PackagePanel({
         {message && <CardDescription>{message}</CardDescription>}
       </CardHeader>
       <CardContent className="space-y-4">
-        <PackageFields pkg={pkg} keyIsFresh />
+        <AgentInstallPackage pkg={pkg} keyIsFresh />
       </CardContent>
     </Card>
   )
@@ -194,7 +131,7 @@ function CredentialsDialog({
                   }).format(new Date(state.data.generatedAt))}.`
                 : 'Pacote ativo persistido sem carimbo de data disponível.'}
             </div>
-            <PackageFields pkg={state.data.package} keyIsFresh={false} />
+            <AgentInstallPackage pkg={state.data.package} keyIsFresh={false} />
           </div>
         ) : null}
       </DialogContent>
@@ -405,7 +342,14 @@ export function ClientsPanel({
                       <td className="px-4 py-3 font-medium text-foreground">{client.name}</td>
                       <td className="px-4 py-3">{client.agentCount}</td>
                       <td className="px-4 py-3">
-                        <Badge variant={client.isActive ? 'default' : 'outline'}>
+                        <Badge
+                          variant="outline"
+                          className={
+                            client.isActive
+                              ? 'border-success/40 bg-success/10 text-success'
+                              : 'text-muted-foreground'
+                          }
+                        >
                           {client.isActive ? 'ativo' : 'inativo'}
                         </Badge>
                       </td>

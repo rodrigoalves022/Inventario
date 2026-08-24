@@ -4,6 +4,7 @@ import { canAccessTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { buildDeviceReportSummary, getDeviceReportRows, renderDeviceReportPdf } from '@/lib/reports/device-report'
+import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ clientSlug: string }> }) {
   const { clientSlug } = await params
@@ -15,7 +16,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
     return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 403 })
   }
 
-  const rows = await getDeviceReportRows(getTenantDeviceWhere(clientSlug))
+  const tenantAlertSettings = await getTenantAlertSettingsBySlug(clientSlug)
+  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
+  const rows = await getDeviceReportRows(getTenantDeviceWhere(clientSlug), alertOfflineHours)
   const summary = buildDeviceReportSummary(rows)
   const pdf = await renderDeviceReportPdf(rows, summary, {
     title: 'Relatório de inventário',

@@ -126,11 +126,11 @@ export async function listAuditLogs(filters: {
       "metadataJson",
       "createdAt"
     FROM "audit_logs"
-    WHERE (${filters.clientId ?? null} IS NULL OR "clientId" = ${filters.clientId ?? null})
-      AND (${filters.action ?? null} IS NULL OR "action" = ${filters.action ?? null})
-      AND (${filters.actorEmail ?? null} IS NULL OR LOWER(COALESCE("actorEmail", '')) LIKE ${`%${(filters.actorEmail ?? '').toLowerCase()}%`})
-      AND (${filters.from ?? null} IS NULL OR "createdAt" >= ${filters.from ?? null})
-      AND (${filters.to ?? null} IS NULL OR "createdAt" <= ${filters.to ?? null})
+    WHERE (${filters.clientId ?? null}::text IS NULL OR "clientId" = ${filters.clientId ?? null})
+      AND (${filters.action ?? null}::text IS NULL OR "action" = ${filters.action ?? null})
+      AND (${filters.actorEmail ?? null}::text IS NULL OR LOWER(COALESCE("actorEmail", '')) LIKE ${`%${(filters.actorEmail ?? '').toLowerCase()}%`})
+      AND (${filters.from ?? null}::timestamp IS NULL OR "createdAt" >= ${filters.from ?? null})
+      AND (${filters.to ?? null}::timestamp IS NULL OR "createdAt" <= ${filters.to ?? null})
     ORDER BY "createdAt" DESC
     LIMIT ${filters.limit ?? 100}
   `

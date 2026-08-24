@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPortalContext } from '@/lib/portal-context'
 import { getDeviceReportRows, renderDeviceReportCsv } from '@/lib/reports/device-report'
+import { getDefaultAlertSettings, getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 
 export async function GET() {
   const context = await getPortalContext()
@@ -8,7 +9,9 @@ export async function GET() {
     return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 403 })
   }
 
-  const rows = await getDeviceReportRows({ clientId: context.clientId })
+  const tenantAlertSettings = await getTenantAlertSettingsByClientId(context.clientId)
+  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
+  const rows = await getDeviceReportRows({ clientId: context.clientId }, alertOfflineHours)
   const csv = renderDeviceReportCsv(rows)
 
   return new NextResponse(csv, {

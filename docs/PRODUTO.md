@@ -2,6 +2,14 @@
 
 Documento de referência do Inventario Enterprise. Define **o que o sistema é**, **o que coleta**, **como os dados se relacionam**, **quais páginas existem** e **em que ordem construir**.
 
+> **Este é o documento narrativo** (modelo de negócio, decisões, plano de execução, como retomar
+> uma sessão) — é o que se lê primeiro, e é atualizado a cada entrega relevante. Para o catálogo
+> formal de requisitos (RF/RN), casos de uso detalhados, constraints/cascades completos do schema,
+> matriz RBAC validada e inventário de rotas de API, ver [`PRODUCT.md`](./PRODUCT.md). Para
+> diagramas de sequência, contratos de API do agente e estratégia de segurança, ver
+> [`SPEC.md`](./SPEC.md). Onde os três documentos descrevem o mesmo fato e divergem, este
+> (`PRODUTO.md`) vence — os outros dois são derivados dele e do código.
+
 ---
 
 ## 1. Modelo de negócio
@@ -69,7 +77,7 @@ O que mais pesa em auditoria e é o principal argumento de venda B2B.
 - Firewall ativo por perfil
 - Criptografia de disco (BitLocker) por volume
 - Secure Boot, TPM presente, UAC ativo
-- **Atualizações pendentes**: KB, título, severidade
+- **Atualizações pendentes**: KB, título, severidade — **ainda não implementado**, ver risco em §10
 - **Contas locais**: usuário, é administrador?, ativo?, último logon, senha nunca expira
 
 ### 3.3 Uso ao longo do tempo *(novo)*
@@ -113,7 +121,6 @@ erDiagram
     Device ||--o{ Network : interfaces
     Device ||--o{ Disk : volumes
     Device ||--o{ Software : instalados
-    Device ||--o{ PendingUpdate : atualizações
     Device ||--o{ LocalAccount : contas
     Device ||--o{ Monitor : monitores
     Device ||--o{ Printer : impressoras

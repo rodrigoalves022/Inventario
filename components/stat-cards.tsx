@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import {
   Monitor,
@@ -15,6 +16,10 @@ interface StatCardProps {
     isPositive: boolean
   }
   variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  /** O card que responde "quantos ativos no total" — mesma escala do sistema, um degrau acima. */
+  featured?: boolean
+  /** Quando presente, o card vira link pra listagem filtrada correspondente. */
+  href?: string
 }
 
 const variantStyles = {
@@ -40,20 +45,27 @@ function formatPercent(part: number, total: number) {
   return `${Math.round((part / total) * 100)}% do total`
 }
 
-export function StatCard({ title, value, subtitle, icon, trend, variant = 'default' }: StatCardProps) {
+export function StatCard({ title, value, subtitle, icon, trend, variant = 'default', featured = false, href }: StatCardProps) {
+  const Comp = href ? Link : 'div'
+
   return (
-    <div className={cn(
-      'rounded-lg border bg-card p-5 shadow-sm transition-all hover:shadow-md',
-      variantStyles[variant]
-    )}>
+    <Comp
+      href={href as string}
+      className={cn(
+        'rounded-lg border bg-card shadow-sm transition-all hover:shadow-md',
+        featured ? 'p-6' : 'p-5',
+        variantStyles[variant],
+        href && 'cursor-pointer transition-transform hover:scale-105 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+      )}
+    >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
           </p>
-          <p className="text-2xl font-bold text-card-foreground">{value}</p>
+          <p className={cn('font-bold text-card-foreground', featured ? 'text-4xl' : 'text-2xl')}>{value}</p>
           {subtitle && (
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
+            <p className={cn('text-muted-foreground', featured ? 'text-sm' : 'text-xs')}>{subtitle}</p>
           )}
           {trend && (
             <p className={cn(
@@ -65,13 +77,14 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
           )}
         </div>
         <div className={cn(
-          'flex h-10 w-10 items-center justify-center rounded-lg',
+          'flex items-center justify-center rounded-lg',
+          featured ? 'h-12 w-12' : 'h-10 w-10',
           iconStyles[variant]
         )}>
           {icon}
         </div>
       </div>
-    </div>
+    </Comp>
   )
 }
 
@@ -83,6 +96,12 @@ interface StatsGridProps {
   online: number
   offline: number
   warning: number
+  /** Caminho da listagem de maquinas do tenant (ex: getTenantPath(slug, 'computers')).
+   * Sem essa prop os cards ficam so informativos, sem navegacao. */
+  computersPath?: string
+  /** Caminho da listagem de servidores (ex: getTenantPath(slug, 'servers')) — pagina
+   * dedicada e ja sem filtro, ja que /computers exclui servidores por definicao. */
+  serversPath?: string
 }
 
 export function StatsGrid({
@@ -93,6 +112,8 @@ export function StatsGrid({
   online,
   offline,
   warning,
+  computersPath,
+  serversPath,
 }: StatsGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
@@ -100,8 +121,10 @@ export function StatsGrid({
         title="Total de Máquinas"
         value={total}
         subtitle={`${online} online agora`}
-        icon={<Monitor className="h-5 w-5" />}
+        icon={<Monitor className="h-6 w-6" />}
         variant="primary"
+        featured
+        href={computersPath}
       />
       <StatCard
         title="Windows 10"
@@ -109,6 +132,7 @@ export function StatsGrid({
         subtitle={formatPercent(win10, total)}
         icon={<Monitor className="h-5 w-5" />}
         variant="info"
+        href={computersPath ? `${computersPath}?os=${encodeURIComponent('Windows 10')}` : undefined}
       />
       <StatCard
         title="Windows 11"
@@ -116,6 +140,7 @@ export function StatsGrid({
         subtitle={formatPercent(win11, total)}
         icon={<Monitor className="h-5 w-5" />}
         variant="success"
+        href={computersPath ? `${computersPath}?os=${encodeURIComponent('Windows 11')}` : undefined}
       />
       <StatCard
         title="Servidores"
@@ -123,6 +148,7 @@ export function StatsGrid({
         subtitle="Ativos na rede"
         icon={<Server className="h-5 w-5" />}
         variant="warning"
+        href={serversPath}
       />
       <StatCard
         title="Status Online"
@@ -130,6 +156,7 @@ export function StatsGrid({
         subtitle={`${offline} offline, ${warning} alertas`}
         icon={<Wifi className="h-5 w-5" />}
         variant="success"
+        href={computersPath ? `${computersPath}?status=online` : undefined}
       />
     </div>
   )

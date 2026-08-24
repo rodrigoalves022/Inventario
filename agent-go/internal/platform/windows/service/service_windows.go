@@ -46,7 +46,6 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 	}
 
 	log.Printf("[INFO] Agente iniciado. Servidor: %s", cfg.ServerURL)
-	runCollection(cfg)
 
 	commandClient, err := httpapi.NewClient(cfg.ServerURL, cfg.APIKey)
 	if err != nil {
@@ -62,7 +61,22 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 	metricsTicker := time.NewTicker(metricsPollInterval)
 	defer metricsTicker.Stop()
 
+	// Reporta Running pro SCM ANTES de qualquer coleta/rede: o SCM tem um
+	// timeout curto (~30s por padrao) entre StartPending e Running, e a
+	// primeira coleta (WMI + HTTP, ate 30s so no timeout do client) sozinha
+	// ja podia estourar isso — servidor lento/inacessivel virava "servico
+	// nao iniciou" no Windows mesmo com o processo vivo.
+	//
+	// A coleta continua SINCRONA aqui (nao em goroutine): a colecao WMI
+	// (github.com/yusufpapurcu/wmi) e sensivel ao contexto de thread em que
+	// roda, e uma goroutine solta sem recover() ja causou um crash-loop
+	// silencioso em producao (processo morria sem log, Windows reiniciava o
+	// servico do zero a cada tentativa). runCollection agora tem seu proprio
+	// recover(), entao um panico na coleta fica contido e logado em vez de
+	// derrubar o servico inteiro — mas o caminho de execucao continua o
+	// mesmo de sempre (goroutine principal do Execute), por seguranca.
 	status <- svc.Status{State: svc.Running, Accepts: acceptedCommands}
+	runCollection(cfg)
 
 	for {
 		select {
@@ -70,7 +84,7 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 			runCollection(cfg)
 		case <-commandTicker.C:
 			if commandClient != nil {
-				commands.PollAndExecute(commandClient, cfg)
+				pollAndExecuteCommands(commandClient, cfg)
 			}
 		case <-metricsTicker.C:
 			runMetricsCollection(cfg)
@@ -85,7 +99,19 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 	}
 }
 
+// recoverAndLog contem qualquer panico da coleta (WMI e sensivel a driver/
+// hardware/permissao — um caso de borda inesperado nao pode derrubar o
+// servico inteiro, que e' exatamente o que aconteceu quando a primeira
+// coleta rodava sem essa rede de seguranca). Loga com stack trace e devolve
+// o controle pro ticker seguinte, em vez de matar o processo.
+func recoverAndLog(context string) {
+	if r := recover(); r != nil {
+		log.Printf("[ERROR] Panico recuperado em %s: %v", context, r)
+	}
+}
+
 func runCollection(cfg *config.Config) {
+	defer recoverAndLog("runCollection")
 	log.Println("[INFO] Iniciando coleta de inventario...")
 
 	payload, err := checkin.SendOnce(cfg)
@@ -98,6 +124,8 @@ func runCollection(cfg *config.Config) {
 }
 
 func runMetricsCollection(cfg *config.Config) {
+	defer recoverAndLog("runMetricsCollection")
+
 	payload, err := checkin.SendMetricsOnce(cfg)
 	if err != nil {
 		log.Printf("[ERROR] Envio de metricas falhou: %v", err)
@@ -105,6 +133,11 @@ func runMetricsCollection(cfg *config.Config) {
 	}
 
 	log.Printf("[INFO] Metricas enviadas. Hostname: %s", payload.Hostname)
+}
+
+func pollAndExecuteCommands(client *httpapi.Client, cfg *config.Config) {
+	defer recoverAndLog("pollAndExecuteCommands")
+	commands.PollAndExecute(client, cfg)
 }
 
 func Install() error {

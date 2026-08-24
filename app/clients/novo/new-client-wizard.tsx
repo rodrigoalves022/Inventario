@@ -3,18 +3,11 @@
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
-import {
-  ArrowLeft,
-  Check,
-  Download,
-  Loader2,
-  ShieldAlert,
-  Terminal,
-} from 'lucide-react'
+import { ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CopyField } from '@/components/copy-field'
+import { AgentInstallPackage } from '@/components/agent-install-package'
 import { cn } from '@/lib/utils'
 import { initialProvisioningState, type ProvisioningActionState, type ProvisioningPackage } from '../types'
 
@@ -112,7 +105,6 @@ function useFirstCheckin(clientId: string | null, enabled: boolean) {
 
 export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) {
   const [state, formAction] = useActionState(createClientAction, initialProvisioningState)
-  const [showAlternatives, setShowAlternatives] = useState(false)
   const pkg: ProvisioningPackage | null = state.package
   const status = useFirstCheckin(pkg?.clientId ?? null, Boolean(pkg))
   const connected = Boolean(status?.device)
@@ -178,49 +170,7 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
               </p>
             </div>
 
-            <Button asChild size="lg" className="gap-2">
-              <a href={`/api/agent/download-exe?client=${pkg.clientSlug}&key=${pkg.enrollmentKey}`} download>
-                <Download className="h-4 w-4" />
-                Baixar instalador para Windows
-              </a>
-            </Button>
-
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-              <div className="flex gap-3">
-                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div>
-                    <p className="text-sm font-medium">Guarde a chave de instalação agora</p>
-                    <p className="text-xs text-muted-foreground">
-                      Ela não será exibida novamente. Só é necessária para instalar em mais máquinas
-                      manualmente.
-                    </p>
-                  </div>
-                  <CopyField value={pkg.enrollmentKey} label="Chave de instalação" />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowAlternatives((value) => !value)}
-                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-              >
-                {showAlternatives ? 'Ocultar' : 'Outras formas de instalar'}
-              </button>
-
-              {showAlternatives && (
-                <div className="mt-4 space-y-4 border-t pt-4">
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <Terminal className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>Para instalação em massa via GPO, Intune ou script remoto.</span>
-                  </div>
-                  <CopyField value={pkg.bootstrapCommand} label="PowerShell (uma linha)" />
-                  <CopyField value={pkg.installCommand} label="Instalação manual" />
-                </div>
-              )}
-            </div>
+            <AgentInstallPackage pkg={pkg} keyIsFresh />
           </div>
 
           {/* ---------- Passo 3 ---------- */}

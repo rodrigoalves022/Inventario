@@ -1,6 +1,6 @@
 ﻿Status: canonical
 Scope: permanent
-Last-reviewed: 2026-04-02
+Last-reviewed: 2026-08-20
 Owner: architect
 
 # ADR
@@ -21,9 +21,9 @@ Use um novo ADR quando uma decisão:
 - consequências
 - status
 
-## Decisões candidatas imediatas
+## Registradas
 
-1. Agente principal em Go; scripts como bootstrap/compatibilidade
-2. Identidade de device por `agentAuthId`
-3. SQLite somente em dev; PostgreSQL como alvo de produção
-4. Segregação obrigatória por tenant no painel e nas consultas
+1. [0001](./0001-device-identity-by-agentauthid.md) — Identidade de device por `agentAuthId`
+2. [0002](./0002-go-agent-scripts-as-fallback.md) — Agente principal em Go; scripts como bootstrap/compatibilidade
+3. [0003](./0003-postgresql-only.md) — PostgreSQL como único banco, inclusive em desenvolvimento
+4. [0004](./0004-tenant-isolation-fail-closed.md) — Segregação obrigatória por tenant, fail-closed via `notFound()`

@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
+import { toast } from 'sonner'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,25 +33,19 @@ export function EnqueueCollectNowButton({
   tenantSlug: string
 }) {
   const [state, formAction] = useActionState(enqueueDeviceCommandAction, initialEnqueueCommandState)
-  const [feedback, setFeedback] = useState<string | null>(null)
 
   useEffect(() => {
-    if (state.message) setFeedback(state.message)
+    if (!state.message) return
+    if (state.status === 'error') toast.error(state.message)
+    else toast.success(state.message)
   }, [state])
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <form action={formAction}>
-        <input type="hidden" name="tenantSlug" value={tenantSlug} />
-        <input type="hidden" name="assetId" value={assetId} />
-        <input type="hidden" name="type" value="collect_now" />
-        <SubmitButton />
-      </form>
-      {feedback ? (
-        <p className={state.status === 'error' ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-          {feedback}
-        </p>
-      ) : null}
-    </div>
+    <form action={formAction}>
+      <input type="hidden" name="tenantSlug" value={tenantSlug} />
+      <input type="hidden" name="assetId" value={assetId} />
+      <input type="hidden" name="type" value="collect_now" />
+      <SubmitButton />
+    </form>
   )
 }

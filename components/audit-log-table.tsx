@@ -34,6 +34,20 @@ function getActionTone(action: string) {
   return 'border-border text-foreground'
 }
 
+// Mesma paleta categorica dos graficos do dashboard (dashboard-charts.tsx):
+// var(--chart-1..5). Aqui vira so um ponto de re-identificacao visual, nao
+// um selo de status, entao um hash estavel do slug basta -- nao precisa de
+// mapa persistido nem de cor unica garantida entre tenants.
+const TENANT_DOT_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+
+function getTenantDotColor(clientSlug: string) {
+  let hash = 0
+  for (let i = 0; i < clientSlug.length; i++) {
+    hash = (hash * 31 + clientSlug.charCodeAt(i)) >>> 0
+  }
+  return TENANT_DOT_COLORS[hash % TENANT_DOT_COLORS.length]
+}
+
 function renderMetadata(log: AuditLogListItem) {
   const hostname = typeof log.metadata?.hostname === 'string' ? log.metadata.hostname : null
   const clientSlug = typeof log.metadata?.clientSlug === 'string' ? log.metadata.clientSlug : log.clientSlug
@@ -101,9 +115,16 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
                     {showTenant ? (
                       <td className="px-4 py-3">
                         {log.clientSlug ? (
-                          <div>
-                            <p className="font-medium text-foreground">{log.clientName ?? log.clientSlug}</p>
-                            <p className="text-xs text-muted-foreground">{log.clientSlug}</p>
+                          <div className="flex items-start gap-2">
+                            <span
+                              className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: getTenantDotColor(log.clientSlug) }}
+                              aria-hidden="true"
+                            />
+                            <div>
+                              <p className="font-medium text-foreground">{log.clientName ?? log.clientSlug}</p>
+                              <p className="text-xs text-muted-foreground">{log.clientSlug}</p>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
