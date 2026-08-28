@@ -52,7 +52,7 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
     <Comp
       href={href as string}
       className={cn(
-        'rounded-lg border bg-card shadow-sm transition-all hover:shadow-md',
+        'rounded-lg border bg-card shadow-sm transition-all hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
         featured ? 'p-6' : 'p-5',
         variantStyles[variant],
         href && 'cursor-pointer transition-transform hover:scale-105 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -90,6 +90,11 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
 
 interface StatsGridProps {
   total: number
+  /** Maquinas que NAO sao servidor (isServerOperatingSystem == false) — total menos server.
+   * Usado pelo card "Total de Máquinas", que mostra os dois numeros separados em vez de
+   * somar tudo sob um unico link que so leva para /computers (bug: computers exclui
+   * servidores, entao o link "errava" a metade dos dispositivos contados no numero). */
+  computers: number
   win10: number
   win11: number
   server: number
@@ -106,6 +111,7 @@ interface StatsGridProps {
 
 export function StatsGrid({
   total,
+  computers,
   win10,
   win11,
   server,
@@ -117,15 +123,56 @@ export function StatsGrid({
 }: StatsGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-      <StatCard
-        title="Total de Máquinas"
-        value={total}
-        subtitle={`${online} online agora`}
-        icon={<Monitor className="h-6 w-6" />}
-        variant="primary"
-        featured
-        href={computersPath}
-      />
+      <div
+        className={cn(
+          'rounded-lg border bg-card p-6 shadow-sm transition-all hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
+          variantStyles.primary
+        )}
+      >
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Total de Máquinas
+            </p>
+            <p className="flex flex-wrap items-baseline gap-x-1.5 text-2xl font-bold text-card-foreground">
+              {computersPath ? (
+                <Link
+                  href={computersPath}
+                  className="transition-colors hover:text-primary hover:underline"
+                >
+                  {computers} {computers === 1 ? 'Computador' : 'Computadores'}
+                </Link>
+              ) : (
+                <span>
+                  {computers} {computers === 1 ? 'Computador' : 'Computadores'}
+                </span>
+              )}
+              <span className="text-muted-foreground">·</span>
+              {serversPath ? (
+                <Link
+                  href={serversPath}
+                  className="transition-colors hover:text-primary hover:underline"
+                >
+                  {server} {server === 1 ? 'Servidor' : 'Servidores'}
+                </Link>
+              ) : (
+                <span>
+                  {server} {server === 1 ? 'Servidor' : 'Servidores'}
+                </span>
+              )}
+            </p>
+            <p className="text-sm text-muted-foreground">{online} online agora</p>
+          </div>
+          <div
+            className={cn(
+              'flex h-12 w-12 items-center justify-center rounded-lg',
+              iconStyles.primary
+            )}
+          >
+            <Monitor className="h-6 w-6" />
+          </div>
+        </div>
+      </div>
       <StatCard
         title="Windows 10"
         value={win10}

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import {
   HardDrive,
@@ -118,7 +119,7 @@ function SummaryCard({
       onClick={onClick}
       aria-pressed={onClick ? active : undefined}
       className={cn(
-        'rounded-xl border bg-card p-4 text-left transition-all hover:shadow-md',
+        'rounded-xl border bg-card p-4 text-left transition-all hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
         onClick && 'cursor-pointer',
         active && `ring-2 ${tones.ring}`
       )}
@@ -141,6 +142,7 @@ export function TenantComputersTable({
   initialSearch?: string
   initialStatusFilter?: 'all' | TenantComputerRow['effectiveStatus']
 }) {
+  const router = useRouter()
   const [search, setSearch] = useState(initialSearch)
   const [statusFilter, setStatusFilter] = useState<'all' | TenantComputerRow['effectiveStatus']>(initialStatusFilter)
   const [criticalFilter, setCriticalFilter] = useState<'all' | 'low_disk' | 'low_ram' | 'stale_collection'>('all')
@@ -275,9 +277,25 @@ export function TenantComputersTable({
                 </tr>
               ) : (
                 filteredDevices.map((device) => (
-                  <tr key={device.id} className="group transition-colors hover:bg-muted/30">
+                  <tr
+                    key={device.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push(device.detailsPath)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        router.push(device.detailsPath)
+                      }
+                    }}
+                    className="group cursor-pointer transition-colors duration-150 hover:bg-accent/40"
+                  >
                     <td className="px-5 py-4 font-mono font-medium">
-                      <Link href={device.detailsPath} className="text-foreground hover:text-primary transition-colors">
+                      <Link
+                        href={device.detailsPath}
+                        onClick={(event) => event.stopPropagation()}
+                        className="text-foreground hover:text-primary transition-colors"
+                      >
                         {device.hostname}
                       </Link>
                       <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide mt-1">
