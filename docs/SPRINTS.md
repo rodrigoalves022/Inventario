@@ -2,21 +2,24 @@
 
 Status: canonical
 Scope: permanent
-Last-reviewed: 2026-08-24
+Last-reviewed: 2026-08-28
 
-> Sprints 1–4 e 6 são **histórico**: descrevem o que já aconteceu, com evidência de commit
-> (`git log`) ou, no caso das Sprints 4 e 6, evidência de verificação independente da sessão
+> Sprints 1–4 e 6–8 são **histórico**: descrevem o que já aconteceu, com evidência de commit
+> (`git log`) ou, no caso das Sprints 4 e 6–8, evidência de verificação independente da sessão
 > principal registrada na própria seção. Reconstruídas a partir do [`PRODUTO.md`](./PRODUTO.md) §8
 > (plano de execução) e do [`PRODUCT.md`](./PRODUCT.md). Não são planejadas retroativamente —
 > documentadas aqui só para dar ao [`sprint-planner`](../.claude/agents/sprint-planner.md) um
-> formato de referência e uma noção real de velocidade do time. Sprint 5 é o backlog vivo hoje:
-> itens novos entram aqui só depois de passar pelos 5 agentes auditores e serem aprovados pelo
-> usuário — ver [`DEFINITION_OF_DONE.md`](./DEFINITION_OF_DONE.md). Nota: os itens da Sprint 6
-> (agora concluída) vieram de achados já registrados em sessões anteriores (não de uma rodada nova
-> dos 5 auditores) — ver a nota de proveniência na própria seção da Sprint 6. O único item da
-> Sprint 7 (agora também concluída) também não veio de uma rodada nova dos 5 auditores — foi um
-> achado colateral da própria execução da Sprint 6 — ver a nota de origem na própria seção da
-> Sprint 7.
+> formato de referência e uma noção real de velocidade do time. Sprint 5 está **adiada** (decisão
+> explícita do usuário em 2026-08-24 — ver nota na própria seção); a decisão de retomá-la agora que
+> a Sprint 8 está concluída cabe ao usuário. Itens novos entram neste documento só depois de passar
+> pelos agentes auditores relevantes e serem aprovados pelo usuário — ver
+> [`DEFINITION_OF_DONE.md`](./DEFINITION_OF_DONE.md). Nota: os itens da Sprint 6 (concluída) vieram
+> de achados já registrados em sessões anteriores (não de uma rodada nova dos 5 auditores) — ver a
+> nota de proveniência na própria seção da Sprint 6. O único item da Sprint 7 (concluída) também não
+> veio de uma rodada nova dos 5 auditores — foi um achado colateral da própria execução da Sprint 6
+> — ver a nota de origem na própria seção da Sprint 7. A Sprint 8 (concluída) veio de uma rodada em
+> paralelo de `requirements-auditor` + `security-auditor` + `test-auditor` (sem `database-auditor`
+> nem `backend-auditor` naquele ciclo) — ver a nota de origem na própria seção da Sprint 8.
 
 ---
 
@@ -1307,3 +1310,351 @@ Qualquer mudança na decisão de consolidação/divergência entre as 4 telas de
 item 1 da Sprint 6 (manter divergente) — esta sprint só corrige o bug específico de `servers`
 dentro do padrão já decidido, não reabre a decisão de arquitetura. Também fora de escopo: qualquer
 outro achado não relacionado a status/presença em `servers/page.tsx`.
+
+---
+
+## Sprint 8 — Cobertura de Teste dos Guards Fundamentais + Paridade da Allowlist de Comandos
+
+**Status**: 🟢 Concluída — aprovada explicitamente pelo usuário e implementada pelo
+`implementation-agent`. Resumo da entrega:
+- **Item 1** — `tests/permissions.test.ts` (novo, 13 testes): fail-closed de `isAppRole`/
+  `getPermissionUser` contra `'SUPER_ADMIN'`, strings arbitrárias, variações de case/espaço, valores
+  não-string, `''`/`undefined`; caminho positivo dos 4 valores válidos; encadeamento provando que um
+  `role` inválido falha em todos os guards derivados (`isPlatformAdmin`, `isOrgAdmin`,
+  `isOrgOperator`, `isClientViewer`, `canAccessTenant`, `canManageTenant`, `canOperateTenant`).
+  Verificação manual feita e revertida: trocar `isAppRole(user?.role) ? user.role : null` por
+  `user?.role ?? null` quebrou 4 dos novos testes, confirmando que exercitam o fail-closed de fato.
+- **Item 2** — `tests/tenant-context.test.ts` (novo, 12 testes): `requireTenantContext` isolado
+  (mock de `@/auth` e `@/lib/prisma`, sem banco real) prova `notFound()` (mesmo digest
+  `NEXT_HTTP_ERROR_FALLBACK;404`) indistinguível para slug inexistente, slug de outra organização,
+  sessão ausente, `Client.isActive=false` e `Organization.isActive=false`; mais um caminho positivo e
+  uma bateria isolada de `canAccessTenant` pelos 4 papéis. Verificação manual feita e revertida:
+  trocar o `notFound()` do guard de organização por `throw new Error('403')` quebrou os 2 testes que
+  comparam os casos entre si.
+- **Item 3** — `tests/agent-command-allowlist-parity.test.ts` (novo, 3 testes): estratégia escolhida
+  foi parsing de texto via regex do `.go` comparado às constantes TS reais (não cópias hardcoded),
+  preferida por rodar dentro de `npm run test` sem exigir toolchain Go no pipeline — decisão
+  registrada no próprio arquivo de teste. Cobre `RESTARTABLE_SERVICES`↔`allowedServices`,
+  `SCRIPT_CATALOG_IDS`↔`allowedScripts` e os tipos do `agentCommandInputSchema`↔`case`s de
+  `execute()`. Verificação manual feita e revertida: adicionar `"ExtraServiceOnlyInGo": true` só no
+  mapa Go quebrou o teste correspondente.
+- **Item 4** — `docs/PRODUCT.md`: as 4 ocorrências de `SUPER_ADMIN` (linhas ~184, 414, 446, 474)
+  corrigidas para `PLATFORM_ADMIN`; a linha 414 (a mais enganosa, descrevia o bug já corrigido na
+  Sprint 4 como se ainda estivesse aberto) foi reescrita para deixar claro que o valor legado é
+  histórico e que o código já normaliza qualquer role fora do enum para `null`. Nenhuma mudança de
+  código nesse item.
+- Nenhum item alterou comportamento de runtime de `lib/permissions.ts`, `lib/tenant-context.ts`,
+  `lib/agent-commands.ts` ou `agent-go/internal/app/commands/` — confirmado por `git status`/`git
+  diff` limpo nesses arquivos após as verificações manuais acima (editadas e revertidas na mesma
+  sessão).
+- Verificação final: `npx tsc --noEmit` (0 erros), `npm run lint` (limpo), `npm run build` (sucesso),
+  `npm run test` (18 arquivos, 97 testes, todos passando — 28 deles novos desta sprint), `go vet
+  ./...` em `agent-go/` (limpo, sem alteração líquida no módulo Go).
+**Objetivo**: fechar a lacuna de teste unitário isolado dos dois guards que sustentam todo o RBAC e
+todo o isolamento multi-tenant do sistema (`getPermissionUser`/`isAppRole` e
+`canAccessTenant`/`requireTenantContext`), adicionar um teste estrutural que trave divergência entre
+a allowlist de comandos remotos do servidor e a do agente Go, e corrigir uma divergência trivial de
+documentação (`docs/PRODUCT.md` ainda descreve `role: 'SUPER_ADMIN'` como resposta de
+`POST /api/auth/signup`, quando o código já usa `'PLATFORM_ADMIN'` desde a Sprint 4). Nenhum item
+desta sprint é regressão de código — são gaps de cobertura/documentação.
+
+**Origem do achado**: auditoria pós-commit `77fa68f`, com `requirements-auditor`, `security-auditor`
+e `test-auditor` rodados **em paralelo** na mesma sessão, revalidando o estado do projeto depois das
+Sprints 4, 6 e 7. `database-auditor` e `backend-auditor` **não** rodaram sobre este escopo — os
+achados abaixo são rastreáveis só aos três auditores citados. Nenhum dos quatro itens veio de um bug
+de produção observado; são gaps de cobertura de teste (itens 1–3) e de documentação (item 4)
+encontrados numa auditoria de confirmação.
+
+**Prioridade desta sprint** (definida pela origem do pedido, mantida aqui): itens 1 e 2 primeiro —
+maior custo de regressão silenciosa, porque `getPermissionUser`/`isAppRole` e
+`canAccessTenant`/`requireTenantContext` são os dois pontos únicos de decisão do RBAC e do
+isolamento multi-tenant (RNF004, ADR [0004](./adr/0004-tenant-isolation-fail-closed.md)) — hoje só
+exercitados **indiretamente**, através de testes de fluxos específicos que usam papéis já válidos
+(`tests/rotate-enrollment-key.test.ts`, `tests/credentials-route.test.ts`,
+`tests/revoke-agent-auth.test.ts`). Um teste genérico novo que esqueça de chamar esses guards não
+seria pego por nenhuma suíte existente. Item 4 é trivial e pode ir junto de qualquer um dos outros
+três. Item 3 exige investigação de escopo antes de estimar esforço — a investigação já foi feita por
+este planner (ver subseção 3) para não deixar a implementação partindo do zero.
+
+### Escopo
+
+| Item | RF/RN relacionado | Caso de uso | Entidade(s) de banco | Origem do achado |
+|---|---|---|---|---|
+| 1. Teste unitário de fail-closed em `getPermissionUser()`/`isAppRole()` | RN004, RF001 | — (guard transversal, sem caso de uso numerado próprio) | `User` (`role`) | `security-auditor` + `test-auditor` |
+| 2. Teste unitário isolado de `canAccessTenant`/`requireTenantContext` | RN003, RNF004 | 3.4–3.8 (todo caso de uso sob `/tenant/[clientSlug]/*`, indiretamente) | `Client` (`organizationId`, `slug`) | `security-auditor` + `test-auditor` |
+| 3. Teste estrutural de paridade da allowlist de comandos remotos (servidor ↔ agente Go) | RF017 | 3.5 | `AgentCommand` | `security-auditor` (escopo nunca auditado antes nesta sessão) |
+| 4. Corrigir `docs/PRODUCT.md` — resposta de `POST /api/auth/signup` ainda documentada como `role: 'SUPER_ADMIN'` | RF001, RF023, RN004 | 3.7 | `User` (`role`) | `requirements-auditor` |
+
+#### 1 — Teste unitário de fail-closed em `getPermissionUser()`/`isAppRole()`
+
+**Objetivo**: provar, com um teste unitário direto (sem depender de nenhuma action ou rota
+específica), que `getPermissionUser()`/`isAppRole()` normalizam **qualquer** valor de `role` fora do
+enum `AppRole` para `null` — nunca para um fallback permissivo — fechando a lacuna de que hoje essa
+função só é validada de forma incidental.
+
+**Achado**: `lib/permissions.ts:9` define `AppRole` com exatamente 4 valores
+(`PLATFORM_ADMIN | ORG_ADMIN | ORG_OPERATOR | CLIENT_VIEWER`); `isAppRole()` (linha 29-31) confere
+`typeof value === 'string' && APP_ROLES.includes(value)`; `getPermissionUser()` (linha 33-54) usa
+`isAppRole(user?.role) ? user.role : null` na linha 49. O comportamento fail-closed é a base de todo
+o RBAC — `canAccessTenant`, `canManageTenant`, `canOperateTenant`, `isPlatformAdmin` etc. (linhas
+60-133 do mesmo arquivo) todos partem de `PermissionUser.role`, que só chega não-nulo se passou por
+essa checagem. Confirmado nesta rodada de planejamento: nenhum arquivo em `tests/` chama
+`getPermissionUser`/`isAppRole` diretamente — a cobertura existente é só indireta, via testes de
+actions que sempre usam papéis já válidos (`role: 'ORG_ADMIN'`, `role: 'PLATFORM_ADMIN'` etc. em
+`tests/rotate-enrollment-key.test.ts`, `tests/revoke-agent-auth.test.ts`). O caso mais relevante —
+um valor de `role` **inválido** vindo da sessão — nunca é exercitado. Isso já foi bug real: o item 4
+da Sprint 4 corrigiu `app/api/auth/signup/route.ts` gravando `role: 'SUPER_ADMIN'` (valor legado,
+fora do enum), que fazia o próprio admin de bootstrap nascer sem privilégio nenhum. Sem um teste
+direto de `getPermissionUser`/`isAppRole`, uma regressão futura equivalente (um novo literal de role
+digitado errado em qualquer ponto do código) só seria pega se, por acaso, algum teste de action
+específica também exercitasse esse valor — o que não é garantido.
+
+**Requisitos Afetados**:
+- RN004 (RBAC de 4 papéis — `docs/PRODUCT.md` §7, "4 papéis confirmados, nenhum quinto").
+- RF001 (autenticação — a sessão carrega `role`, que passa por `getPermissionUser` em todo guard).
+- Sem caso de uso numerado próprio em `docs/PRODUCT.md` §3 — `getPermissionUser`/`isAppRole` são
+  infraestrutura transversal usada por todos os casos de uso 3.1–3.10, não um fluxo em si; gap a
+  registrar, não corrigido por este planner.
+- Entidade(s) de banco: `User` (`role`, coluna `String` livre — RN004 já documenta que não existe
+  `enum`/`CHECK` no Postgres para isso, só a checagem em `lib/permissions.ts`).
+
+**Critérios de aceite**:
+- [x] Novo arquivo `tests/permissions.test.ts` chama `getPermissionUser()` (e/ou `isAppRole()`
+      diretamente) com `role: 'SUPER_ADMIN'` (o valor legado real que já causou o bug da Sprint 4) e
+      confirma `role: null` no resultado.
+- [x] O mesmo arquivo cobre `role` como string arbitrária não relacionada (ex.: `'ADMIN'`,
+      `'admin'` minúsculo, `'PLATFORM_ADMIN '` com espaço) e confirma `role: null` em todos os
+      casos.
+- [x] O mesmo arquivo cobre `role: ''` (string vazia) e `role: undefined`/`role` ausente do objeto
+      de entrada, confirmando `role: null`.
+- [x] Teste complementar confirma o caminho positivo: os 4 valores válidos de `AppRole` passam
+      intactos por `getPermissionUser`/`isAppRole` — para não travar só o caminho negativo e deixar
+      passar uma regressão que quebrasse o caminho válido.
+- [x] Teste complementar encadeando o resultado: um `PermissionUser` com `role: null` (produzido por
+      um `role` inválido) falha em **todos** os guards derivados (`isPlatformAdmin`, `isOrgAdmin`,
+      `isOrgOperator`, `isClientViewer`, `canAccessTenant`, `canManageTenant`, `canOperateTenant`)
+      contra um tenant sintético — prova de ponta a ponta de que "fail-closed em
+      `getPermissionUser`" realmente significa "sem privilégio algum", não só "campo `null`ável sem
+      efeito prático nenhum".
+
+**Testes Necessários**:
+- `tests/permissions.test.ts` (arquivo novo, sem Prisma — entrada sintética, mesmo padrão de
+  `tests/device-report.test.ts`), cobrindo os 5 critérios acima.
+- Verificação manual durante a implementação (não fica no CI): comentar temporariamente o
+  `isAppRole(user?.role) ? user.role : null` de `getPermissionUser` trocando por `user?.role ?? null`
+  (aceitando qualquer string) e confirmar que os novos testes quebram — prova de que o teste
+  realmente exercita o fail-closed, não passa por coincidência. Reverter antes de commitar.
+
+#### 2 — Teste unitário isolado de `canAccessTenant`/`requireTenantContext`
+
+**Objetivo**: provar, com um teste isolado da própria função (não através de uma rota/action
+específica), que `requireTenantContext()` responde exatamente o mesmo `404` — nunca `403`, nunca
+nenhum outro status — tanto para um `clientSlug` inexistente quanto para um `clientSlug` de uma
+organização diferente da do ator autenticado, fechando a lacuna de que hoje esse comportamento só é
+exercitado através de 3 fluxos específicos.
+
+**Achado**: `lib/tenant-context.ts:52-68` (`requireTenantContext`) resolve o `Client` pelo slug via
+`getTenantContext` (linha 14-42) e, se encontrado, chama `canAccessTenant(getSessionPermissionUser(session), tenant)`
+(linha 63) — respondendo `notFound()` (`404`) em **todos** os casos de falha: tenant inexistente
+(linha 54-56), sessão ausente (linha 59-61) ou tenant de outra organização (linha 63-65). O
+comentário no próprio arquivo (linha 49-50) documenta a intenção: "não revelar a existência de um
+tenant de outra organização" — o "oráculo de existência" que RNF004/ADR
+[0004](./adr/0004-tenant-isolation-fail-closed.md) proíbem explicitamente (o mesmo padrão de bug já
+corrigido no item 2 da Sprint 4, em `GET /api/clients/[id]/credentials`, que antes retornava `404`
+para inexistente e `401` para "existe mas é de outra organização" — diferença de status que revelava
+existência). Confirmado nesta rodada: nenhum teste em `tests/` chama `requireTenantContext`/
+`canAccessTenant` diretamente — a função só é exercitada indiretamente, via 3 rotas/actions
+específicas (`rotate-enrollment-key`, `revoke-agent-auth`, `credentials-route` — e mesmo essas usam
+`canManageTenant`, não `canAccessTenant`, com exceção de `credentials-route.test.ts`, que cobre o
+`404` uniforme só para a rota de credenciais, não para o guard genérico usado por toda página sob
+`/tenant/[clientSlug]/*`). Uma página nova sob `/tenant/[clientSlug]/*` que por engano pulasse a
+chamada a `requireTenantContext()` não seria pega por nenhum teste genérico existente — só seria
+descoberta se, por acidente, algum teste específico daquela página cobrisse o cenário.
+
+**Requisitos Afetados**:
+- RN003 (isolamento por tenant), RNF004 (chokepoint de isolamento multi-tenant — "responder
+  `notFound()`, nunca `403`, para não revelar a existência de um tenant de outra organização").
+- Caso de uso: `requireTenantContext()` é o guard usado por **toda** página sob
+  `/tenant/[clientSlug]/*` (`docs/PRODUCT.md` §6, item 2 — "chokepoint definitivo... Usado por toda
+  página sob `/tenant/[clientSlug]/*`"), portanto tangencia os casos de uso 3.4–3.8 sem pertencer a
+  nenhum deles especificamente — mesma classe de gap de documentação já registrada nas Sprints 4-7
+  para RF019/RF020 (sem caso de uso numerado próprio).
+- Entidade(s) de banco: `Client` (`slug`, `organizationId`, `isActive`), `Organization`
+  (`isActive`).
+
+**Critérios de aceite**:
+- [x] Novo teste isolado (chamando `requireTenantContext`/`canAccessTenant` diretamente, sem passar
+      por nenhuma rota HTTP ou Server Action) prova que um usuário de sessão da Organização A recebe
+      `404` (`notFound()`) ao tentar resolver um `clientSlug` pertencente a um `Client` da
+      Organização B.
+- [x] O mesmo teste prova que o mesmo usuário recebe exatamente o mesmo `404` para um `clientSlug`
+      que não existe em nenhuma `Organization` — os dois casos precisam ser indistinguíveis (mesmo
+      comportamento observável), não apenas "ambos retornam 404 por acaso com corpos diferentes".
+- [x] Teste complementar cobrindo `canAccessTenant` isoladamente (sem o `notFound()` do Next.js, que
+      lança exceção) para os 4 papéis contra um `TenantRef` sintético: `PLATFORM_ADMIN` sempre
+      `true`; `ORG_ADMIN`/`ORG_OPERATOR` `true` só quando `organizationId` bate; `CLIENT_VIEWER`
+      sempre `false` (documentado em `lib/permissions.ts:88-94` como decisão deliberada — o cliente
+      final usa `/portal`, não `/tenant`).
+- [x] Teste complementar cobrindo `Client.isActive = false` ou `Organization.isActive = false` —
+      `resolveTenantContext` (linha 30-32) já trata os dois casos como "tenant não encontrado"; o
+      teste prova que isso também resulta em `404`, não em algum outro comportamento.
+
+**Testes Necessários**:
+- Novo arquivo `tests/tenant-context.test.ts` (ou `tests/require-tenant-context.test.ts`), mockando
+  `prisma.client.findUnique` e `auth()` no mesmo padrão já usado em
+  `tests/rotate-enrollment-key.test.ts`/`tests/revoke-agent-auth.test.ts` (mock de sessão via
+  `sessionRef`, mock de Prisma em memória) — sem depender de banco real.
+- Verificação manual durante a implementação (não fica no CI): trocar temporariamente o `notFound()`
+  da linha 63-65 de `lib/tenant-context.ts` por um `throw new Error('403')` e confirmar que o novo
+  teste quebra — prova de que o teste de fato distingue os dois casos pelo status certo, não só
+  verifica "deu erro".
+
+#### 3 — Teste estrutural de paridade da allowlist de comandos remotos (servidor ↔ agente Go)
+
+**Objetivo**: garantir que a allowlist de comandos remotos do servidor Next.js e a do agente Go não
+possam divergir silenciosamente — uma allowlist ampliada de um lado sem o outro (ou um valor
+removido de um lado só) hoje não seria pega por nenhum teste automatizado.
+
+**Investigação de escopo (feita por este planner, para não deixar a implementação partindo do
+zero)**: localizadas as duas fontes reais.
+- **Servidor** (`lib/agent-commands.ts`): `RESTARTABLE_SERVICES` (linha 8, 4 valores: `Spooler`,
+  `wuauserv`, `BITS`, `Dnscache`), `SCRIPT_CATALOG_IDS` (linha 9, 4 valores: `flush_dns`,
+  `clear_temp_files`, `restart_explorer`, `flush_print_spooler`), e o discriminated union
+  `agentCommandInputSchema` (linha 13-25, 5 tipos de comando: `collect_now`,
+  `collect_metrics_now`, `restart_service`, `run_script`, `restart_computer`) — validado por Zod
+  antes de qualquer `AgentCommand` ser enfileirado.
+- **Agente Go** (`agent-go/internal/app/commands/service.go`): `switch cmd.Type` (linha 41-69,
+  mesmos 5 tipos) e dois mapas espelhados manualmente (linha 87-95) — `allowedServices` (4 valores,
+  idênticos aos do servidor) e `allowedScripts` (4 valores, idênticos). O próprio comentário do
+  arquivo (linha 87-88) já documenta a intenção: "allowlist espelha lib/agent-commands.ts... isto é
+  defesa em profundidade no agente" — ou seja, a paridade já é um requisito **de projeto**
+  reconhecido no código, só falta um teste que a garanta automaticamente. `docs/PRODUCT.md` (RF017,
+  linha 35) também documenta essa intenção: "Nunca texto livre — allowlist validada nos dois lados
+  (servidor via Zod, agente via mapa espelhado)".
+- **Assimetria de linguagem confirmada**: os valores em si (nomes de serviço, IDs de script, tipos
+  de comando) são strings idênticas nos dois lados — não há nenhuma transformação entre TS e Go que
+  um teste precise reconciliar (ex.: não é `camelCase` de um lado e `snake_case` do outro). Isso
+  simplifica a estratégia de teste: comparação direta de conjuntos de strings.
+- **Duas estratégias possíveis, decisão registrada aqui para quem implementar escolher** (nenhuma
+  das duas foi descartada por este planner):
+  1. Teste Vitest (`tests/`) que executa um processo Go (`go run` ou um pequeno binário de
+     introspecção) para extrair os mapas `allowedServices`/`allowedScripts`/`switch cmd.Type` do
+     agente e comparar com as constantes TS — mais robusto (pega qualquer alteração no Go
+     automaticamente), mas acopla a suíte Vitest a ter um toolchain Go disponível no ambiente de
+     CI/dev.
+  2. Um script dedicado (`scripts/verification/check-command-allowlist-parity.mjs` ou
+     `.go`) rodado como parte do `npm run test`/`npm run build`, com listas hardcoded dos dois lados
+     mantidas manualmente em paralelo ao código real e um teste que falha se a lista hardcoded não
+     bater com o código-fonte de cada lado (via regex/parse simples, não execução) — mais simples de
+     rodar, mas exige atualizar duas listas hardcoded extras sempre que a allowlist mudar (risco de
+     o próprio verificador ficar desatualizado).
+  Quem implementar decide qual das duas seguir (ou uma terceira); o critério de aceite abaixo não
+  prescreve a estratégia, só o resultado observável: o teste falha se as listas divergirem.
+
+**Requisitos Afetados**:
+- RF017 (catálogo fechado de 5 tipos de comando, `docs/PRODUCT.md` linha 35 — já documenta a
+  intenção de paridade, mas sem teste que a garanta).
+- Caso de uso 3.5 (Envio de comando remoto, `docs/PRODUCT.md` §3.5).
+- Entidade(s) de banco: `AgentCommand` (`type`, `paramsJson`, `scriptId`).
+
+**Critérios de aceite**:
+- [x] Existe um teste (Vitest ou script dedicado, conforme decisão de quem implementar) que falha
+      se `RESTARTABLE_SERVICES` (`lib/agent-commands.ts`) e `allowedServices`
+      (`agent-go/internal/app/commands/service.go`) tiverem conjuntos de valores diferentes (a mais
+      ou a menos, de qualquer lado).
+- [x] O mesmo teste (ou um irmão) falha se `SCRIPT_CATALOG_IDS` e `allowedScripts` divergirem.
+- [x] O mesmo teste (ou um irmão) falha se os 5 tipos de comando do `agentCommandInputSchema`
+      (discriminated union TS) e os `case` do `switch cmd.Type` do Go (`execute()`,
+      `service.go:41-69`) divergirem.
+- [x] O teste é executado como parte de `npm run test` (ou de uma etapa equivalente documentada na
+      verificação final da sprint) — não é um script órfão que ninguém roda.
+- [x] Verificação manual registrada na implementação: adicionar temporariamente um valor só de um
+      lado (ex.: um 5º serviço só no mapa Go) e confirmar que o teste novo quebra — prova de que ele
+      de fato pega divergência, não só existe.
+
+**Testes Necessários**:
+- Teste/script novo conforme a estratégia escolhida (ver "Investigação de escopo" acima).
+- Nenhuma alteração de comportamento de runtime — este item é só cobertura de teste estrutural,
+  não deve mudar nenhum valor real de allowlist dos dois lados.
+
+#### 4 — Corrigir `docs/PRODUCT.md` — resposta de `POST /api/auth/signup`
+
+**Objetivo**: atualizar `docs/PRODUCT.md` para refletir que `POST /api/auth/signup` grava e retorna
+`role: 'PLATFORM_ADMIN'`, não `role: 'SUPER_ADMIN'` — o código já foi corrigido na Sprint 4 (item
+4); só a documentação ficou para trás.
+
+**Achado**: `app/api/auth/signup/route.ts:31,47` já usa `role: 'PLATFORM_ADMIN'` em ambas as
+ocorrências (a consulta `existingSuperAdmin` na linha 30-33 e o `create` na linha 42-58) — confirmado
+nesta rodada de planejamento, lendo o arquivo linha a linha. `docs/PRODUCT.md`, porém, ainda cita
+`'SUPER_ADMIN'` em **4 pontos**, não só na linha ~474 apontada originalmente:
+- Linha 184: "`POST /api/auth/signup` (bootstrap único do primeiro `SUPER_ADMIN`...)".
+- Linha 414: nota na abertura da Matriz de Permissões — "**4 papéis confirmados, nenhum quinto** (o
+  valor `SUPER_ADMIN`, criado por `app/api/auth/signup/route.ts`, não pertence ao enum `AppRole` —
+  ver RN004)". Esta linha é a mais enganosa das 4: foi escrita quando o bug do código ainda existia
+  (antes da correção da Sprint 4) e hoje descreve como fato atual algo que já foi corrigido — sem
+  atualização, um leitor de `docs/PRODUCT.md` concluiria que o bug de RN004 ainda está aberto no
+  código.
+- Linha 446: tabela-resumo de rotas — "Bootstrap único do primeiro `SUPER_ADMIN`".
+- Linha 474 (a citada originalmente): descrição detalhada da rota — `201` → `{ user: { ..., role:
+  'SUPER_ADMIN', ... } }`, com uma nota final repetindo a mesma afirmação desatualizada de que o
+  valor "não pertence ao enum `AppRole`... um usuário criado por esta rota não autentica em `/login`
+  sem correção manual".
+- **Recomendação registrada, não decidida por este planner**: as 4 ocorrências descrevem a mesma
+  informação factual (o valor gravado pela rota); corrigir só a linha 474 e deixar 184/414/446
+  intocadas deixaria a documentação internamente inconsistente (um trecho diria `PLATFORM_ADMIN`,
+  outros três ainda diriam `SUPER_ADMIN`). Este planner recomenda que a implementação trate as 4
+  como um único achado, mas a decisão final de escopo (só a linha citada pelo usuário, ou as 4) fica
+  com quem aprovar a sprint.
+
+**Requisitos Afetados**:
+- RF001 (autenticação), RF023 (gestão de usuários — bootstrap único), RN004 (RBAC de 4 papéis).
+- Caso de uso 3.7 (`docs/PRODUCT.md` §3.7 — bootstrap do primeiro admin da plataforma).
+- Entidade(s) de banco: `User` (`role`).
+
+**Critérios de aceite**:
+- [x] `docs/PRODUCT.md` linha ~474 (descrição detalhada de `POST /api/auth/signup`) passa a citar
+      `role: 'PLATFORM_ADMIN'`, e a nota que hoje afirma "`'SUPER_ADMIN'` não pertence ao enum
+      `AppRole`... não autentica sem correção manual" é removida ou reescrita para refletir que o
+      valor já é válido hoje (sem inventar um novo achado que a auditoria não fez).
+- [x] Nenhuma mudança de código em nenhum arquivo fora de `docs/PRODUCT.md` — este item é
+      exclusivamente de documentação.
+- [x] Decisão registrada (por quem aprovar/implementar) sobre se as linhas 184, 414 e 446 também são
+      corrigidas junto, para consistência interna do documento — não é obrigatório para fechar o
+      item citado pelo usuário, mas fica registrado como recomendação explícita deste planner.
+
+**Testes Necessários**: nenhum teste automatizado por si — é correção de texto; a validação é
+revisão humana do diff de `docs/PRODUCT.md` (nenhuma ferramenta automatizada testa conteúdo de
+Markdown neste projeto). Se a linha 414 for reescrita, vale conferir que ela não passa a contradizer
+`tests/signup.test.ts` (já existente) — que, se cobrir a role gravada, já prova `PLATFORM_ADMIN` no
+código; a doc só precisa parar de contradizer esse teste.
+
+### Critérios de aceite gerais da sprint
+
+- [x] Item 1: `tests/permissions.test.ts` (ou nome equivalente) existe, cobre os 5 critérios da
+      subseção 1, e `npm run test` passa com os novos testes incluídos.
+- [x] Item 2: teste isolado de `canAccessTenant`/`requireTenantContext` existe, cobre os 4 critérios
+      da subseção 2, e `npm run test` passa com os novos testes incluídos.
+- [x] Item 3: teste estrutural de paridade da allowlist existe, roda como parte de `npm run test` (ou
+      etapa equivalente documentada), e a verificação manual de "quebra se divergir" foi feita
+      durante a implementação.
+- [x] Item 4: `docs/PRODUCT.md` linha ~474 corrigida; decisão sobre as linhas 184/414/446 registrada
+      explicitamente (corrigidas ou deliberadamente deixadas, com justificativa).
+- [x] `npx tsc --noEmit`, `npm run lint`, `npm run build` e `npm run test` sem erro novo introduzido
+      por esta sprint.
+- [x] Nenhum item desta sprint altera comportamento de runtime de `lib/permissions.ts`,
+      `lib/tenant-context.ts`, `lib/agent-commands.ts` ou `agent-go/internal/app/commands/` — é
+      cobertura de teste e correção de documentação, não mudança de guard.
+
+### Fora de escopo desta sprint
+
+Qualquer nova funcionalidade de RBAC ou de isolamento multi-tenant — os itens 1 e 2 são cobertura de
+teste para guards que já existem e já funcionam corretamente (nenhum bug de produção foi encontrado
+neles nesta auditoria); não há indício de que `getPermissionUser`/`isAppRole`/`canAccessTenant`/
+`requireTenantContext` estejam com comportamento incorreto hoje, só sem teste direto. Também fora de
+escopo: expandir a allowlist de comandos remotos (item 3 é só teste de paridade estrutural, não
+adiciona nem remove nenhum serviço/script/tipo de comando). Também fora de escopo: qualquer outra
+divergência de `docs/PRODUCT.md`/`PRODUTO.md` não citada explicitamente no item 4 — este planner não
+rodou uma auditoria de documentação completa, só confirmou o achado específico trazido pelo
+`requirements-auditor`. A retomada da Sprint 5 (Consolidação de Rotas), adiada explicitamente até
+depois desta sprint, **não** está incluída aqui — permanece com status 📋 Adiada até nova decisão do
+usuário depois que a Sprint 8 for aprovada e concluída.

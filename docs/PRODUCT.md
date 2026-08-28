@@ -181,7 +181,7 @@ Dois fluxos distintos, com guards diferentes:
   1. `UsersPage` obtém a sessão e verifica `isPlatformAdmin(user) || isOrgAdmin(user)`; qualquer outro papel recebe `notFound()` (a rota não existe para `ORG_OPERATOR`/`CLIENT_VIEWER`, nunca `403`).
   2. Consulta `prisma.user.findMany`: `PLATFORM_ADMIN` vê todos os usuários da plataforma; `ORG_ADMIN` vê apenas usuários com `organizationId` igual ao da própria organização.
   3. Renderiza nome/e-mail, papel traduzido, escopo (cliente, senão organização, senão "Plataforma") e status (ativo/inativo).
-- **Como usuários são criados na prática**: fora do painel — `scripts/seed-rbac.ts` (ambiente de desenvolvimento) ou `POST /api/auth/signup` (bootstrap único do primeiro `SUPER_ADMIN`, protegido por `X-Admin-Secret`, bloqueado após o primeiro uso).
+- **Como usuários são criados na prática**: fora do painel — `scripts/seed-rbac.ts` (ambiente de desenvolvimento) ou `POST /api/auth/signup` (bootstrap único do primeiro `PLATFORM_ADMIN`, protegido por `X-Admin-Secret`, bloqueado após o primeiro uso).
 - **Papéis atribuíveis** (pelo modelo, não pela UI): `PLATFORM_ADMIN`, `ORG_ADMIN`, `ORG_OPERATOR`, `CLIENT_VIEWER`.
 - **Fluxos alternativos**: nenhum — não há formulário, botão de ação ou mutação nesta tela.
 - **Pós-condição**: nenhuma alteração de estado.
@@ -411,7 +411,7 @@ Ver ADR [0004](./adr/0004-tenant-isolation-fail-closed.md) para a decisão regis
 
 ## 7. Matriz de Permissões (RBAC)
 
-Validada linha a linha contra `lib/permissions.ts` e `proxy.ts`. **4 papéis confirmados, nenhum quinto** (o valor `SUPER_ADMIN`, criado por `app/api/auth/signup/route.ts`, não pertence ao enum `AppRole` — ver RN004).
+Validada linha a linha contra `lib/permissions.ts` e `proxy.ts`. **4 papéis confirmados, nenhum quinto** — `AppRole` (`lib/permissions.ts:9`) aceita exatamente `PLATFORM_ADMIN`, `ORG_ADMIN`, `ORG_OPERATOR`, `CLIENT_VIEWER`; qualquer outro valor de `role` é normalizado para `null` (sem privilégio algum) por `getPermissionUser`/`isAppRole`, fail-closed (RN004). O valor legado `SUPER_ADMIN` — fora do enum, usado por `app/api/auth/signup/route.ts` antes da correção da Sprint 4 — já não é gravado pelo código; citado aqui só como referência histórica do bug que RN004 existe para prevenir.
 
 | Ação | PLATFORM_ADMIN | ORG_ADMIN | ORG_OPERATOR | CLIENT_VIEWER | Guard real |
 |---|---|---|---|---|---|
@@ -443,7 +443,7 @@ Inventário completo dos 19 arquivos `route.ts` sob `app/api/`. A maior parte da
 | Método | Path | Autenticação | Rate limit | Finalidade |
 |---|---|---|---|---|
 | GET/POST | `/api/auth/[...nextauth]` | Delegado ao NextAuth | — | Login, callback, sessão, CSRF |
-| POST | `/api/auth/signup` | `X-Admin-Secret` | — | Bootstrap único do primeiro `SUPER_ADMIN` |
+| POST | `/api/auth/signup` | `X-Admin-Secret` | — | Bootstrap único do primeiro `PLATFORM_ADMIN` |
 | * | `/api/collect/windows` | Nenhuma (rota morta) | — | Sempre `410`, redireciona para `/api/agent/checkin` |
 | GET | `/api/inventory/computers` | `X-Admin-Secret` | — | Lista estações (exclui servidores) de um tenant, para integrações admin |
 | GET | `/api/clients` | Sessão + `canAccessGlobalAdmin` | — | Lista todos os clientes da plataforma |
@@ -471,7 +471,7 @@ Inventário completo dos 19 arquivos `route.ts` sob `app/api/`. A maior parte da
 
 **`GET /api/clients/[id]/credentials`** — query `?serverUrl?` (URL válida, opcional). `200` com `status: 'unavailable'` (cliente legado sem pacote persistido) ou `status: 'available'` → `{ generatedAt, package: { clientId, clientName, clientSlug, enrollmentKey, ...artifacts } }`, chave descriptografada sob demanda; toda visualização grava `AuditLog` (`credentials.view`); header `Cache-Control: no-store`; `401` sem `canManageTenant`; `404` cliente não encontrado.
 
-**`POST /api/auth/signup`** — request `{ email, password (min 8), name? }`; `201` → `{ user: { id, email, name, role: 'SUPER_ADMIN', clientId: null, createdAt } }`; `401` `X-Admin-Secret` ausente/incorreto; `409` já existe um `SUPER_ADMIN`. **Nota**: `'SUPER_ADMIN'` não pertence ao enum `AppRole` de 4 valores — um usuário criado por esta rota não autentica em `/login` sem correção manual do `role` no banco (ver RN004).
+**`POST /api/auth/signup`** — request `{ email, password (min 8), name? }`; `201` → `{ user: { id, email, name, role: 'PLATFORM_ADMIN', clientId: null, createdAt } }`; `401` `X-Admin-Secret` ausente/incorreto; `409` já existe um `PLATFORM_ADMIN`.
 
 **`GET /api/inventory/computers`** — query `?clientSlug=`. `200` → array de `{ id, hostname, status, updatedAt, tenant, hardware: {...}, primaryNetwork: {...} | null, disks: [...] }`, filtrando fora sistemas operacionais classificados como servidor; `400` `clientSlug` ausente; `404` (não `401`) quando o secret é inválido — por design, para não revelar a existência da rota.
 
