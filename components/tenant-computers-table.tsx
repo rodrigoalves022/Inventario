@@ -17,23 +17,13 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import type { InventoryIssue } from '@/lib/inventory-alerts'
+import { isServerOperatingSystem } from '@/lib/device-classification'
+import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
 
-export type TenantComputerRow = {
-  id: string
-  hostname: string
-  ip: string | null
-  sistema: string | null
-  processador: string | null
-  ramTotalGb: number | null
-  lowestDiskFreeGb: number | null
-  storageLabel: string | null
-  updatedAt: string
-  lastCollectionAt: string | null
-  effectiveStatus: 'online' | 'warning' | 'offline'
-  issues: InventoryIssue[]
-  detailsPath: string
-}
+/** Alias mantido pelo nome historico do componente — o formato da linha e o
+ * mesmo usado por qualquer listagem de dispositivo do tenant (computers,
+ * assets), definido em lib/tenant-device-rows.ts. */
+export type TenantComputerRow = TenantDeviceRow
 
 function formatLastCollection(value: string | null) {
   if (!value) return 'Sem coletas'
@@ -60,7 +50,25 @@ function StatusPill({ status }: { status: TenantComputerRow['effectiveStatus'] }
   )
 }
 
-function IssueBadges({ deviceId, issues }: { deviceId: string; issues: InventoryIssue[] }) {
+/** Coluna "Tipo" da listagem unificada (`/assets`) — deriva de `sistema`
+ * via `isServerOperatingSystem`, o mesmo dado que ja diferencia /computers de
+ * /servers, sem precisar de um campo novo na linha. */
+function DeviceTypeBadge({ sistema }: { sistema: string | null }) {
+  const isServer = isServerOperatingSystem(sistema)
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide',
+        isServer ? 'border-warning/40 bg-warning/5 text-warning' : 'border-info/40 bg-info/5 text-info'
+      )}
+    >
+      {isServer ? 'Servidor' : 'Computador'}
+    </Badge>
+  )
+}
+
+function IssueBadges({ deviceId, issues }: { deviceId: string; issues: TenantComputerRow['issues'] }) {
   if (issues.length === 0) {
     return <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Saudável</span>
   }
@@ -137,10 +145,14 @@ export function TenantComputersTable({
   devices,
   initialSearch = '',
   initialStatusFilter = 'all',
+  showTypeColumn = false,
 }: {
   devices: TenantComputerRow[]
   initialSearch?: string
   initialStatusFilter?: 'all' | TenantComputerRow['effectiveStatus']
+  /** Listagem unificada (`/assets`): mostra a coluna "Tipo" (Computador/Servidor)
+   * e generaliza o texto de estado vazio, que por padrao fala em "computador". */
+  showTypeColumn?: boolean
 }) {
   const router = useRouter()
   const [search, setSearch] = useState(initialSearch)
@@ -197,6 +209,8 @@ export function TenantComputersTable({
           label="Warnings Ativos"
           value={summary.warning}
           tone="warning"
+          active={statusFilter === 'warning'}
+          onClick={() => setStatusFilter((current) => (current === 'warning' ? 'all' : 'warning'))}
         />
         <SummaryCard
           icon={<HardDrive className="h-4 w-4" />}
@@ -257,6 +271,9 @@ export function TenantComputersTable({
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground transition-colors hover:bg-muted/80">
                 <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Hostname</th>
+                {showTypeColumn && (
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Tipo</th>
+                )}
                 <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Rede / IP</th>
                 <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">RAM / Disco</th>
                 <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Alertas ativos</th>
@@ -267,10 +284,12 @@ export function TenantComputersTable({
             <tbody className="divide-y">
               {filteredDevices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center">
+                  <td colSpan={showTypeColumn ? 7 : 6} className="px-5 py-12 text-center">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Search className="h-8 w-8 opacity-20" />
-                      <p className="text-base font-medium">Nenhum computador encontrado</p>
+                      <p className="text-base font-medium">
+                        {showTypeColumn ? 'Nenhum dispositivo encontrado' : 'Nenhum computador encontrado'}
+                      </p>
                       <p className="text-sm">Tente ajustar os filtros ou limpar a busca.</p>
                     </div>
                   </td>
@@ -302,6 +321,11 @@ export function TenantComputersTable({
                         {device.sistema ?? 'N/A'}
                       </p>
                     </td>
+                    {showTypeColumn && (
+                      <td className="px-5 py-4">
+                        <DeviceTypeBadge sistema={device.sistema} />
+                      </td>
+                    )}
                     <td className="px-5 py-4">
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                         {device.ip ?? '0.0.0.0'}
@@ -349,7 +373,9 @@ export function TenantComputersTable({
         {filteredDevices.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-5 py-12 text-center text-muted-foreground">
             <Search className="h-8 w-8 opacity-20" />
-            <p className="text-base font-medium">Nenhum computador encontrado</p>
+            <p className="text-base font-medium">
+              {showTypeColumn ? 'Nenhum dispositivo encontrado' : 'Nenhum computador encontrado'}
+            </p>
             <p className="text-sm">Tente ajustar os filtros ou limpar a busca.</p>
           </div>
         ) : (
@@ -371,6 +397,7 @@ export function TenantComputersTable({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-medium">
+                  {showTypeColumn && <DeviceTypeBadge sistema={device.sistema} />}
                   <code className="bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                     {device.ip ?? '0.0.0.0'}
                   </code>

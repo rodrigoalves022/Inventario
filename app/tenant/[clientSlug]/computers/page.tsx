@@ -5,7 +5,7 @@ import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { getTenantPath } from '@/lib/tenant-links'
-import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
+import { buildTenantDeviceRow } from '@/lib/tenant-device-rows'
 import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantAlertSettingsForm } from '@/components/tenant-alert-settings-form'
@@ -47,41 +47,7 @@ export default async function TenantComputersPage({ params, searchParams }: Page
   const settings = tenantAlertSettings ?? { clientId: tenant.id, ...getDefaultAlertSettings() }
   const devices = allDevices
     .filter((device) => !isServerOperatingSystem(device.hardware?.sistema))
-    .map((device) => {
-      const lastCollectionAt = device.logs[0]?.coletadoEm ?? device.updatedAt
-      const issues = settings.alertsEnabled
-        ? deriveInventoryIssues(
-            {
-              updatedAt: device.updatedAt,
-              lastCollectionAt,
-              hardware: device.hardware,
-              disks: device.disks,
-            },
-            settings
-          )
-        : []
-
-      const lowestDiskFreeGb = device.disks
-        .map((disk) => disk.espacoLivreGb)
-        .filter((value): value is number => typeof value === 'number')
-        .sort((left, right) => left - right)[0] ?? null
-
-      return {
-        id: device.id,
-        hostname: device.hostname,
-        ip: device.networks[0]?.ip ?? null,
-        sistema: device.hardware?.sistema ?? null,
-        processador: device.hardware?.processador ?? null,
-        ramTotalGb: device.hardware?.ramTotalGb ?? null,
-        lowestDiskFreeGb,
-        storageLabel: device.disks[0] ? `${device.disks[0].capacidadeGb ?? '?'} GB ${device.disks[0].tipo ?? ''}` : null,
-        updatedAt: device.updatedAt.toISOString(),
-        lastCollectionAt: lastCollectionAt?.toISOString() ?? null,
-        effectiveStatus: getEffectiveDeviceStatus(device.status, issues) as 'online' | 'warning' | 'offline',
-        issues,
-        detailsPath: getTenantPath(tenantSlug, `assets/${device.id}`),
-      }
-    })
+    .map((device) => buildTenantDeviceRow(device, settings, tenantSlug))
 
   const canManageAlerts = canManageTenantAlerts(getSessionPermissionUser(session), tenant)
 

@@ -1,10 +1,13 @@
+import Link from 'next/link'
 import { Download, FileText } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { Button } from '@/components/ui/button'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere } from '@/lib/tenant-scope'
+import { getTenantPath } from '@/lib/tenant-links'
 import { getDeviceReportRows, buildDeviceReportSummary } from '@/lib/reports/device-report'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
+import { cn } from '@/lib/utils'
 
 export default async function TenantReportsPage({ params }: PageProps<'/tenant/[clientSlug]'>) {
   const { clientSlug } = await params
@@ -50,16 +53,46 @@ export default async function TenantReportsPage({ params }: PageProps<'/tenant/[
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Taxa de disponibilidade', value: `${summary.availabilityPercent}%`, tone: 'text-success' },
-          { label: 'Dispositivos online', value: String(summary.online), tone: 'text-info' },
-          { label: 'Dispositivos offline', value: String(summary.offline), tone: 'text-destructive' },
-          { label: 'Status warning', value: String(summary.warning), tone: 'text-warning' },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">{stat.label}</p>
-            <p className={`mt-2 text-2xl font-bold ${stat.tone}`}>{stat.value}</p>
-          </div>
-        ))}
+          { label: 'Taxa de disponibilidade', value: `${summary.availabilityPercent}%`, tone: 'text-success', href: null },
+          {
+            label: 'Dispositivos online',
+            value: String(summary.online),
+            tone: 'text-info',
+            href: `${getTenantPath(tenantSlug, 'computers')}?status=online`,
+          },
+          {
+            label: 'Dispositivos offline',
+            value: String(summary.offline),
+            tone: 'text-destructive',
+            href: `${getTenantPath(tenantSlug, 'computers')}?status=offline`,
+          },
+          {
+            label: 'Status warning',
+            value: String(summary.warning),
+            tone: 'text-warning',
+            href: `${getTenantPath(tenantSlug, 'computers')}?status=warning`,
+          },
+        ].map((stat) => {
+          const cardClassName = cn(
+            'rounded-lg border border-border bg-card p-4 transition-all',
+            stat.href && 'cursor-pointer hover:shadow-md hover:bg-accent/30 hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          )
+          const content = (
+            <>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <p className={`mt-2 text-2xl font-bold ${stat.tone}`}>{stat.value}</p>
+            </>
+          )
+          return stat.href ? (
+            <Link key={stat.label} href={stat.href} className={cardClassName}>
+              {content}
+            </Link>
+          ) : (
+            <div key={stat.label} className={cardClassName}>
+              {content}
+            </div>
+          )
+        })}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

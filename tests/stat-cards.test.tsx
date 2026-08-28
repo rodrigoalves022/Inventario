@@ -4,40 +4,82 @@ import { render, screen } from '@testing-library/react'
 import { StatsGrid } from '@/components/stat-cards'
 
 /**
- * Correcao de UX: o card "Total de Máquinas" somava servidores + computadores
- * num unico numero mas so linkava para /computers (que exclui servidores por
- * definicao — lib/device-classification.ts). Agora mostra os dois totais
- * separados, cada um com seu proprio link.
+ * Correcao de UX: o card "Total de Máquinas" mostrava dois numeros empilhados
+ * ("N Computadores · M Servidores"), cada um com seu proprio link — usuario
+ * rejeitou explicitamente essa versao ("nao e para manter dois nomes assim
+ * ali dentro"). O card volta a ser simples: um unico numero (todos os
+ * dispositivos, computadores + servidores) com um unico link, agora para a
+ * rota unificada `/assets` (Opcao B escolhida pelo usuario) em vez de
+ * `/computers`, que excluia servidores por definicao.
  */
-describe('StatsGrid — card "Total de Máquinas" mostra computadores e servidores separados', () => {
-  it('cada metade do texto e um link para a listagem correta', () => {
+describe('StatsGrid — card "Total de Máquinas" é um link único para a listagem unificada', () => {
+  it('mostra o total combinado de dispositivos como um único número', () => {
     render(
       <StatsGrid
         total={12}
-        computers={9}
         win10={5}
         win11={4}
         server={3}
         online={10}
         offline={1}
         warning={1}
+        assetsPath="/tenant/cliente-a/assets"
         computersPath="/tenant/cliente-a/computers"
         serversPath="/tenant/cliente-a/servers"
       />
     )
 
-    const computersLink = screen.getByText('9 Computadores').closest('a')
-    const serversLink = screen.getByText('3 Servidores').closest('a')
-
-    expect(computersLink?.getAttribute('href')).toBe('/tenant/cliente-a/computers')
-    expect(serversLink?.getAttribute('href')).toBe('/tenant/cliente-a/servers')
+    expect(screen.getByText('12')).toBeTruthy()
+    // O card "Total de Máquinas" não mostra mais dois números empilhados —
+    // "Servidores" ainda aparece no grid, mas só como título do card dedicado
+    // (verificado abaixo, no teste "links próprios"), não dentro deste card.
+    expect(screen.queryByText(/\d+ Computadores?/)).toBeNull()
+    expect(screen.queryByText(/\d+ Servidores?/)).toBeNull()
   })
 
-  it('sem computersPath/serversPath os totais ainda aparecem, so sem virar link (nao quebra)', () => {
+  it('o card inteiro é um único <a> apontando para assetsPath', () => {
     render(
       <StatsGrid
         total={12}
-        computers={9}
+        win10={5}
+        win11={4}
+        server={3}
+        online={10}
+        offline={1}
+        warning={1}
+        assetsPath="/tenant/cliente-a/assets"
+        computersPath="/tenant/cliente-a/computers"
+        serversPath="/tenant/cliente-a/servers"
+      />
+    )
+
+    const link = screen.getByText('Total de Máquinas').closest('a')
+    expect(link?.getAttribute('href')).toBe('/tenant/cliente-a/assets')
+  })
+
+  it('sem <a> aninhado dentro de outro <a> no DOM renderizado', () => {
+    const { container } = render(
+      <StatsGrid
+        total={12}
+        win10={5}
+        win11={4}
+        server={3}
+        online={10}
+        offline={1}
+        warning={1}
+        assetsPath="/tenant/cliente-a/assets"
+        computersPath="/tenant/cliente-a/computers"
+        serversPath="/tenant/cliente-a/servers"
+      />
+    )
+
+    expect(container.querySelectorAll('a a').length).toBe(0)
+  })
+
+  it('sem assetsPath, o card não vira link (não quebra)', () => {
+    render(
+      <StatsGrid
+        total={12}
         win10={5}
         win11={4}
         server={3}
@@ -47,7 +89,27 @@ describe('StatsGrid — card "Total de Máquinas" mostra computadores e servidor
       />
     )
 
-    expect(screen.getByText('9 Computadores')).toBeTruthy()
-    expect(screen.getByText('3 Servidores')).toBeTruthy()
+    expect(screen.getByText('Total de Máquinas')).toBeTruthy()
+    expect(screen.getByText('Total de Máquinas').closest('a')).toBeNull()
+  })
+
+  it('os outros cards do grid continuam com seus próprios links (computers/servers)', () => {
+    render(
+      <StatsGrid
+        total={12}
+        win10={5}
+        win11={4}
+        server={3}
+        online={10}
+        offline={1}
+        warning={1}
+        assetsPath="/tenant/cliente-a/assets"
+        computersPath="/tenant/cliente-a/computers"
+        serversPath="/tenant/cliente-a/servers"
+      />
+    )
+
+    const serversLink = screen.getByText('Servidores').closest('a')
+    expect(serversLink?.getAttribute('href')).toBe('/tenant/cliente-a/servers')
   })
 })

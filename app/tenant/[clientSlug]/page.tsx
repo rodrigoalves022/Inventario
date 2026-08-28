@@ -115,13 +115,13 @@ export default async function TenantDashboardPage({ params }: PageProps<'/tenant
 
       <StatsGrid
         total={summary.totalDevices}
-        computers={summary.totalDevices - server}
         win10={win10}
         win11={win11}
         server={server}
         online={summary.online}
         offline={summary.offline}
         warning={summary.warning}
+        assetsPath={getTenantPath(tenantSlug, 'assets')}
         computersPath={getTenantPath(tenantSlug, 'computers')}
         serversPath={getTenantPath(tenantSlug, 'servers')}
       />

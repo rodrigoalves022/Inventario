@@ -409,7 +409,7 @@ function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
   }
 
   const basePath = getTenantBasePath(tenant.slug)
-  const titles: Array<{ match: string; title: string }> = [
+  const titles: Array<{ match: string; title: string; exact?: boolean }> = [
     { match: `${basePath}/computers`, title: 'Máquinas' },
     { match: `${basePath}/servers`, title: 'Servidores' },
     { match: `${basePath}/storage`, title: 'Armazenamento' },
@@ -418,10 +418,16 @@ function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
     { match: `${basePath}/reports`, title: 'Relatórios' },
     { match: `${basePath}/alerts`, title: 'Alertas' },
     { match: `${basePath}/audit`, title: 'Auditoria' },
-    { match: `${basePath}/assets`, title: 'Detalhe da máquina' },
+    // Listagem unificada (exata) vem antes do detalhe (prefixo `/assets/<id>`)
+    // — sem essa ordem, `startsWith` faria a listagem cair no titulo do detalhe.
+    { match: `${basePath}/assets`, title: 'Todos os dispositivos', exact: true },
+    { match: `${basePath}/assets/`, title: 'Detalhe da máquina' },
   ]
 
-  return titles.find((item) => pathname.startsWith(item.match))?.title ?? 'Visão geral'
+  return (
+    titles.find((item) => (item.exact ? pathname === item.match : pathname.startsWith(item.match)))?.title ??
+    'Visão geral'
+  )
 }
 
 export function Header({

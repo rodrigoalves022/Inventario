@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { AuditLogTable } from '@/components/audit-log-table'
@@ -85,29 +86,39 @@ export default async function TenantAuditPage({
         </Button>
       </div>
 
-      {/* Summary Grid */}
+      {/* Summary Grid — cada card filtra a tabela abaixo (mesmo padrao dos
+          outros grids de resumo clicaveis do tenant). */}
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-primary/40">
+        <Link
+          href={`${basePath}/audit`}
+          className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-primary/40 transition-all cursor-pointer hover:shadow-md hover:bg-accent/30 hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <div className="flex items-center gap-3 mb-1">
             <History className="h-4 w-4 text-muted-foreground" />
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Log do Tenant</p>
           </div>
           <p className="text-2xl font-bold text-foreground">{logs.length}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-info/40">
+        </Link>
+        <Link
+          href={`${basePath}/audit?action=credentials.view`}
+          className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-info/40 transition-all cursor-pointer hover:shadow-md hover:bg-accent/30 hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <div className="flex items-center gap-3 mb-1">
             <KeyRound className="h-4 w-4 text-info" />
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Acesso a Chaves</p>
           </div>
           <p className="text-2xl font-bold text-info">{credentialViews}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-destructive/40">
+        </Link>
+        <Link
+          href={`${basePath}/audit?action=device.delete`}
+          className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-destructive/40 transition-all cursor-pointer hover:shadow-md hover:bg-accent/30 hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <div className="flex items-center gap-3 mb-1">
             <Trash2 className="h-4 w-4 text-destructive" />
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Exclusões</p>
           </div>
           <p className="text-2xl font-bold text-destructive">{deviceDeletes}</p>
-        </div>
+        </Link>
       </div>
 
       {/* Filter Bar */}
