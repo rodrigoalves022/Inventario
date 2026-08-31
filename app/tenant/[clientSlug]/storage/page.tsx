@@ -42,9 +42,15 @@ export default async function TenantStoragePage({ params, searchParams }: PagePr
 
   const storageDevices = devices
     .map((device) => {
-      const capacity = device.disks.reduce((sum, disk) => sum + (disk.capacidadeGb ?? 0), 0)
-      const free = device.disks.reduce((sum, disk) => sum + (disk.espacoLivreGb ?? 0), 0)
-      const used = Math.max(capacity - free, 0)
+      // Cada disco fica separado (sem somar capacidade/livre entre discos
+      // heterogeneos do mesmo device) — a UI desenha uma barra por disco.
+      const disks = device.disks
+        .filter((disk) => (disk.capacidadeGb ?? 0) > 0)
+        .map((disk) => {
+          const capacidadeGb = disk.capacidadeGb ?? 0
+          const usedGb = Math.max(capacidadeGb - (disk.espacoLivreGb ?? 0), 0)
+          return { unidade: disk.unidade, tipo: disk.tipo, capacidadeGb, usedGb }
+        })
       const types = Array.from(new Set(device.disks.map((disk) => disk.tipo).filter((tipo): tipo is string => Boolean(tipo))))
       const lastCollectionAt = device.logs[0]?.coletadoEm ?? null
 
@@ -52,16 +58,13 @@ export default async function TenantStoragePage({ params, searchParams }: PagePr
         id: device.id,
         hostname: device.hostname,
         usuario: device.usuario,
-        capacity,
-        used,
-        free,
-        diskCount: device.disks.length,
+        disks,
         types,
         presence: getDevicePresence(lastCollectionAt, alertOfflineHours, now),
         detailsPath: getTenantPath(tenantSlug, `assets/${device.id}`),
       }
     })
-    .filter((device) => device.capacity > 0)
+    .filter((device) => device.disks.length > 0)
 
   return (
     <div className="space-y-6">

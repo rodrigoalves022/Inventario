@@ -15,8 +15,10 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { SummaryCard } from '@/components/ui/summary-card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
 
@@ -89,55 +91,6 @@ function IssueBadges({ deviceId, issues }: { deviceId: string; issues: TenantCom
         </Badge>
       ))}
     </>
-  )
-}
-
-const SUMMARY_TONE = {
-  primary: { icon: 'bg-primary/10 text-primary', value: 'text-foreground', ring: 'ring-primary' },
-  warning: { icon: 'bg-warning/10 text-warning', value: 'text-warning', ring: 'ring-warning' },
-  destructive: { icon: 'bg-destructive/10 text-destructive', value: 'text-destructive', ring: 'ring-destructive' },
-} as const
-
-/**
- * Card de resumo. Quando `onClick` e passado, o card e o proprio controle de
- * filtro (substitui o antigo dropdown de criticidade — o numero que o usuario
- * ja olha e o botao que ele aperta, em vez de duas UIs mostrando o mesmo dado).
- */
-function SummaryCard({
-  icon,
-  label,
-  value,
-  tone,
-  active,
-  onClick,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  tone: keyof typeof SUMMARY_TONE
-  active?: boolean
-  onClick?: () => void
-}) {
-  const tones = SUMMARY_TONE[tone]
-  const Comp = onClick ? 'button' : 'div'
-
-  return (
-    <Comp
-      type={onClick ? 'button' : undefined}
-      onClick={onClick}
-      aria-pressed={onClick ? active : undefined}
-      className={cn(
-        'rounded-xl border bg-card p-4 text-left transition-all hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
-        onClick && 'cursor-pointer',
-        active && `ring-2 ${tones.ring}`
-      )}
-    >
-      <div className="flex items-center gap-3 mb-2">
-        <div className={cn('rounded-lg p-2', tones.icon)}>{icon}</div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
-      </div>
-      <p className={cn('text-2xl font-bold', tones.value)}>{value}</p>
-    </Comp>
   )
 }
 
@@ -269,7 +222,7 @@ export function TenantComputersTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-muted/50 text-muted-foreground transition-colors hover:bg-muted/80">
+              <tr className="border-b bg-muted/50 text-muted-foreground">
                 <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Hostname</th>
                 {showTypeColumn && (
                   <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Tipo</th>
@@ -307,7 +260,7 @@ export function TenantComputersTable({
                         router.push(device.detailsPath)
                       }
                     }}
-                    className="group cursor-pointer transition-colors duration-150 hover:bg-accent/40"
+                    className={cn('group', CLICKABLE_ROW_CLASS)}
                   >
                     <td className="px-5 py-4 font-mono font-medium">
                       <Link

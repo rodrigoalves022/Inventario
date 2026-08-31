@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantNetworkWhere } from '@/lib/tenant-scope'
+import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
 
 function extractSubnet(ip?: string | null) {
   if (!ip) return null
@@ -88,7 +89,7 @@ export default async function TenantNetworkPage({ params }: PageProps<'/tenant/[
               segments.map((segment) => {
                 const utilization = segment.devices > 0 ? (segment.active / segment.devices) * 100 : 0
                 return (
-                  <tr key={segment.subnet} className="hover:bg-secondary/30">
+                  <tr key={segment.subnet} className={STATIC_ROW_HOVER_CLASS}>
                     <td className="px-4 py-3 font-medium">{segment.subnet}</td>
                     <td className="px-4 py-3 text-muted-foreground">{segment.subnet}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{segment.gateway}</td>

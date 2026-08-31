@@ -12,7 +12,8 @@ interface StatCardProps {
   title: string
   value: string | number
   subtitle?: string
-  icon: React.ReactNode
+  /** Opcional — cards de resumo sem ícone (ex: /reports) renderizam sem o bloco de ícone. */
+  icon?: React.ReactNode
   trend?: {
     value: number
     isPositive: boolean
@@ -22,6 +23,9 @@ interface StatCardProps {
   featured?: boolean
   /** Quando presente, o card vira link pra listagem filtrada correspondente. */
   href?: string
+  /** Override de cor do valor principal (ex: "text-destructive") para cards que
+   * comunicam severidade pelo número, não só pela borda/ícone. */
+  valueClassName?: string
 }
 
 const variantStyles = {
@@ -47,7 +51,7 @@ function formatPercent(part: number, total: number) {
   return `${Math.round((part / total) * 100)}% do total`
 }
 
-export function StatCard({ title, value, subtitle, icon, trend, variant = 'default', featured = false, href }: StatCardProps) {
+export function StatCard({ title, value, subtitle, icon, trend, variant = 'default', featured = false, href, valueClassName }: StatCardProps) {
   const Comp = href ? Link : 'div'
 
   return (
@@ -57,7 +61,7 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
         'rounded-lg border bg-card shadow-sm transition-all hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
         featured ? 'p-6' : 'p-5',
         variantStyles[variant],
-        href && 'cursor-pointer transition-transform hover:scale-105 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        href && 'cursor-pointer hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       )}
     >
       <div className="flex items-start justify-between">
@@ -65,7 +69,7 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
           </p>
-          <p className={cn('font-bold text-card-foreground', featured ? 'text-4xl' : 'text-2xl')}>{value}</p>
+          <p className={cn('font-bold', featured ? 'text-4xl' : 'text-2xl', valueClassName ?? 'text-card-foreground')}>{value}</p>
           {subtitle && (
             <p className={cn('text-muted-foreground', featured ? 'text-sm' : 'text-xs')}>{subtitle}</p>
           )}
@@ -78,13 +82,15 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
             </p>
           )}
         </div>
-        <div className={cn(
-          'flex items-center justify-center rounded-lg',
-          featured ? 'h-12 w-12' : 'h-10 w-10',
-          iconStyles[variant]
-        )}>
-          {icon}
-        </div>
+        {icon && (
+          <div className={cn(
+            'flex items-center justify-center rounded-lg',
+            featured ? 'h-12 w-12' : 'h-10 w-10',
+            iconStyles[variant]
+          )}>
+            {icon}
+          </div>
+        )}
       </div>
     </Comp>
   )

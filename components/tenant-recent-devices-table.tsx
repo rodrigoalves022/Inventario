@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Wifi, WifiOff, Clock, Inbox } from 'lucide-react'
 import type { DevicePresence } from '@/lib/inventory-alerts'
+import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
 
 export type RecentDeviceRow = {
   id: string
@@ -98,7 +99,7 @@ export function TenantRecentDevicesTable({ devices }: { devices: RecentDeviceRow
                 router.push(device.detailsPath)
               }
             }}
-            className="cursor-pointer transition-colors duration-150 hover:bg-accent/40"
+            className={CLICKABLE_ROW_CLASS}
           >
             <td className="px-4 py-3 font-mono font-medium">
               <Link

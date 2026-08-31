@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
+import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
 
 export type TenantServerRow = {
   id: string
@@ -68,7 +70,7 @@ export function TenantServersTable({ servers }: { servers: TenantServerRow[] }) 
                     router.push(server.detailsPath)
                   }
                 }}
-                className="cursor-pointer border-b transition-colors duration-150 last:border-0 hover:bg-accent/40"
+                className={cn('border-b last:border-0', CLICKABLE_ROW_CLASS)}
               >
                 <td className="px-4 py-3 font-mono font-medium">
                   <Link

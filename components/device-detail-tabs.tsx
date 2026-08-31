@@ -9,6 +9,7 @@ import { AssetRecordForm, type AssetRecordValues } from '@/components/asset-reco
 import { DeviceCommandPanel } from '@/components/device-command-panel'
 import { COMMAND_TYPE_LABELS } from '@/lib/agent-commands'
 import { cn } from '@/lib/utils'
+import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
 
 export type DeviceDisk = {
   id: string
@@ -536,7 +537,7 @@ export function DeviceDetailTabs({
                 </thead>
                 <tbody>
                   {filteredSoftware.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0 hover:bg-muted/40">
+                    <tr key={item.id} className={cn('border-b last:border-0', STATIC_ROW_HOVER_CLASS)}>
                       <td className="px-4 py-2 font-medium">{item.nome}</td>
                       <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
                         {item.versao ?? '—'}

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Cpu, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
 
 export type TenantProcessorRow = {
   name: string
@@ -119,7 +120,7 @@ export function TenantProcessorsTable({
               </thead>
               <tbody className="divide-y">
                 {filteredProcessors.map((processor) => (
-                  <tr key={processor.name} className="transition-colors hover:bg-muted/30">
+                  <tr key={processor.name} className={STATIC_ROW_HOVER_CLASS}>
                     <td className="px-5 py-4 align-top">
                       <Link
                         href={`${computersPath}?search=${encodeURIComponent(processor.name)}`}

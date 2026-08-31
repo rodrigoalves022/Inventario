@@ -8,15 +8,20 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
 import { computeDiskUsagePercent, getDiskUsageTier, DISK_USAGE_TIER_BAR_CLASS, DISK_USAGE_TIER_TEXT_CLASS } from '@/lib/disk-usage'
+import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
+
+export type TenantStorageDisk = {
+  unidade: string | null
+  tipo: string | null
+  capacidadeGb: number
+  usedGb: number
+}
 
 export type TenantStorageRow = {
   id: string
   hostname: string
   usuario: string | null
-  capacity: number
-  used: number
-  free: number
-  diskCount: number
+  disks: TenantStorageDisk[]
   types: string[]
   presence: DevicePresence
   detailsPath: string
@@ -76,17 +81,25 @@ export function TenantStorageTable({
 
   const rows = useMemo(
     () =>
-      devices.map((device) => ({
-        ...device,
-        usagePercent: computeDiskUsagePercent(device.capacity, device.used),
-      })),
+      devices.map((device) => {
+        const diskUsages = device.disks.map((disk) => ({
+          ...disk,
+          usagePercent: computeDiskUsagePercent(disk.capacidadeGb, disk.usedGb),
+        }))
+        // Classifica o device pelo PIOR disco (maior % usado / menor % livre),
+        // mesmo criterio de "lowestDiskFreeGb" em lib/tenant-device-rows.ts —
+        // um device com 1 disco cheio e outro vazio deve aparecer como
+        // critico, nao "ok na media".
+        const worstUsagePercent = diskUsages.reduce((max, disk) => Math.max(max, disk.usagePercent), 0)
+        return { ...device, diskUsages, worstUsagePercent }
+      }),
     [devices]
   )
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       const matchesType = typeFilter === 'all' || row.types.includes(typeFilter)
-      const matchesUsage = usageFilter === 'all' || getDiskUsageTier(row.usagePercent) === usageFilter
+      const matchesUsage = usageFilter === 'all' || getDiskUsageTier(row.worstUsagePercent) === usageFilter
       return matchesType && matchesUsage
     })
   }, [rows, typeFilter, usageFilter])
@@ -191,9 +204,9 @@ export function TenantStorageTable({
               </thead>
               <tbody className="divide-y">
                 {filteredRows.map((device) => {
-                  const tier = getDiskUsageTier(device.usagePercent)
+                  const diskCount = device.diskUsages.length
                   return (
-                    <tr key={device.id} className="transition-colors hover:bg-muted/30">
+                    <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
                       <td className="px-5 py-4 align-top font-mono font-medium">
                         <Link href={device.detailsPath} className="text-foreground hover:text-primary transition-colors">
                           {device.hostname}
@@ -203,21 +216,31 @@ export function TenantStorageTable({
                       <td className="px-5 py-4 align-top">
                         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                           <HardDrive className="h-3 w-3" />
-                          {device.types.length > 0 ? device.types.join(', ') : 'N/A'} · {device.diskCount} disco{device.diskCount !== 1 ? 's' : ''}
+                          {device.types.length > 0 ? device.types.join(', ') : 'N/A'} · {diskCount} disco{diskCount !== 1 ? 's' : ''}
                         </div>
                       </td>
                       <td className="px-5 py-4 align-top">
-                        <div className="min-w-[10rem] space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{device.used} GB de {device.capacity} GB</span>
-                            <span className={cn('font-semibold', DISK_USAGE_TIER_TEXT_CLASS[tier])}>{device.usagePercent}%</span>
-                          </div>
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                            <div
-                              className={cn('h-full rounded-full', DISK_USAGE_TIER_BAR_CLASS[tier])}
-                              style={{ width: `${Math.min(device.usagePercent, 100)}%` }}
-                            />
-                          </div>
+                        <div className="min-w-[10rem] space-y-2">
+                          {device.diskUsages.map((disk, index) => {
+                            const tier = getDiskUsageTier(disk.usagePercent)
+                            const label = disk.unidade ?? `Disco ${index + 1}`
+                            return (
+                              <div key={`${device.id}-disk-${index}`} className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-muted-foreground">
+                                    {label}: {disk.usedGb} GB de {disk.capacidadeGb} GB
+                                  </span>
+                                  <span className={cn('font-semibold', DISK_USAGE_TIER_TEXT_CLASS[tier])}>{disk.usagePercent}%</span>
+                                </div>
+                                <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                                  <div
+                                    className={cn('h-full rounded-full', DISK_USAGE_TIER_BAR_CLASS[tier])}
+                                    style={{ width: `${Math.min(disk.usagePercent, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </td>
                       <td className="px-5 py-4 align-top">

@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import type { AuditLogListItem } from '@/lib/audit-log'
+import { cn } from '@/lib/utils'
+import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
 
 type AuditLogTableProps = {
   logs: AuditLogListItem[]
@@ -99,7 +101,7 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
                     : null
 
                 return (
-                  <tr key={log.id} className="border-b last:border-0 align-top hover:bg-muted/20">
+                  <tr key={log.id} className={cn('border-b last:border-0 align-top', STATIC_ROW_HOVER_CLASS)}>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={getActionTone(log.action)}>
