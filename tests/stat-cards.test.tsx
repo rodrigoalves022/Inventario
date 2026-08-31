@@ -23,9 +23,9 @@ describe('StatsGrid — card "Total de Máquinas" é um link único para a lista
         online={10}
         offline={1}
         warning={1}
-        assetsPath="/tenant/cliente-a/assets"
-        computersPath="/tenant/cliente-a/computers"
-        serversPath="/tenant/cliente-a/servers"
+        assetsPath="/app/cliente-a/assets"
+        computersPath="/app/cliente-a/computers"
+        serversPath="/app/cliente-a/servers"
       />
     )
 
@@ -47,14 +47,14 @@ describe('StatsGrid — card "Total de Máquinas" é um link único para a lista
         online={10}
         offline={1}
         warning={1}
-        assetsPath="/tenant/cliente-a/assets"
-        computersPath="/tenant/cliente-a/computers"
-        serversPath="/tenant/cliente-a/servers"
+        assetsPath="/app/cliente-a/assets"
+        computersPath="/app/cliente-a/computers"
+        serversPath="/app/cliente-a/servers"
       />
     )
 
     const link = screen.getByText('Total de Máquinas').closest('a')
-    expect(link?.getAttribute('href')).toBe('/tenant/cliente-a/assets')
+    expect(link?.getAttribute('href')).toBe('/app/cliente-a/assets')
   })
 
   it('sem <a> aninhado dentro de outro <a> no DOM renderizado', () => {
@@ -67,9 +67,9 @@ describe('StatsGrid — card "Total de Máquinas" é um link único para a lista
         online={10}
         offline={1}
         warning={1}
-        assetsPath="/tenant/cliente-a/assets"
-        computersPath="/tenant/cliente-a/computers"
-        serversPath="/tenant/cliente-a/servers"
+        assetsPath="/app/cliente-a/assets"
+        computersPath="/app/cliente-a/computers"
+        serversPath="/app/cliente-a/servers"
       />
     )
 
@@ -103,13 +103,13 @@ describe('StatsGrid — card "Total de Máquinas" é um link único para a lista
         online={10}
         offline={1}
         warning={1}
-        assetsPath="/tenant/cliente-a/assets"
-        computersPath="/tenant/cliente-a/computers"
-        serversPath="/tenant/cliente-a/servers"
+        assetsPath="/app/cliente-a/assets"
+        computersPath="/app/cliente-a/computers"
+        serversPath="/app/cliente-a/servers"
       />
     )
 
     const serversLink = screen.getByText('Servidores').closest('a')
-    expect(serversLink?.getAttribute('href')).toBe('/tenant/cliente-a/servers')
+    expect(serversLink?.getAttribute('href')).toBe('/app/cliente-a/servers')
   })
 })

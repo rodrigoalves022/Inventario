@@ -23,7 +23,7 @@ const devices: TenantComputerRow[] = [
     lastCollectionAt: new Date().toISOString(),
     effectiveStatus: 'online',
     issues: [],
-    detailsPath: '/tenant/cliente-a/assets/d1',
+    detailsPath: '/app/cliente-a/assets/d1',
   },
 ]
 
@@ -40,7 +40,7 @@ describe('TenantComputersTable — linha inteira clicavel, nao so o hostname (co
 
     fireEvent.click(table.getByText('10.0.0.5'))
 
-    expect(pushMock).toHaveBeenCalledWith('/tenant/cliente-a/assets/d1')
+    expect(pushMock).toHaveBeenCalledWith('/app/cliente-a/assets/d1')
   })
 
   it('Enter com foco na linha tambem navega (acessibilidade de teclado)', () => {
@@ -50,7 +50,7 @@ describe('TenantComputersTable — linha inteira clicavel, nao so o hostname (co
     const row = table.getByText('10.0.0.5').closest('tr')
     fireEvent.keyDown(row as HTMLElement, { key: 'Enter' })
 
-    expect(pushMock).toHaveBeenCalledWith('/tenant/cliente-a/assets/d1')
+    expect(pushMock).toHaveBeenCalledWith('/app/cliente-a/assets/d1')
   })
 
   it('a linha da tabela desktop tem role="button" e e alcancavel via tab (tabIndex 0)', () => {
@@ -69,7 +69,7 @@ describe('TenantComputersTable — linha inteira clicavel, nao so o hostname (co
 
     const link = table.getByText('PC-01').closest('a')
 
-    expect(link?.getAttribute('href')).toBe('/tenant/cliente-a/assets/d1')
+    expect(link?.getAttribute('href')).toBe('/app/cliente-a/assets/d1')
   })
 })
 
@@ -82,7 +82,7 @@ describe('TenantComputersTable — linha inteira clicavel, nao so o hostname (co
 describe('TenantComputersTable — coluna "Tipo" da listagem unificada (showTypeColumn)', () => {
   const mixedDevices: TenantComputerRow[] = [
     { ...devices[0], id: 'd1', hostname: 'PC-01', sistema: 'Windows 11' },
-    { ...devices[0], id: 'd2', hostname: 'SRV-01', sistema: 'Windows Server 2019', detailsPath: '/tenant/cliente-a/assets/d2' },
+    { ...devices[0], id: 'd2', hostname: 'SRV-01', sistema: 'Windows Server 2019', detailsPath: '/app/cliente-a/assets/d2' },
   ]
 
   it('sem showTypeColumn, a coluna "Tipo" não aparece', () => {

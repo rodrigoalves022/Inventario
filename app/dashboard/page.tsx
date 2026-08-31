@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
+import { getTenantBasePath } from '@/lib/tenant-links'
 
 /**
  * Ponto de entrada pos-login: encaminha cada papel para a sua superficie.
@@ -21,7 +22,7 @@ export default async function DashboardRedirectPage() {
   if (isDev) console.log(`[DashboardRedirect] Role: ${role}, Org: ${organizationId}, Client: ${clientId}`)
 
   if (role === 'PLATFORM_ADMIN') {
-    redirect('/clients')
+    redirect('/admin/clients')
   }
 
   // O portal deriva o cliente da sessao, entao nao precisa de slug na URL.
@@ -48,5 +49,5 @@ export default async function DashboardRedirectPage() {
     redirect('/login?error=tenant-not-found')
   }
 
-  redirect(`/tenant/${client.slug}`)
+  redirect(getTenantBasePath(client.slug))
 }

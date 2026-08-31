@@ -7,7 +7,7 @@ const replaceMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock }),
-  usePathname: () => '/tenant/cliente-a/storage',
+  usePathname: () => '/app/cliente-a/storage',
 }))
 
 const devices: TenantStorageRow[] = [
@@ -18,7 +18,7 @@ const devices: TenantStorageRow[] = [
     disks: [{ unidade: 'C:', tipo: 'SSD', capacidadeGb: 100, usedGb: 90 }], // 90% -> critical
     types: ['SSD'],
     presence: 'offline',
-    detailsPath: '/tenant/cliente-a/assets/d1',
+    detailsPath: '/app/cliente-a/assets/d1',
   },
   {
     id: 'd2',
@@ -27,7 +27,7 @@ const devices: TenantStorageRow[] = [
     disks: [{ unidade: 'C:', tipo: 'HDD', capacidadeGb: 100, usedGb: 20 }], // 20% -> ok
     types: ['HDD'],
     presence: 'online',
-    detailsPath: '/tenant/cliente-a/assets/d2',
+    detailsPath: '/app/cliente-a/assets/d2',
   },
   {
     id: 'd3',
@@ -39,7 +39,7 @@ const devices: TenantStorageRow[] = [
     ],
     types: ['SSD', 'HDD'],
     presence: 'online',
-    detailsPath: '/tenant/cliente-a/assets/d3',
+    detailsPath: '/app/cliente-a/assets/d3',
   },
 ]
 
@@ -61,7 +61,7 @@ describe('TenantStorageTable — badge de presenca e filtros (RN010, item 7)', (
     expect(screen.getByText('PC-CRITICO')).toBeTruthy()
     expect(screen.getByText('SRV-VS')).toBeTruthy()
     expect(screen.queryByText('PC-OK')).toBeNull()
-    expect(replaceMock).toHaveBeenCalledWith('/tenant/cliente-a/storage?tipo=SSD')
+    expect(replaceMock).toHaveBeenCalledWith('/app/cliente-a/storage?tipo=SSD')
   })
 
   it('filtro por faixa de uso "critical" mostra so devices com pelo menos um disco acima de 80%', () => {
@@ -74,7 +74,7 @@ describe('TenantStorageTable — badge de presenca e filtros (RN010, item 7)', (
     // PIOR disco, entao aparece no filtro "critical" mesmo com um disco ok.
     expect(screen.getByText('SRV-VS')).toBeTruthy()
     expect(screen.queryByText('PC-OK')).toBeNull()
-    expect(replaceMock).toHaveBeenCalledWith('/tenant/cliente-a/storage?faixa=critical')
+    expect(replaceMock).toHaveBeenCalledWith('/app/cliente-a/storage?faixa=critical')
   })
 
   it('filtro por faixa de uso "ok" nao mostra devices com qualquer disco critico', () => {
@@ -108,6 +108,6 @@ describe('TenantStorageTable — badge de presenca e filtros (RN010, item 7)', (
   it('hostname e um link clicavel para /assets/[id]', () => {
     render(<TenantStorageTable devices={devices} />)
     const link = screen.getByText('PC-CRITICO').closest('a')
-    expect(link?.getAttribute('href')).toBe('/tenant/cliente-a/assets/d1')
+    expect(link?.getAttribute('href')).toBe('/app/cliente-a/assets/d1')
   })
 })

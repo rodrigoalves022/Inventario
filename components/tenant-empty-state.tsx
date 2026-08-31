@@ -5,7 +5,7 @@ import { Download, Loader2, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AgentInstallPackage } from '@/components/agent-install-package'
-import type { ProvisioningCredentialsResponse } from '@/app/clients/types'
+import type { ProvisioningCredentialsResponse } from '@/app/admin/clients/types'
 
 type CredentialsState =
   | { status: 'idle' }

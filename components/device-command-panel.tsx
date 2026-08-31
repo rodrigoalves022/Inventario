@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   enqueueDeviceCommandAction,
   type EnqueueCommandActionState,
-} from '@/app/tenant/[clientSlug]/assets/[id]/actions'
+} from '@/app/app/[clientSlug]/assets/[id]/actions'
 import {
   RESTARTABLE_SERVICES,
   RESTARTABLE_SERVICE_LABELS,

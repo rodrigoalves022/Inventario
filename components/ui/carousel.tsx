@@ -58,14 +58,34 @@ function Carousel({
     },
     plugins,
   )
-  const [canScrollPrev, setCanScrollPrev] = React.useState(false)
-  const [canScrollNext, setCanScrollNext] = React.useState(false)
-
-  const onSelect = React.useCallback((api: CarouselApi) => {
-    if (!api) return
-    setCanScrollPrev(api.canScrollPrev())
-    setCanScrollNext(api.canScrollNext())
-  }, [])
+  // `canScrollPrev`/`canScrollNext` sincronizavam via `useState` + efeito que
+  // chamava o setState direto no corpo do efeito (sinalizado pelo lint de
+  // pureza do React Compiler como causa de re-render em cascata).
+  // `useSyncExternalStore` e o hook feito para exatamente este caso —
+  // assinar um sistema externo mutavel (a API imperativa do embla-carousel)
+  // sem esse padrao de efeito+setState.
+  const subscribeToApi = React.useCallback(
+    (onStoreChange: () => void) => {
+      if (!api) return () => {}
+      api.on('reInit', onStoreChange)
+      api.on('select', onStoreChange)
+      return () => {
+        api.off('reInit', onStoreChange)
+        api.off('select', onStoreChange)
+      }
+    },
+    [api],
+  )
+  const canScrollPrev = React.useSyncExternalStore(
+    subscribeToApi,
+    () => api?.canScrollPrev() ?? false,
+    () => false,
+  )
+  const canScrollNext = React.useSyncExternalStore(
+    subscribeToApi,
+    () => api?.canScrollNext() ?? false,
+    () => false,
+  )
 
   const scrollPrev = React.useCallback(() => {
     api?.scrollPrev()
@@ -92,17 +112,6 @@ function Carousel({
     if (!api || !setApi) return
     setApi(api)
   }, [api, setApi])
-
-  React.useEffect(() => {
-    if (!api) return
-    onSelect(api)
-    api.on('reInit', onSelect)
-    api.on('select', onSelect)
-
-    return () => {
-      api?.off('select', onSelect)
-    }
-  }, [api, onSelect])
 
   return (
     <CarouselContext.Provider

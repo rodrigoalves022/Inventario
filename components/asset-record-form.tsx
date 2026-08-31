@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   saveAssetRecordAction,
   type AssetRecordActionState,
-} from '@/app/tenant/[clientSlug]/assets/[id]/actions'
+} from '@/app/app/[clientSlug]/assets/[id]/actions'
 
 const initialState: AssetRecordActionState = { status: 'idle', message: null }
 

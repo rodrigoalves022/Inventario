@@ -45,7 +45,7 @@ export type TenantDeviceRow = {
  * alerta), menor espaco livre em disco e status efetivo (RN010), calculados
  * do mesmo jeito em qualquer tela que liste dispositivos do tenant.
  *
- * Extraido de `app/tenant/[clientSlug]/computers/page.tsx` (Sprint de
+ * Extraido de `app/app/[clientSlug]/computers/page.tsx` (Sprint de
  * unificacao de dispositivos) para dar paridade real — nao so visual — aos
  * servidores quando aparecem na listagem unificada de `/assets`, que antes so
  * existia para computadores.

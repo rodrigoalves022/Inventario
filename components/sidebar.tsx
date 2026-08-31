@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { signOut } from 'next-auth/react'
 import type { AppRole } from '@/lib/permissions'
 import { getPermissionUser, isOrgAdmin, isOrgOperator, isPlatformAdmin } from '@/lib/permissions'
@@ -220,17 +220,22 @@ export function Sidebar({
 }: {
   tenant?: TenantShellInfo
   user?: SidebarUser
-  /** So passado quando o papel pode trocar de cliente (ver app/tenant/[clientSlug]/layout.tsx). */
+  /** So passado quando o papel pode trocar de cliente (ver app/app/[clientSlug]/layout.tsx). */
   switchableClients?: SwitchableClient[]
 }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Fecha o drawer mobile a cada navegacao — sem isso o menu ficaria aberto
-  // por cima da tela seguinte depois de tocar num link.
-  useEffect(() => {
+  // por cima da tela seguinte depois de tocar num link. Ajuste de estado
+  // durante o render (em vez de um useEffect) e o padrao recomendado pelo
+  // React para "resetar estado quando uma prop muda"; evita o
+  // re-render em cascata de um setState sincrono dentro de efeito.
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname)
     setMobileOpen(false)
-  }, [pathname])
+  }
 
   const permissionUser = getPermissionUser({ role: user?.role ?? null })
 
@@ -270,10 +275,10 @@ export function Sidebar({
 
   const account: NavigationItem[] = canSeeAccountArea
     ? [
-        { name: 'Clientes', href: '/clients', icon: Building2, exact: true },
+        { name: 'Clientes', href: '/admin/clients', icon: Building2, exact: true },
         ...(platformAdmin
           ? [
-              { name: 'Auditoria global', href: '/clients/audit', icon: ClipboardList, exact: true },
+              { name: 'Auditoria global', href: '/admin/clients/audit', icon: ClipboardList, exact: true },
               { name: 'Usuários', href: '/users', icon: Users, exact: true },
               { name: 'Segurança', href: '/security', icon: Shield, exact: true },
             ]
@@ -337,7 +342,7 @@ export function Sidebar({
                 </p>
                 {canSeeAccountArea && (
                   <Link
-                    href="/clients"
+                    href="/admin/clients"
                     className="mt-1 inline-block text-xs text-muted-foreground underline-offset-4 hover:text-sidebar-foreground hover:underline"
                   >
                     Trocar cliente
@@ -400,9 +405,9 @@ export function Sidebar({
 
 function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
   if (!tenant) {
-    if (pathname.startsWith('/clients/audit')) return 'Auditoria global'
-    if (pathname.startsWith('/clients/novo')) return 'Novo cliente'
-    if (pathname.startsWith('/clients')) return 'Clientes'
+    if (pathname.startsWith('/admin/clients/audit')) return 'Auditoria global'
+    if (pathname.startsWith('/admin/clients/novo')) return 'Novo cliente'
+    if (pathname.startsWith('/admin/clients')) return 'Clientes'
     if (pathname.startsWith('/users')) return 'Usuários'
     if (pathname.startsWith('/security')) return 'Segurança'
     return 'Painel'
@@ -430,6 +435,25 @@ function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
   )
 }
 
+/**
+ * Fora do componente de proposito (ver comentario de `now` abaixo): assim o
+ * `Date.now()` de fallback nao e mais uma chamada impura "durante o render"
+ * aos olhos do lint de pureza do React Compiler — `now` deixou de ser
+ * capturado por closure e passou a parametro explicito.
+ */
+function formatRelative(iso: string | null | undefined, now?: string): string {
+  if (!iso) return 'sem coletas'
+  const reference = now ? new Date(now).getTime() : Date.now()
+  const diffMs = reference - new Date(iso).getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'agora mesmo'
+  if (mins < 60) return `há ${mins} min`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `há ${hrs}h`
+  const days = Math.floor(hrs / 24)
+  return `há ${days} dia${days > 1 ? 's' : ''}`
+}
+
 export function Header({
   tenant,
   lastCollectionAt,
@@ -439,7 +463,7 @@ export function Header({
   lastCollectionAt?: string | null
   /**
    * Timestamp de referencia calculado pelo Server Component chamador (ver
-   * `app/tenant/[clientSlug]/layout.tsx`) e passado como prop serializada.
+   * `app/app/[clientSlug]/layout.tsx`) e passado como prop serializada.
    *
    * Header comeca com 'use client', mas como todo componente client ele e
    * renderizado no servidor (SSR) e depois hidratado no browser. Antes,
@@ -466,19 +490,6 @@ export function Header({
   const pathname = usePathname()
   const title = getHeaderTitle(pathname, tenant)
 
-  function formatRelative(iso: string | null | undefined): string {
-    if (!iso) return 'sem coletas'
-    const reference = now ? new Date(now).getTime() : Date.now()
-    const diffMs = reference - new Date(iso).getTime()
-    const mins = Math.floor(diffMs / 60000)
-    if (mins < 1) return 'agora mesmo'
-    if (mins < 60) return `há ${mins} min`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `há ${hrs}h`
-    const days = Math.floor(hrs / 24)
-    return `há ${days} dia${days > 1 ? 's' : ''}`
-  }
-
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 pl-16 pr-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
       <div>
@@ -488,7 +499,7 @@ export function Header({
 
       {tenant && (
         <p className="text-sm text-muted-foreground">
-          Última coleta: <span className="text-foreground">{formatRelative(lastCollectionAt)}</span>
+          Última coleta: <span className="text-foreground">{formatRelative(lastCollectionAt, now)}</span>
         </p>
       )}
     </header>

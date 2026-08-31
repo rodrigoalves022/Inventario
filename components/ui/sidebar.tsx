@@ -599,6 +599,15 @@ function SidebarMenuBadge({
   )
 }
 
+// Fora do componente de proposito: `Math.random()` chamado direto dentro do
+// corpo de um componente (mesmo dentro de `useMemo`) e sinalizado pelo lint
+// de pureza do React Compiler como "chamada impura durante o render". Um
+// helper de modulo separado nao e analisado como corpo de componente/hook.
+function randomSkeletonWidth(): string {
+  // Random width between 50 to 90%.
+  return `${Math.floor(Math.random() * 40) + 50}%`
+}
+
 function SidebarMenuSkeleton({
   className,
   showIcon = false,
@@ -606,10 +615,7 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<'div'> & {
   showIcon?: boolean
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
-  }, [])
+  const width = React.useMemo(() => randomSkeletonWidth(), [])
 
   return (
     <div

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Checkbox } from '@/components/ui/checkbox'
-import { saveTenantAlertSettingsAction, type AlertSettingsActionState } from '@/app/tenant/[clientSlug]/computers/actions'
+import { saveTenantAlertSettingsAction, type AlertSettingsActionState } from '@/app/app/[clientSlug]/computers/actions'
 import type { InventoryAlertSettings } from '@/lib/inventory-alerts'
 
 // Objeto simples, nao pode viver no arquivo "use server" de actions.ts: esse

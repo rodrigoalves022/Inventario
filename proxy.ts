@@ -22,6 +22,26 @@ export default auth((req) => {
   const isAuthenticated = !!req.auth
   const session = req.auth
 
+  // Redirects 308 (Permanent Redirect) das rotas antigas, anteriores a Sprint 5,
+  // para os novos prefixos — preserva sub-caminho e querystring. Ficam antes de
+  // qualquer checagem de autenticacao/autorizacao: uma URL antiga nao deve nem
+  // chegar a expor se o usuario esta logado ou se o recurso existe, so
+  // redirecionar; o pipeline de auth roda de novo na requisicao seguinte, ja
+  // sob o path novo.
+  if (nextUrl.pathname === "/tenant" || nextUrl.pathname.startsWith("/tenant/")) {
+    const rest = nextUrl.pathname.slice("/tenant".length)
+    const target = new URL(`/app${rest}`, nextUrl)
+    target.search = nextUrl.search
+    return NextResponse.redirect(target, 308)
+  }
+
+  if (nextUrl.pathname === "/clients" || nextUrl.pathname.startsWith("/clients/")) {
+    const rest = nextUrl.pathname.slice("/clients".length)
+    const target = new URL(`/admin/clients${rest}`, nextUrl)
+    target.search = nextUrl.search
+    return NextResponse.redirect(target, 308)
+  }
+
   const isPublicRoute = publicRoutes.some(
     (route) => nextUrl.pathname === route || nextUrl.pathname.startsWith(`${route}/`)
   )
@@ -37,7 +57,7 @@ export default auth((req) => {
   }
 
   // O portal e superficie exclusiva do cliente. Operadores e admins de conta
-  // trabalham em /tenant/[slug]; deixa-los entrar aqui so criaria uma segunda
+  // trabalham em /app/[slug]; deixa-los entrar aqui so criaria uma segunda
   // rota para os mesmos dados, com regras diferentes.
   if (isAuthenticated && nextUrl.pathname.startsWith("/portal")) {
     if (!isClientViewer(getPermissionUser(session?.user))) {
@@ -48,9 +68,9 @@ export default auth((req) => {
   // Portao GROSSEIRO de tenant. O proxy roda antes do render e nao tem banco, entao
   // nao consegue saber qual Organization e dona do slug. A autorizacao definitiva
   // acontece em `requireTenantContext`, chamado por toda pagina de tenant.
-  if (isAuthenticated && nextUrl.pathname.startsWith("/tenant/")) {
+  if (isAuthenticated && nextUrl.pathname.startsWith("/app/")) {
     const segments = nextUrl.pathname.split("/")
-    const targetSlug = segments[2] // /tenant/[targetSlug]/...
+    const targetSlug = segments[2] // /app/[targetSlug]/...
     const user = getPermissionUser(session?.user)
 
     if (!canPossiblyAccessTenantSlug(user, targetSlug)) {
@@ -62,8 +82,8 @@ export default auth((req) => {
   // Area de conta: gerir clientes e usuarios. ORG_ADMIN entra, mas so enxerga a
   // propria organizacao — o filtro por organizationId e aplicado nas paginas.
   const isAccountArea =
-    nextUrl.pathname === "/clients" ||
-    nextUrl.pathname.startsWith("/clients/") ||
+    nextUrl.pathname === "/admin/clients" ||
+    nextUrl.pathname.startsWith("/admin/clients/") ||
     nextUrl.pathname.startsWith("/api/clients") ||
     nextUrl.pathname === "/users"
 

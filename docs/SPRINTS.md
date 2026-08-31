@@ -2,16 +2,18 @@
 
 Status: canonical
 Scope: permanent
-Last-reviewed: 2026-08-28
+Last-reviewed: 2026-08-31
 
 > Sprints 1–4 e 6–8 são **histórico**: descrevem o que já aconteceu, com evidência de commit
 > (`git log`) ou, no caso das Sprints 4 e 6–8, evidência de verificação independente da sessão
 > principal registrada na própria seção. Reconstruídas a partir do [`PRODUTO.md`](./PRODUTO.md) §8
 > (plano de execução) e do [`PRODUCT.md`](./PRODUCT.md). Não são planejadas retroativamente —
 > documentadas aqui só para dar ao [`sprint-planner`](../.claude/agents/sprint-planner.md) um
-> formato de referência e uma noção real de velocidade do time. Sprint 5 está **adiada** (decisão
-> explícita do usuário em 2026-08-24 — ver nota na própria seção); a decisão de retomá-la agora que
-> a Sprint 8 está concluída cabe ao usuário. Itens novos entram neste documento só depois de passar
+> formato de referência e uma noção real de velocidade do time. Sprint 5 estava **adiada** (decisão
+> explícita do usuário em 2026-08-24, retomar só depois da Sprint 8); com a Sprint 8 concluída, o
+> usuário reativou a Sprint 5 explicitamente em 2026-08-31 com escopo técnico literal — ver nota de
+> reativação na própria seção. Está **planejada, pronta para execução**, aguardando acionamento do
+> `implementation-agent` pelo usuário. Itens novos entram neste documento só depois de passar
 > pelos agentes auditores relevantes e serem aprovados pelo usuário — ver
 > [`DEFINITION_OF_DONE.md`](./DEFINITION_OF_DONE.md). Nota: os itens da Sprint 6 (concluída) vieram
 > de achados já registrados em sessões anteriores (não de uma rodada nova dos 5 auditores) — ver a
@@ -456,105 +458,215 @@ candidato a item de sprint futura.
 
 ## Sprint 5 — Consolidação de Rotas
 
-**Status**: 📋 Adiada (decisão explícita do usuário em 2026-08-24 — retomar só depois da Sprint 8)
-**Objetivo**: Consolidar o nome das rotas administrativas e operacionais sob a hierarquia real
-(`Organization`/`Client`), cobrir a mudança com testes automatizados, e ativar lint real sobre o
-código de aplicação.
+**Status**: 🟢 Concluída (2026-08-31). Executada pelo `implementation-agent` e verificada de forma
+independente pela sessão principal (não só pelo autorrelato do agente): `npx tsc --noEmit` limpo,
+`npm run lint` limpo (regra real, `eslint-config-next` — confirmado não-vazio: 7 erros
+`react-hooks` medidos antes da execução e corrigidos), `npm run build` com `/admin/clients*` e
+`/app/[clientSlug]*` como as únicas rotas reais (nenhum `/tenant`/`/clients` residual), `npm run
+test` com **132/132** passando (20 arquivos). Varredura própria (`grep` sobre `app`/`components`/
+`lib`/`tests`) confirmou zero referência hardcoded a `/tenant/`/`/clients` fora de
+`tests/route-rename.test.ts` (que precisa delas de propósito, para testar o redirect). `proxy.ts`
+lido linha a linha: os dois blocos de redirect 308 rodam antes de qualquer checagem de
+autenticação/autorização (uma URL antiga não revela estado de sessão), preservam sub-caminho e
+querystring, e a lógica de guard (`canPossiblyAccessTenantSlug`, área de conta) foi preservada
+intacta — só os prefixos mudaram, confirmado contra o que o `security-auditor` already validou na
+Parte 1. Resumo por item (relato completo do `implementation-agent`, verificado):
+- **Item 1** — 25 arquivos movidos via `git mv` (histórico preservado), `lib/tenant-links.ts` e os
+  11 literais `PageProps<'/tenant/[clientSlug]'>` atualizados. Achado além do mapa original: mais 8
+  arquivos com import TypeScript apontando para `@/app/tenant/...`/`@/app/clients/types` (não eram
+  strings de href, por isso o grep original não pegou) — corrigidos, teriam quebrado o build.
+- **Item 2** — 7 arquivos movidos, `proxy.ts`/`sidebar.tsx` atualizados.
+- **Item 3** — `eslint-config-next@16.3.3` instalado de verdade (`--save-dev`); achado importante:
+  `npm run lint` nunca apontava de fato para `app`/`components`/`lib` (só `scripts/verification` e
+  o próprio config) — só remover o `ignores` teria produzido um "lint limpo" vazio, sem checar
+  nada. Corrigido `scripts/verification/run-lint.mjs` para apontar de verdade; os 7 erros reais
+  medidos antes da execução foram corrigidos.
+- **Item 4** — `tests/route-rename.test.ts` (18 testes) + 13 arquivos de teste existentes
+  adaptados. Verificação real de login (4 papéis, via curl contra servidor de produção local)
+  confirmando guard de `/app/`/`/admin/clients` por papel.
+**Objetivo**: Consolidar o nome das rotas operacionais e administrativas sob a hierarquia real
+(`Organization`/`Client`) — `/tenant/[clientSlug]/*` → `/app/[clientSlug]/*` e `/clients` →
+`/admin/clients` —, com redirecionamento 308 das URLs antigas, cobertura de teste automatizada, e
+ativação de lint real sobre `app/**`/`components/**`/`lib/**`.
 
-**Nota de adiamento (2026-08-24)**: decisão explícita do usuário, direta em conversa — "Não
-executar Sprint 05 agora. O churn de ~12 páginas e todas as URLs internas tem risco alto de
-regressão e zero ganho funcional." O escopo abaixo (itens 1–4) permanece documentado e inalterado;
-nada foi implementado, nenhum critério de aceite foi marcado. Esta sprint só volta a ser candidata
-a execução depois da Sprint 8 — a próxima sprint do backlog com ganho funcional real para o
-usuário. Isso formaliza, com data e decisão explícita, o que já estava implícito desde
-`docs/PRODUTO.md` §8 (item A3): um rename puro de rota, sem mudança de comportamento, é o tipo de
-trabalho que deve ficar "sempre por último" na fila em relação a itens com ganho funcional
-imediato.
+**Nota de reativação (2026-08-31)**: esta sprint estava 📋 Adiada desde 2026-08-24 ("retomar só
+depois da Sprint 8"). A Sprint 8 está concluída (commit `be59517`) e o usuário reativou a Sprint 5
+explicitamente nesta rodada, com um escopo técnico literal e mais detalhado que o rascunho
+anterior — em particular fixando a decisão de URL antiga como **redirect 308 (Permanent
+Redirect)**, não mais uma "decisão pendente" entre 404/redirect como o rascunho anterior deixava
+em aberto. Esta revisão **substitui integralmente** o conteúdo anterior da seção, reconfirmando
+contra o estado real do código (não uma cópia do pedido do usuário sem checagem) — ver "Achados
+desta revisão" logo abaixo. Onde o pedido literal do usuário e um achado desta revisão divergem
+(ex.: volume real de arquivos, arquivos com path hardcoded fora do helper), isso está registrado
+explicitamente item a item, não silenciado.
 
 **Nota sobre o pedido de migração `middleware.ts` → `proxy.ts`**: essa migração **já está
 concluída** desde a Sprint 4 — `middleware.ts` foi renomeado para `proxy.ts` (`git mv`), a função
 exportada já era `export default auth(...)` (não precisou renomear função), e `npm run build`
 confirma `ƒ Proxy (Middleware)` sem aviso de depreciação (ver "Escopo já entregue" da Sprint 4).
 **Não é item desta sprint** — citada aqui só para não ser reaberta por engano numa futura revisão
-deste documento. O que esta sprint faz mexer em `proxy.ts` é outra coisa: os guards internos que
-comparam `nextUrl.pathname` por string literal (`/tenant/`, `/clients`) precisam acompanhar o
-rename das páginas — ver item 1 e item 2 abaixo.
+deste documento. O que esta sprint faz mexer em `proxy.ts` é outra coisa: os guards/matchers
+internos que comparam `nextUrl.pathname` por string literal (`/tenant/`, `/clients`) precisam
+acompanhar o rename das páginas, mais o redirect 308 novo — ver item 1 e item 2 abaixo.
+
+**Achados desta revisão (2026-08-31), antes de escrever os critérios de aceite**:
+- **Volume real de arquivos cresceu desde o rascunho anterior desta sprint**: `app/tenant/[clientSlug]/**`
+  tem hoje **25 arquivos** (confirmado por listagem direta), não os "9 `loading.tsx` + páginas"
+  descritos vagamente antes — a rota `assets/` (`assets/page.tsx`, `assets/loading.tsx`,
+  `assets/[id]/page.tsx`, `assets/[id]/actions.ts`) é nova desde o rascunho original e precisa
+  entrar no escopo do rename. `app/clients/**` continua com **7 arquivos**
+  (`page.tsx`, `types.ts`, `actions.ts`, `clients-panel.tsx`, `novo/page.tsx`,
+  `novo/new-client-wizard.tsx`, `audit/page.tsx`) — sem mudança desde o rascunho anterior.
+- **`lib/tenant-links.ts` é hoje só 9 linhas** (`getTenantBasePath`/`getTenantPath`, hardcoded para
+  `` `/tenant/${clientSlug}` ``) e já é importado por **16 arquivos** — a maior parte do código já
+  passa por esse ponto único, confirmando que atualizá-lo primeiro propaga a maior parte do rename
+  automaticamente, como o rascunho anterior já apontava.
+- **Risco novo, não registrado no rascunho anterior**: nem todo lugar que monta um path de tenant
+  passa pelo helper. Busca direta por `` `/tenant/${...}` `` fora de `lib/tenant-links.ts` encontrou
+  **8 ocorrências em 7 arquivos** que constroem a string manualmente e vão quebrar silenciosamente
+  se só os diretórios forem renomeados sem tocar neles:
+  - `components/audit-log-table.tsx:99` — `` `/tenant/${log.clientSlug}/assets/${log.targetId}` ``
+  - `app/dashboard/page.tsx:51` — `` redirect(`/tenant/${client.slug}`) ``
+  - `app/clients/novo/new-client-wizard.tsx:199` — `` <Link href={`/tenant/${pkg.clientSlug}`}> ``
+  - `app/clients/clients-panel.tsx:358` — `` <Link href={`/tenant/${client.slug}`}> ``
+  - `app/tenant/[clientSlug]/assets/[id]/actions.ts:241` — `` revalidatePath(`/tenant/${tenantSlug}/assets/${deviceId}`) ``
+  - `app/tenant/[clientSlug]/alerts/actions.ts:60,93,148` — 3× `` revalidatePath(`/tenant/${parsed.data.tenantSlug}/alerts`) ``
+  - `app/tenant/[clientSlug]/computers/actions.ts:86-87` — `` revalidatePath(`/tenant/${parsed.data.tenantSlug}/computers`) `` e a variante sem segmento
+  Estes 7 arquivos precisam ser migrados para `getTenantBasePath`/`getTenantPath` **como parte do
+  item 1**, não só ter o texto substituído por busca-e-substituição — ver critério de aceite
+  dedicado no item 1.
+- **Risco novo, específico de `/clients`**: `components/sidebar.tsx:403-405` compara
+  `pathname.startsWith('/clients/audit')`/`'/clients/novo'`/`'/clients'` por string literal para
+  decidir o título exibido no cabeçalho — não usa nenhum helper (não existe um `getAdminPath`
+  hoje). Precisa acompanhar o rename do item 2 ou o título da área administrativa para de
+  atualizar silenciosamente.
+- **Risco novo, tipagem de rotas do Next.js**: as páginas movidas usam o gerador de tipos de rota
+  do Next (`PageProps<'/tenant/[clientSlug]'>`, `LayoutProps<'/tenant/[clientSlug]'>` — confirmado
+  em 11 arquivos: `layout.tsx` e os `page.tsx` de raiz, `computers`, `servers`, `storage`,
+  `processors`, `network`, `alerts`, `reports`, `assets`, `assets/[id]`). Esses literais de tipo
+  precisam ser atualizados manualmente para `'/app/[clientSlug]'`/`'/app/[clientSlug]/assets/[id]'`
+  junto com o `git mv` do diretório — se ficarem desatualizados, `npx tsc --noEmit` falha (o
+  gerador de tipos do Next valida esses literais contra a árvore de pastas real), o que pelo menos
+  garante que o erro não passa despercebido, mas é trabalho manual a mais que o rascunho anterior
+  não citava.
+- **Teste com blast radius maior que o citado antes**: busca por `/tenant/` ou `/clients` dentro de
+  `tests/` encontra **13 arquivos de teste** que hoje hardcodeiam esses paths em mocks/asserts —
+  não os 4 citados no rascunho anterior (`tenant-processors-table`, `tenant-storage-table`,
+  `rotate-enrollment-key`, `credentials-route`). Lista completa:
+  `tests/tenant-storage-table.test.tsx`, `tests/tenant-processors-table.test.tsx`,
+  `tests/tenant-servers-table.test.tsx`, `tests/tenant-recent-devices-table.test.tsx`,
+  `tests/tenant-computers-table.test.tsx`, `tests/tenant-device-rows.test.ts`,
+  `tests/stat-cards.test.tsx`, `tests/tenant-context.test.ts`,
+  `tests/device-listing-status-parity.test.ts`, `tests/delete-alert-rule.test.ts`,
+  `tests/rotate-enrollment-key.test.ts`, `tests/credentials-route.test.ts`,
+  `tests/revoke-agent-auth.test.ts`.
+- **Baseline real de testes mudou**: a suíte tem hoje **19 arquivos** em `tests/` (não 4, nem os "28
+  testes" citados no rascunho antigo) — o commit mais recente do branch (`5acf610`) registra
+  "111/111 testes". O critério de "sem regressão" desta sprint deve ser lido contra essa baseline
+  real (111+ passando), não contra números de sprints anteriores.
+- **Documentação fora de `docs/PRODUTO.md`/`PRODUCT.md`/`SPEC.md` também referencia os paths
+  antigos**: `CONTEXT.md`, `docs/adr/0004-tenant-isolation-fail-closed.md`, e os arquivos de agente
+  `.claude/agents/security-auditor.md`/`.claude/agents/backend-auditor.md` citam `/tenant/[clientSlug]`
+  como path real. Este planner só tem permissão de escrita sobre `docs/SPRINTS.md` — atualizar os
+  demais fica registrado como consequência necessária do rename, não como tarefa que este plano
+  executa (ver "Fora de escopo" ao final).
+- **Limitação desta rodada de planejamento, registrada com honestidade**: esta sessão do
+  `sprint-planner` não tem acesso a shell/terminal — não foi possível rodar
+  `npx eslint app components lib --max-warnings=0` para medir hoje quantos erros/avisos reais o
+  item 3 (lint) vai revelar. O critério de aceite do item 3 abaixo trata essa medição como o
+  **primeiro passo executável da implementação**, não como algo já estimado por este plano — ver
+  detalhe no item 3.
 
 ### Escopo
 
 | Item | RF/RN relacionado | Caso de uso | Entidade(s) de banco | Origem |
 |---|---|---|---|---|
-| 1. Renomear `/tenant/[clientSlug]/*` → `/app/[clientSlug]/*` | RF018, RF019, RF020, RN003, RNF004 | 3.4, 3.5, 3.6, 3.8 | `Device` e todas as tabelas 1:N/1:1 relacionadas (ver detalhe) | `docs/PRODUTO.md` §8 (A3, pendente desde a Sprint 1) |
-| 2. Renomear `/clients` → `/admin/*` | RF002, RF003 | 3.1, 3.2 | `Client`, `AuditLog` | `docs/PRODUTO.md` §8 (A3, pendente desde a Sprint 1) |
-| 3. Lint real sobre `app/**`, `components/**`, `lib/**` | — (gap de RNF, ver detalhe) | — | — | `implementation-agent`, achado colateral da execução da Sprint 4 (2026-08-20) — **movido da Sprint 6 nesta revisão**, ver nota na Sprint 6 |
-| 4. Testes Vitest cobrindo as rotas reorganizadas | — | — | — | pedido direto do usuário nesta rodada de planejamento, cobertura dos itens 1 e 2 |
+| 1. Renomear `/tenant/[clientSlug]/*` → `/app/[clientSlug]/*`, com `lib/tenant-links.ts` e `proxy.ts` atualizados e redirect 308 da URL antiga | RF018, RF019, RF020, RN003, RNF004 | 3.4, 3.5, 3.6, 3.8 | `Device` e tabelas 1:N/1:1 relacionadas (ver detalhe) | `docs/PRODUTO.md` §8 (A3, pendente desde a Sprint 1); escopo literal do usuário nesta reativação |
+| 2. Renomear `/clients` → `/admin/clients` (mantendo `/api/clients/*` intacto), com `proxy.ts` atualizado e redirect 308 | RF002, RF003 | 3.1, 3.2 | `Client`, `AuditLog` | `docs/PRODUTO.md` §8 (A3, pendente desde a Sprint 1); escopo literal do usuário nesta reativação |
+| 3. Lint real sobre `app/**`, `components/**`, `lib/**` | — (gap de RNF, ver detalhe) | — | — | `implementation-agent`, achado colateral da execução da Sprint 4 (2026-08-20) — movido da Sprint 6 para a Sprint 5 numa revisão anterior; escopo literal do usuário nesta reativação |
+| 4. `tests/route-rename.test.ts` + `tsc`/`lint`/`build`/`test` na verificação final | — | — | — | pedido direto do usuário, cobertura dos itens 1 e 2; escopo literal do usuário nesta reativação |
 
-Ordem de leitura recomendada: 1 e 2 são o rename em si (podem ser feitos em qualquer ordem relativa
-entre si, mas cada um é autocontido); 3 ganha mais valor executado depois de 1/2 (pega erro
-introduzido pelo próprio rename); 4 depende do resultado de 1 e 2 para saber o que testar. Decisão
-final de ordem de execução fica com quem rodar a sprint — não é um critério de bloqueio entre os
-itens.
+**Ordem de execução recomendada dentro da sprint** (pedido explícito do usuário nesta reativação —
+deixa de ser "decisão de quem executa" como no rascunho anterior):
+1. Atualizar `lib/tenant-links.ts` (`getTenantBasePath`/`getTenantPath` → `/app/${slug}`) e os
+   matchers/guards de `proxy.ts` (incluindo o redirect 308), **antes** de mover qualquer diretório —
+   isso deixa o helper e o proxy corretos enquanto as páginas ainda respondem no path antigo,
+   permitindo testar o redirect e o guard isoladamente.
+2. Mover os diretórios (`app/tenant/[clientSlug]/` → `app/app/[clientSlug]/`, `app/clients/` →
+   `app/admin/clients/`), migrando também os 7+1 arquivos com path hardcoded listados nos
+   "Achados desta revisão" para usar o helper.
+3. Rodar a suíte de testes (item 4) contra o resultado dos passos 1-2 — é o momento em que
+   `tests/route-rename.test.ts` e os testes adaptados provam que nada quebrou.
+4. Ativar o lint (item 3) por último — pega qualquer import quebrado ou variável não usada deixada
+   pelos passos 1-2 antes de a sprint ser reportada como concluída, sem misturar o volume inicial
+   de avisos do lint novo com avisos temporários do meio da renomeação.
+5. Verificação final: `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm run test` (111+
+   testes).
 
 #### 1 — Renomear rotas operacionais `/tenant/[clientSlug]/*` → `/app/[clientSlug]/*`
 
 **Objetivo**: Renomear a árvore de páginas operacionais de `/tenant/[clientSlug]/*` para
-`/app/[clientSlug]/*`, alinhando o nome da rota à hierarquia real do sistema (o termo "tenant" é
-herdado do modelo de conta única anterior à Sprint 1 — ver `docs/PRODUTO.md` §8, item A3), sem
-alterar nenhum comportamento de acesso ou dado exibido.
+`/app/[clientSlug]/*`, atualizar `lib/tenant-links.ts` e os matchers de `proxy.ts`, e adicionar
+redirect 308 das URLs antigas para as novas — alinhando o nome da rota à hierarquia real do sistema
+(o termo "tenant" é herdado do modelo de conta única anterior à Sprint 1 — ver `docs/PRODUTO.md`
+§8, item A3), sem alterar nenhum comportamento de acesso ou dado exibido.
 
-**Requisitos**:
-- RF/RN relacionado: RF018 (dashboard por tenant), RF019 (listagens filtráveis), RF020
-  (relatórios), RN003 (isolamento por tenant via `canAccessTenant`), RNF004 (chokepoint de
-  isolamento multi-tenant).
+**Requisitos Afetados**:
+- RF018 (dashboard por tenant), RF019 (listagens filtráveis), RF020 (relatórios), RN003 (isolamento
+  por tenant via `canAccessTenant`), RNF004 (chokepoint de isolamento multi-tenant).
 - Caso de uso afetado: 3.4 (Visualização do dashboard), 3.5 (Envio de comando remoto — a UI de
   disparo vive em `assets/[id]`), 3.6 (Configuração de alertas), 3.8 (Registro de patrimônio —
-  também em `assets/[id]`).
-- **Correção em relação ao rascunho anterior desta sprint**: a versão anterior deste documento
-  citava também os casos de uso 3.2 (Enrollment do agente) e 3.3 (Check-in do agente) como
-  afetados por este item. Não são — confirmado lendo `docs/PRODUCT.md` §3 e o código real: 3.2
-  (emissão/uso da `enrollmentKey`, download do instalador) e 3.3 (rota de check-in do agente) não
-  têm nenhuma página sob `/tenant/[clientSlug]/*`; a única superfície de página do fluxo 3.2 é o
-  assistente `/clients/novo` (item 2 desta sprint, não este), e 3.3 é uma rota de API
-  (`/api/agent/checkin`) sem página envolvida em nenhum dos dois itens de rename. Removidos do
-  escopo deste item para não citar caso de uso que uma auditoria de requisitos não confirmaria.
-- Gap de documentação já registrado, não corrigido aqui: RF019 (listagens) e RF020 (relatórios)
-  não têm caso de uso numerado próprio em `docs/PRODUCT.md` §3 — mesmo gap apontado nos itens 3 e
-  7 da Sprint 4.
+  também em `assets/[id]`). 3.2 (Enrollment) e 3.3 (Check-in) **não** são afetados — confirmado de
+  novo nesta revisão: nenhuma página desses fluxos vive sob `/tenant/[clientSlug]/*`.
+- Gap de documentação já registrado, não corrigido aqui: RF019/RF020 não têm caso de uso numerado
+  próprio em `docs/PRODUCT.md` §3 — mesmo gap apontado nas Sprints 4, 6, 7.
 - Entidade(s) de banco: `Device`, `Hardware`, `Network`, `Disk`, `Software`, `SecurityPosture`,
   `LocalAccount`, `Monitor`, `Printer`, `UsbDevice`, `AssetRecord`, `AlertRule`, `AlertEvent`,
-  `AgentCommand`, `AuditLog`, `MetricSample` — nenhuma mudança de schema, só de rota; listadas
-  porque cada subpágina consulta um subconjunto delas e qualquer teste de regressão precisa
-  confirmar que o dado exibido não muda.
-- Escopo técnico: renomear o diretório `app/tenant/[clientSlug]/` (raiz/dashboard, `computers`,
-  `servers`, `storage`, `processors`, `network`, `alerts`, `audit`, `reports`, `assets/[id]`, os 9
-  `loading.tsx`, o `layout.tsx`) para `app/app/[clientSlug]/`. `lib/tenant-links.ts`
-  (`getTenantBasePath`/`getTenantPath`, hoje hardcoded para `/tenant/${clientSlug}`) é o ponto
-  único de construção de path e deve ser atualizado primeiro — os arquivos que hoje referenciam
-  `/tenant/` (páginas, `components/sidebar.tsx`, `device-detail-tabs.tsx`,
-  `device-command-panel.tsx`, `asset-record-form.tsx`, `audit-log-table.tsx`, e as Server Actions
-  em `computers/actions.ts`, `alerts/actions.ts`, `assets/[id]/actions.ts`) devem resolver o novo
-  path exclusivamente por esse helper, nunca por string literal solta.
-- **Risco de segurança (achado herdado do `security-auditor`, mantido nesta revisão)**: `proxy.ts`
-  tem um bloco dedicado que compara `nextUrl.pathname.startsWith("/tenant/")` por string literal
-  para aplicar o portão grosseiro `canPossiblyAccessTenantSlug` (hoje nas linhas 51-60 do
-  arquivo). Se esse literal não for atualizado para `/app/`, o portão deixa de existir
-  silenciosamente — qualquer usuário autenticado passaria a acessar `/app/[qualquer-slug]/*` sem a
-  checagem grosseira de organização (a checagem definitiva de `requireTenantContext()` ainda
-  bloquearia o acesso ao dado, mas a defesa em profundidade do proxy desapareceria sem nenhum erro
-  visível). Este item não está concluído enquanto esse bloco não for atualizado e coberto por
-  teste.
+  `AgentCommand`, `AuditLog`, `MetricSample` — nenhuma mudança de schema, só de rota; listadas para
+  que o teste de regressão confirme que nenhum dado exibido muda.
+
+**Escopo técnico**:
+- `git mv app/tenant/[clientSlug] app/app/[clientSlug]` — os **25 arquivos** confirmados nesta
+  revisão (raiz `page.tsx`/`layout.tsx`/`loading.tsx`, mais `computers`, `servers`, `storage`,
+  `processors`, `network`, `alerts`, `audit`, `reports`, `assets`, `assets/[id]`, cada um com
+  `page.tsx`/`loading.tsx`/`actions.ts` conforme aplicável).
+- `lib/tenant-links.ts`: `getTenantBasePath`/`getTenantPath` passam a retornar
+  `` `/app/${clientSlug}` ``. É o ponto único de construção de path — deve ser atualizado **antes**
+  de mover os diretórios (ver "Ordem de execução recomendada").
+- `proxy.ts`: o bloco que hoje compara `nextUrl.pathname.startsWith("/tenant/")` (linha 51) para
+  aplicar `canPossiblyAccessTenantSlug` passa a comparar `"/app/"`. Adicionar bloco de redirect 308
+  para qualquer request a `/tenant/[slug]/*` → `/app/[slug]/*` (mesmo `pathname` com o segmento
+  trocado, preservando querystring).
+- Migrar os **8 pontos hardcoded fora do helper** listados em "Achados desta revisão" —
+  `components/audit-log-table.tsx`, `app/dashboard/page.tsx`, `app/clients/novo/new-client-wizard.tsx`,
+  `app/clients/clients-panel.tsx`, `app/tenant/[clientSlug]/assets/[id]/actions.ts`,
+  `app/tenant/[clientSlug]/alerts/actions.ts` (3 ocorrências),
+  `app/tenant/[clientSlug]/computers/actions.ts` (2 ocorrências) — para usar
+  `getTenantBasePath`/`getTenantPath` em vez de montar a string manualmente.
+- Atualizar os literais de tipo de rota do Next (`PageProps<'/tenant/[clientSlug]'>` etc., 11
+  arquivos) para `'/app/[clientSlug]'`/`'/app/[clientSlug]/assets/[id]'`.
+
+**Risco de segurança (achado herdado do `security-auditor`, mantido nesta revisão)**: se o literal
+`/tenant/` em `proxy.ts` não for atualizado para `/app/`, o portão grosseiro
+`canPossiblyAccessTenantSlug` deixa de existir silenciosamente — qualquer usuário autenticado
+passaria a acessar `/app/[qualquer-slug]/*` sem a checagem grosseira de organização (a checagem
+definitiva de `requireTenantContext()` ainda bloquearia o acesso ao dado, mas a defesa em
+profundidade do proxy desapareceria sem nenhum erro visível). Este item não está concluído enquanto
+esse bloco não for atualizado e coberto por teste.
 
 **Critérios de aceite**:
-- [ ] Nenhuma página sob `app/tenant/[clientSlug]/*` continua existindo nesse caminho; o conteúdo
-      equivalente responde em `app/app/[clientSlug]/*`.
+- [ ] Nenhuma página sob `app/tenant/[clientSlug]/*` continua existindo nesse caminho; os 25
+      arquivos equivalentes respondem em `app/app/[clientSlug]/*`.
 - [ ] `lib/tenant-links.ts` é a única fonte de construção do path (`getTenantBasePath`/
-      `getTenantPath` atualizados para `/app/${clientSlug}`); nenhum arquivo de `app/`/`components/`
-      monta a string `/tenant/${...}` ou `/app/${...}` manualmente fora desse helper.
-- [ ] `proxy.ts` aplica `canPossiblyAccessTenantSlug` ao novo prefixo `/app/`, confirmado por
-      teste.
-- [ ] URL antiga (`/tenant/[slug]/*`) segue uma decisão explícita e única — deixar de servir
-      conteúdo (`404`) ou redirecionar para o novo path — registrada antes da execução (ver
-      "Decisão pendente" abaixo).
+      `getTenantPath` retornam `/app/${clientSlug}`); os 7 arquivos com path hardcoded listados
+      acima passam a usar o helper — confirmado por busca (`` `/tenant/${ `` e `` `/app/${ `` fora
+      de `lib/tenant-links.ts`) não retornando nenhuma ocorrência em `app/`/`components/`.
+- [ ] `proxy.ts` aplica `canPossiblyAccessTenantSlug` ao novo prefixo `/app/`, confirmado por teste.
+- [ ] `proxy.ts` redireciona `/tenant/[slug]/*` para `/app/[slug]/*` com status **308** (Permanent
+      Redirect), preservando querystring, confirmado por teste — não é mais uma decisão em aberto
+      entre 404/redirect como no rascunho anterior.
+- [ ] Os 11 literais de tipo de rota (`PageProps<'/tenant/[clientSlug]'>` etc.) atualizados para
+      `/app/[clientSlug]` — `npx tsc --noEmit` limpo é a prova objetiva.
 - [ ] Nenhuma mudança de comportamento de acesso: os 4 papéis continuam vendo exatamente a mesma
       superfície de antes, só sob o novo path.
 - [ ] `docs/PRODUTO.md`, `docs/PRODUCT.md` e `docs/SPEC.md` atualizados para citar
@@ -563,169 +675,209 @@ alterar nenhum comportamento de acesso ou dado exibido.
 **Testes necessários**:
 - Teste de integração/regressão do guard de `proxy.ts`: request autenticado de um
   `ORG_ADMIN`/`ORG_OPERATOR` para `/app/[slug-de-outra-organização]` é bloqueado pelo portão
-  grosseiro — este é o teste que falha se o literal `/tenant/` não for atualizado, tornando o
-  risco de segurança descrito acima detectável automaticamente.
+  grosseiro — falha se o literal `/tenant/` não for atualizado, tornando o risco de segurança
+  descrito acima detectável automaticamente.
 - Teste de login automatizado nos 4 papéis confirmando que cada um acessa exatamente a mesma
   superfície de páginas de antes, agora sob `/app/*` (`CLIENT_VIEWER` continua sem acesso nenhum).
-- Teste cobrindo o comportamento da URL antiga (`/tenant/[slug]/*`) para as duas subrotas mais
-  usadas (`computers`, `alerts`) — `404` ou redirecionamento, conforme a decisão tomada.
-- `tests/tenant-processors-table.test.tsx` e `tests/tenant-storage-table.test.tsx` devem continuar
-  passando sem alteração de asserção sobre dado exibido, só de path/import — prova de que a
-  renomeação não alterou comportamento.
+- Teste confirmando o redirect 308 de `/tenant/[slug]/*` → `/app/[slug]/*` para pelo menos duas
+  subrotas (`computers`, `alerts`), incluindo preservação de querystring.
+- `tests/tenant-processors-table.test.tsx`, `tests/tenant-storage-table.test.tsx`,
+  `tests/tenant-servers-table.test.tsx`, `tests/tenant-recent-devices-table.test.tsx`,
+  `tests/tenant-computers-table.test.tsx`, `tests/tenant-device-rows.test.ts`,
+  `tests/stat-cards.test.tsx` — os 7 arquivos de teste de componente que hardcodeiam `/tenant/` em
+  mocks/asserts — adaptados para `/app/` sem alteração de asserção sobre dado exibido, só de
+  path/import.
+- `tests/tenant-context.test.ts`, `tests/device-listing-status-parity.test.ts`,
+  `tests/delete-alert-rule.test.ts` — os 3 arquivos de teste de lógica/integração que também
+  referenciam `/tenant/` — revisados para confirmar que nenhuma asserção depende do path antigo de
+  forma que quebre silenciosamente (não necessariamente precisam de path novo, mas precisam ser
+  lidos).
 
-**Decisão pendente (não decidida por este planner)**: se `/tenant/[slug]/*` deve responder `404`
-ou redirecionar (307/308) para `/app/[slug]/*`. As duas são defensáveis (404 é mais consistente com
-o padrão fail-closed de `requireTenantContext()`; redirect evita quebrar links salvos de usuários
-reais). Quem aprovar a sprint decide; o item de teste acima cobre qualquer uma das duas escolhas.
+#### 2 — Renomear rotas administrativas `/clients` → `/admin/clients`
 
-#### 2 — Renomear rotas administrativas `/clients` → `/admin/*`
+**Objetivo**: Renomear a área administrativa de `/clients` para `/admin/clients` (mantendo
+`/api/clients/*` intacto), atualizar o matcher de `proxy.ts`, e adicionar redirect 308 de
+`/clients` para `/admin/clients` — alinhando o nome ao papel real da área, sem alterar
+comportamento de acesso.
 
-**Objetivo**: Renomear a área administrativa de `/clients` para `/admin/*`, alinhando o nome ao
-papel real da área (gestão de contas/tenants pela plataforma), sem alterar comportamento de
-acesso.
-
-**Requisitos**:
-- RF/RN relacionado: RF002 (cadastro de tenant), RF003 (enrollment de agente — parte de UI do
-  assistente), RN015 (guard `hasClientsAdminAccess`, com a exceção de `rotateEnrollmentKeyAction`
-  usando `canManageTenant`, já registrada em `docs/PRODUCT.md`).
+**Requisitos Afetados**:
+- RF002 (cadastro de tenant), RF003 (enrollment de agente — parte de UI do assistente), RN015
+  (guard `hasClientsAdminAccess`, com a exceção de `rotateEnrollmentKeyAction` usando
+  `canManageTenant`, já registrada em `docs/PRODUCT.md`).
 - Caso de uso afetado: 3.1 (Cadastro de tenant), 3.2 (Enrollment do agente — a parte de UI: download
-  do instalador com a chave embutida, dentro de `/clients/novo`, confirmado lendo
-  `new-client-wizard.tsx`).
+  do instalador com a chave embutida, dentro de `/clients/novo`).
 - Entidade(s) de banco: `Client` (`enrollmentKeyHash`, `activeProvisioningKeyEnc`), `AuditLog`.
-- Escopo técnico: renomear `app/clients/` (raiz/lista, `novo`, `audit`, mais `actions.ts`/
-  `types.ts`/`clients-panel.tsx`/`new-client-wizard.tsx`) para `app/admin/*` — alinhado à visão já
-  registrada em `docs/PRODUTO.md` §5.1 (`/admin/organizations`, `/admin/organizations/[id]`,
-  `/admin/audit`).
-- **Discrepância a registrar, não resolvida por este planner**: `docs/PRODUTO.md` §5.1 nomeia a
-  rota-alvo como `/admin/organizations` (não `/admin/clients`), sugerindo uma reestruturação de
-  navegação (a UI passaria a girar em torno de `Organization`, não de `Client`, para o
-  `PLATFORM_ADMIN`) maior do que um puro rename de prefixo. Este item escopa como puro rename
-  (`/clients` → `/admin/clients`, preservando a estrutura atual centrada em `Client`) — a
-  reestruturação mais ampla sugerida por `PRODUTO.md` §5.1 fica fora de escopo desta sprint (ver
-  "Fora de escopo" ao final). Quem aprovar decide se `PRODUTO.md` §5.1 é ajustado para refletir o
-  rename mais simples ou se a reestruturação maior vira sprint própria.
-- **Risco registrado, não incluído no escopo pedido**: `/users` e `/security` são guardadas pelo
-  mesmo bloco `isAccountArea`/`isPlatformArea` de `proxy.ts` que hoje também cobre `/clients`, e
-  `docs/PRODUTO.md` não lista rota-alvo sob `/admin/*` para nenhuma das duas. Não incluídas neste
-  item porque o pedido foi especificamente `/clients` → `/admin/*` — mas ficam com nome
-  inconsistente (área antiga convivendo com a nova nomenclatura administrativa) se não forem
-  tratadas em conjunto ou numa sprint seguinte. Registrado como achado, não decidido aqui.
+
+**Escopo técnico**:
+- `git mv app/clients app/admin/clients` — os **7 arquivos** confirmados nesta revisão
+  (`page.tsx`, `types.ts`, `actions.ts`, `clients-panel.tsx`, `novo/page.tsx`,
+  `novo/new-client-wizard.tsx`, `audit/page.tsx`).
+- `/api/clients/*` (rota de API sob `app/api/clients/`) **não muda** — fora do escopo deste item,
+  registrado explicitamente para não ser confundido durante a execução (o pedido do usuário já fixa
+  isso: "mantendo `/api/clients/*` intacto").
+- `proxy.ts`: bloco `isAccountArea` (hoje `nextUrl.pathname === "/clients" ||
+  .startsWith("/clients/") || .startsWith("/api/clients")`) — o trecho de **página**
+  (`"/clients"`/`"/clients/"`) passa a `"/admin/clients"`/`"/admin/clients/"`; o trecho de API
+  (`"/api/clients"`) fica como está. Adicionar redirect 308 de `/clients` (e `/clients/*`) para
+  `/admin/clients` (preservando o restante do path e querystring).
+- `components/sidebar.tsx:403-405` — a comparação de `pathname.startsWith('/clients/audit')` etc.
+  para título do cabeçalho precisa acompanhar o novo prefixo.
+- Migrar os 2 pontos hardcoded fora de `proxy.ts`/`sidebar.tsx` que redirecionam para `/clients`:
+  `app/dashboard/page.tsx:24` (`redirect('/clients')`) e `app/page.tsx:4` (`redirect('/clients')`),
+  mais os 3 `revalidatePath('/clients')` em `app/clients/actions.ts` (linhas 167, 250, 338) — todos
+  passam a apontar para `/admin/clients`.
+
+**Discrepância a registrar, não resolvida por este planner**: `docs/PRODUTO.md` §5.1 nomeia a
+rota-alvo como `/admin/organizations` (não `/admin/clients`), sugerindo uma reestruturação de
+navegação maior do que um puro rename de prefixo (a UI passaria a girar em torno de `Organization`,
+não de `Client`, para o `PLATFORM_ADMIN`). O escopo literal desta reativação é `/admin/clients`
+— puro rename, preservando a estrutura atual centrada em `Client`. A reestruturação mais ampla de
+`PRODUTO.md` §5.1 fica fora de escopo (ver "Fora de escopo" ao final). Quem aprovar decide se
+`PRODUTO.md` §5.1 é ajustado para refletir o rename mais simples ou se a reestruturação maior vira
+sprint própria.
+
+**Risco registrado, não incluído no escopo pedido**: `/users` e `/security` são guardadas pelo mesmo
+bloco `isAccountArea`/`isPlatformArea` de `proxy.ts` que hoje também cobre `/clients`, sem
+rota-alvo sob `/admin/*` documentada. Não incluídas neste item — escopo literal foi
+`/clients` → `/admin/clients` — mas ficam com nome inconsistente se não forem tratadas depois.
 
 **Critérios de aceite**:
-- [ ] Nenhuma página sob `app/clients/*` continua existindo nesse caminho; equivalente responde
-      sob `app/admin/*`.
-- [ ] `proxy.ts` — bloco `isAccountArea` (hoje `nextUrl.pathname === "/clients" ||
-      .startsWith("/clients/") || .startsWith("/api/clients")`) atualizado para o novo prefixo de
-      página; `/api/clients/*` (rota de API, não de página) mantém o path atual — está fora do
-      escopo deste rename, que é só de páginas, e essa distinção fica registrada explicitamente
-      para não ser confundida durante a execução.
-- [ ] URL antiga (`/clients`) segue a mesma decisão (404 ou redirect) tomada para o item 1, por
-      consistência — registrada antes da execução.
+- [ ] Nenhuma página sob `app/clients/*` continua existindo nesse caminho; os 7 arquivos
+      equivalentes respondem sob `app/admin/clients/*`.
+- [ ] `proxy.ts` — bloco `isAccountArea` atualizado para `/admin/clients` no trecho de página;
+      `/api/clients/*` mantém o path atual, sem alteração.
+- [ ] `proxy.ts` redireciona `/clients` (e `/clients/*`) para `/admin/clients` com status **308**,
+      confirmado por teste.
+- [ ] `components/sidebar.tsx` exibe o título correto sob o novo path (`/admin/clients`,
+      `/admin/clients/novo`, `/admin/clients/audit`).
 - [ ] `hasClientsAdminAccess` continua controlando exatamente os mesmos papéis (`PLATFORM_ADMIN`,
       `ORG_ADMIN`) sob o novo path, sem regressão.
-- [ ] `docs/PRODUTO.md`, `docs/PRODUCT.md` e `docs/SPEC.md` atualizados para citar `/admin/*` como
-      path real.
+- [ ] `docs/PRODUTO.md`, `docs/PRODUCT.md` e `docs/SPEC.md` atualizados para citar `/admin/clients`
+      como path real.
 
 **Testes necessários**:
 - Teste de integração do guard `isAccountArea` de `proxy.ts` sob o novo path: `ORG_OPERATOR`/
-  `CLIENT_VIEWER` continuam bloqueados de `/admin/*`; `PLATFORM_ADMIN`/`ORG_ADMIN` continuam
-  permitidos.
-- `tests/rotate-enrollment-key.test.ts` e `tests/credentials-route.test.ts` adaptados e
-  reexecutados — confirmar que Server Action e rota de API continuam funcionando referenciadas a
-  partir do novo caminho de página; qualquer link/redirect hardcoded para `/clients/...` dentro
-  desses fluxos precisa ser pego por esses testes.
-- Teste cobrindo o comportamento da URL antiga (`/clients`), mesma decisão 404/redirect do item 1.
+  `CLIENT_VIEWER` continuam bloqueados de `/admin/clients`; `PLATFORM_ADMIN`/`ORG_ADMIN` continuam
+  permitidos; `/api/clients/*` inalterado.
+- Teste confirmando o redirect 308 de `/clients` → `/admin/clients`.
+- `tests/rotate-enrollment-key.test.ts`, `tests/credentials-route.test.ts`,
+  `tests/revoke-agent-auth.test.ts` — os 3 arquivos que exercitam Server Actions/rotas de
+  `app/clients/actions.ts` — revisados para confirmar que continuam funcionando referenciados a
+  partir do novo caminho de página (a rota de API `/api/clients/[id]/credentials` em si não muda).
 
-#### 3 — Lint real sobre `app/**`, `components/**` e `lib/**` (movido da Sprint 6)
+#### 3 — Ativação do ESLint real sobre `app/**`, `components/**` e `lib/**`
 
-**Objetivo**: Fazer `npm run lint` inspecionar de fato o código de aplicação (`app/**`,
-`components/**`, `lib/**`), hoje ignorado de propósito por `eslint.config.mjs`, e usar essa nova
-cobertura para validar o próprio trabalho de rename desta sprint (itens 1 e 2).
+**Objetivo**: Remover `app/**`, `components/**`, `lib/**` do `ignores` de `eslint.config.mjs` e
+garantir que `npm run lint` rode sobre o código de aplicação sem erros — usando essa cobertura para
+validar o próprio rename dos itens 1 e 2.
 
-**Requisitos**:
-- RF/RN relacionado: nenhuma RNF numerada específica de qualidade de código em
-  `docs/PRODUCT.md` hoje — gap a registrar se este item for aprovado.
-- Origem do achado: achado colateral reportado pelo `implementation-agent` durante a execução da
-  Sprint 4 (2026-08-20) — pré-existente, não introduzido por nenhuma sprint. **Movido da Sprint 6
-  para cá nesta revisão**, a pedido do usuário — ver nota na Sprint 6 sobre a remoção.
+**Requisitos Afetados**:
+- Nenhuma RNF numerada específica de qualidade de código em `docs/PRODUCT.md` hoje — gap a
+  registrar se este item for aprovado.
+- Origem: achado colateral reportado pelo `implementation-agent` na Sprint 4 (2026-08-20),
+  pré-existente; movido para a Sprint 5 numa revisão anterior; confirmado ainda válido nesta
+  revisão — `eslint.config.mjs` (lido nesta rodada) ainda lista `app/**`, `components/**`, `lib/**`
+  em `ignores`, com o único bloco de regras reais restrito a `scripts/verification/**/*.mjs`
+  (`no-unused-vars`, `no-undef` — insuficiente para React/Next/TypeScript).
 - Entidade(s) de banco: nenhuma.
-- Escopo técnico: remover `app/**`, `components/**`, `lib/**` da lista `ignores` de
-  `eslint.config.mjs`; configurar `languageOptions`/`rules` adequados para TypeScript/JSX — o
-  bloco hoje só cobre `scripts/verification/**/*.mjs` com regras mínimas (`no-unused-vars`,
-  `no-undef`), insuficientes para código React/Next real.
-- Motivo de priorizar agora, junto do rename: os itens 1 e 2 tocam dezenas de arquivos por
-  referência de path — é o momento de maior valor para ligar lint real, capaz de pegar import
-  quebrado ou variável não usada deixada pela renomeação antes de a sprint ser reportada como
-  concluída.
-- Ordem de execução dentro da sprint: recomendação, não regra rígida — ativar o lint **depois**
-  dos itens 1 e 2 evita misturar o volume inicial de avisos do lint novo com avisos temporários do
-  meio da renomeação; ativar **antes** perderia a chance de usar o lint para validar o próprio
-  rename. Quem executar decide a ordem exata.
+
+**Escopo técnico**:
+- Remover `app/**`, `components/**`, `lib/**` da lista `ignores` de `eslint.config.mjs`.
+- Configurar `languageOptions`/`plugins`/`rules` adequados para TypeScript/JSX/Next (o projeto não
+  tem hoje nenhum bloco de config ESLint voltado a esse código — precisa ser criado, não só
+  destravado).
+- `docs/**`, `agent-go/**`, `prisma/**`, `hooks/**`, `styles/**` **permanecem** ignorados — fora do
+  escopo literal pedido pelo usuário (só `app/**`/`components/**`/`lib/**`); registrado
+  explicitamente para não ser ampliado por engano durante a execução.
+
+**Limitação desta rodada de planejamento**: esta sessão do `sprint-planner` não tem acesso a
+shell/terminal, então não foi possível rodar `npx eslint app components lib --max-warnings=0` para
+medir hoje o volume real de erros/avisos. Isso é diferente de "sem risco conhecido" — é uma lacuna
+de informação explícita. Regra de decisão para quem implementar, para que o item não feche com um
+volume desconhecido:
+- Rodar a medição como **primeiro passo executável** deste item (antes de mudar qualquer regra ou
+  corrigir qualquer arquivo) e registrar o número bruto de erros/avisos encontrado.
+- Se o volume for pequeno o bastante para corrigir dentro desta mesma sprint sem inflar
+  desproporcionalmente seu escopo (ordem de grandeza de dezenas, não de centenas, dado que os
+  itens 1 e 2 já tocam dezenas de arquivos), corrigir tudo antes de fechar o item.
+- Se o volume for desproporcional (ordem de centenas), **não bloquear esta sprint por ele**: aceitar
+  uma baseline conhecida (registrada em texto, não como número "desconhecido"), configurar o lint
+  para não falhar sobre ela (ex.: `warn` em vez de `error` temporariamente, ou uma lista de
+  exceções explícita), e abrir isso como candidato a sprint própria de débito técnico — decisão
+  a ser tomada e registrada por quem implementa, não por este planner.
 
 **Critérios de aceite**:
 - [ ] `eslint.config.mjs` não ignora mais `app/**`, `components/**`, `lib/**`.
 - [ ] `npm run lint` roda sobre esses três diretórios sem erro de configuração.
-- [ ] Decisão registrada sobre o volume inicial de avisos: corrigir tudo antes de fechar o item, ou
-      aceitar uma baseline conhecida com plano de redução — não é aceitável fechar o item com um
-      volume de avisos desconhecido ou não triado.
+- [ ] O volume real de erros/avisos foi medido (não estimado) e a decisão sobre ele — corrigir tudo
+      agora, ou aceitar baseline com plano de redução registrado — está escrita no diff/PR, seguindo
+      a regra de decisão acima.
 - [ ] `npm run lint` roda como parte da verificação final da sprint (junto com `tsc --noEmit`/
       `build`/`test`), sem erro novo introduzido pelos itens 1, 2 e 4 desta sprint.
 
 **Testes necessários**: nenhum teste automatizado por si — a entrega é configuração de lint; a
 validação é a própria execução de `npm run lint` com saída registrada.
 
-#### 4 — Testes Vitest cobrindo as rotas reorganizadas
+#### 4 — `tests/route-rename.test.ts` + verificação final (`tsc`/`lint`/`build`/`test`)
 
-**Objetivo**: Garantir que a suíte Vitest (28 testes hoje, `tests/`) passe a cobrir explicitamente
-o resultado da renomeação dos itens 1 e 2 — as novas rotas respondendo, e as antigas seguindo a
-decisão registrada (404 ou redirect) — para que a sprint não feche sem prova automatizada de que o
-rename não regrediu acesso nem dado exibido.
+**Objetivo**: Garantir que a suíte Vitest (19 arquivos, 111 testes hoje, `tests/`) passe a cobrir
+explicitamente o resultado da renomeação dos itens 1 e 2 — as novas rotas respondendo, o isolamento
+multi-tenant mantido, e os redirects 308 funcionando — e que a verificação final
+(`tsc`/`lint`/`build`/`test`) rode limpa antes de a sprint ser reportada como concluída.
 
-**Requisitos**:
-- RF/RN relacionado: nenhum RF/RN novo — este item é cobertura de teste para o comportamento dos
-  itens 1 e 2, mesma origem deles.
-- Origem: item novo, pedido pelo usuário nesta rodada de planejamento — não veio de nenhum dos 5
-  auditores nesta sessão. Registrando essa exceção explicitamente: é cobertura de teste para
-  decisões já rastreadas (itens 1 e 2), não um achado de auditoria autônomo.
-- Entidade(s) de banco: nenhuma nova — os testes exercitam as mesmas entidades já cobertas pelos
-  itens 1 e 2.
+**Requisitos Afetados**:
+- Nenhum RF/RN novo — cobertura de teste para o comportamento dos itens 1, 2 e 3.
+- Origem: pedido direto do usuário nesta rodada de reativação — não veio de nenhum dos 5 auditores.
+- Entidade(s) de banco: nenhuma nova.
+
+**Escopo técnico**:
+- Criar `tests/route-rename.test.ts` cobrindo, no mínimo:
+  1. `/app/[clientSlug]/*` (dashboard, `computers`, `alerts`, `assets/[id]`) responde para os papéis
+     com acesso e é bloqueado para os sem acesso.
+  2. Isolamento multi-tenant mantido: um `ORG_ADMIN`/`ORG_OPERATOR` de outra organização é bloqueado
+     ao tentar `/app/[slug-de-outra-organização]`.
+  3. `/admin/clients` responde para `PLATFORM_ADMIN`/`ORG_ADMIN` e é bloqueado para
+     `ORG_OPERATOR`/`CLIENT_VIEWER`.
+  4. Redirect 308 de `/tenant/[slug]/*` → `/app/[slug]/*` e de `/clients` → `/admin/clients`,
+     preservando querystring.
+- Adaptar os **13 arquivos de teste** listados em "Achados desta revisão" que hoje hardcodeiam
+  `/tenant/` ou `/clients`, sem perder a cobertura original de cada um.
 
 **Critérios de aceite**:
-- [ ] Existe teste automatizado que confirma `/app/[clientSlug]/*` (pelo menos dashboard,
-      `computers`, `alerts`, `assets/[id]`) responde para os papéis com acesso e é bloqueado para
-      os sem acesso.
-- [ ] Existe teste automatizado que confirma `/admin/*` (lista de clientes, wizard de criação)
-      responde para `PLATFORM_ADMIN`/`ORG_ADMIN` e é bloqueado para `ORG_OPERATOR`/
-      `CLIENT_VIEWER`.
-- [ ] Existe teste automatizado que confirma o comportamento das URLs antigas (`/tenant/[slug]/*`,
-      `/clients`) exatamente conforme a decisão 404/redirect registrada nos itens 1 e 2 — nenhuma
-      URL antiga responde com conteúdo pleno "por acidente".
-- [ ] `npm run test` continua verde (todos os testes existentes + os novos) antes de a sprint ser
-      considerada concluída.
+- [ ] `tests/route-rename.test.ts` existe e cobre os 4 pontos do escopo técnico acima.
+- [ ] Os 13 arquivos de teste identificados nesta revisão como dependentes do path antigo foram
+      revisados e, onde aplicável, adaptados para `/app/`/`/admin/clients`.
+- [ ] `npx tsc --noEmit` roda sem erro.
+- [ ] `npm run lint` roda sem erro (após o item 3).
+- [ ] `npm run build` roda sem erro.
+- [ ] `npm run test` roda verde com **111 ou mais** testes passando (baseline real confirmada nesta
+      revisão via `5acf610`, mais os testes novos desta sprint) — não um número menor herdado de
+      sprints anteriores.
 
-**Testes necessários**:
-- Novo(s) arquivo(s) em `tests/` (ex.: `tests/route-rename.test.ts` ou equivalente) cobrindo os 3
-  critérios acima.
-- Ajuste dos testes existentes que hoje importam ou montam paths de `/tenant/`/`/clients`
-  diretamente (`tests/tenant-processors-table.test.tsx`, `tests/tenant-storage-table.test.tsx`,
-  `tests/rotate-enrollment-key.test.ts`, `tests/credentials-route.test.ts`) para os novos paths,
-  sem perder a cobertura original de cada um.
+**Testes necessários**: o próprio item já é de teste — ver escopo técnico acima.
 
 ### Critérios de aceite gerais da sprint
 
-- [ ] Item 1 concluído — rename de `/tenant/[clientSlug]/*` para `/app/[clientSlug]/*`, guard de
-      `proxy.ts` atualizado, documentação atualizada.
-- [ ] Item 2 concluído — rename de `/clients` para `/admin/*`, guard de `proxy.ts` atualizado,
-      documentação atualizada.
-- [ ] Item 3 concluído — lint real ativo sobre `app/**`/`components/**`/`lib/**`, com decisão
-      registrada sobre o volume inicial de avisos.
-- [ ] Item 4 concluído — testes automatizados cobrindo rotas novas e comportamento das antigas,
-      `npm run test` verde.
-- [ ] `npx tsc --noEmit`, `npm run lint`, `npm run build` e `npm run test` sem regressão.
+- [ ] Item 1 concluído — rename de `/tenant/[clientSlug]/*` para `/app/[clientSlug]/*`,
+      `lib/tenant-links.ts` e os 7 arquivos com path hardcoded migrados, guard e redirect 308 de
+      `proxy.ts` atualizados, tipos de rota do Next atualizados, documentação atualizada.
+- [ ] Item 2 concluído — rename de `/clients` para `/admin/clients`, `/api/clients/*` intacto,
+      guard e redirect 308 de `proxy.ts` atualizados, `sidebar.tsx` atualizado, documentação
+      atualizada.
+- [ ] Item 3 concluído — lint real ativo sobre `app/**`/`components/**`/`lib/**`, com volume real de
+      avisos medido (não estimado) e decisão registrada sobre ele.
+- [ ] Item 4 concluído — `tests/route-rename.test.ts` existe, os 13 testes dependentes do path
+      antigo foram revisados/adaptados, `npm run test` verde com 111+ testes.
+- [ ] `npx tsc --noEmit`, `npm run lint`, `npm run build` e `npm run test` sem regressão — esta é a
+      verificação final explicitamente pedida pelo usuário nesta reativação.
 - [ ] Teste de login real nos 4 papéis confirma que cada um continua acessando exatamente a mesma
       superfície de antes, só sob o novo path (coberto pelo item 4).
 - [ ] `docs/PRODUTO.md`, `docs/PRODUCT.md` e `docs/SPEC.md` não citam mais os paths antigos como se
       fossem os reais.
+- [ ] Sprint 5 atualizada para 🟢 Concluída em `docs/SPRINTS.md` **só depois** que o usuário
+      confirmar explicitamente os critérios acima atendidos — este passo é do `implementation-agent`
+      relatando e do usuário aprovando, não deste planner nem uma marcação automática ao fim da
+      execução.
 
 ### Fora de escopo desta sprint
 
@@ -736,7 +888,16 @@ sugerida por `docs/PRODUTO.md` §5.1/§5.2 (`/admin/organizations` girando em to
 em vez de `Client`; `/app/devices` como visão consolidada entre clientes de uma mesma organização,
 diferente da estrutura atual por slug) — registrada como discrepância no item 2, não decidida nem
 implementada aqui. Também fora de escopo: mover `/users` e `/security` para `/admin/*` — registrado
-como risco no item 2, não pedido pelo usuário nesta rodada.
+como risco no item 2, não pedido pelo usuário nesta rodada. Também fora de escopo: atualizar
+`CONTEXT.md`, `docs/adr/0004-tenant-isolation-fail-closed.md` e os arquivos de agente
+(`.claude/agents/security-auditor.md`, `.claude/agents/backend-auditor.md`) que hoje citam
+`/tenant/[clientSlug]` — fora da permissão de escrita deste planner (só `docs/SPRINTS.md`) e fora
+do escopo literal pedido pelo usuário; registrado como consequência do rename que alguém precisa
+tratar depois, não esquecido. Também fora de escopo: corrigir de forma definitiva um volume grande
+de avisos de lint pré-existentes descobertos pelo item 3, caso a medição real (não feita nesta
+rodada de planejamento por falta de acesso a shell) revele um número desproporcional — nesse caso a
+decisão de baseline aceita fica registrada no item 3, e a correção completa vira candidata a sprint
+própria de débito técnico.
 
 ---
 
@@ -1656,5 +1817,7 @@ adiciona nem remove nenhum serviço/script/tipo de comando). Também fora de esc
 divergência de `docs/PRODUCT.md`/`PRODUTO.md` não citada explicitamente no item 4 — este planner não
 rodou uma auditoria de documentação completa, só confirmou o achado específico trazido pelo
 `requirements-auditor`. A retomada da Sprint 5 (Consolidação de Rotas), adiada explicitamente até
-depois desta sprint, **não** está incluída aqui — permanece com status 📋 Adiada até nova decisão do
-usuário depois que a Sprint 8 for aprovada e concluída.
+depois desta sprint, **não** está incluída aqui — permaneceu com status 📋 Adiada até nova decisão do
+usuário depois que a Sprint 8 fosse aprovada e concluída. **Atualização (2026-08-31)**: a Sprint 8
+foi concluída e o usuário reativou a Sprint 5 explicitamente, com escopo técnico literal — ver a
+seção da Sprint 5 para o conteúdo atual, revisado e reescrito nesta data.

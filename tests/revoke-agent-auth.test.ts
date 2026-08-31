@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { revokeAgentAuthAction } from '@/app/clients/actions'
+import { revokeAgentAuthAction } from '@/app/admin/clients/actions'
 import { hashApiKey, validateAgentApiKey } from '@/lib/auth'
 
 type FakeClient = {
@@ -23,7 +23,7 @@ type FakeAgentAuth = {
 // qualquer import estatico. Estado mutavel usado dentro das factories de
 // mock precisa vir de vi.hoisted() por isso — senao a factory fecharia
 // sobre uma const ainda nao inicializada (TDZ) no momento em que o import
-// real (ex.: '@/app/clients/actions') e resolvido. Mesmo padrao de
+// real (ex.: '@/app/admin/clients/actions') e resolvido. Mesmo padrao de
 // tests/rotate-enrollment-key.test.ts.
 const { clients, agentAuths, auditLogs, sessionRef, fakePrisma } = vi.hoisted(() => {
   const clients = new Map<string, FakeClient>()

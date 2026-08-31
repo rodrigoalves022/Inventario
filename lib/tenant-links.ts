@@ -1,5 +1,5 @@
 export function getTenantBasePath(clientSlug: string) {
-  return `/tenant/${clientSlug}`
+  return `/app/${clientSlug}`
 }
 
 export function getTenantPath(clientSlug: string, segment?: string) {

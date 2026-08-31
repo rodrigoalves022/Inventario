@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Download, ShieldAlert, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/copy-field'
-import type { ProvisioningPackage } from '@/app/clients/types'
+import type { ProvisioningPackage } from '@/app/admin/clients/types'
 
 /**
  * Uma acao primaria em destaque, chave em caixa de aviso, e os caminhos de

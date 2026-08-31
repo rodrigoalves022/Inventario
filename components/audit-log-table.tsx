@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import type { AuditLogListItem } from '@/lib/audit-log'
+import { getTenantPath } from '@/lib/tenant-links'
 import { cn } from '@/lib/utils'
 import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
 
@@ -96,7 +97,7 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
                     ? tenantBasePath
                       ? `${tenantBasePath}/assets/${log.targetId}`
                       : log.clientSlug
-                      ? `/tenant/${log.clientSlug}/assets/${log.targetId}`
+                      ? getTenantPath(log.clientSlug, `assets/${log.targetId}`)
                       : null
                     : null
 

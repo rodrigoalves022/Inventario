@@ -19,7 +19,7 @@ const devices: RecentDeviceRow[] = [
     lastCollectionAbsolute: '20/08/2026 10:00:00',
     lastCollectionRelative: 'há 2h',
     presence: 'online',
-    detailsPath: '/tenant/cliente-a/assets/d1',
+    detailsPath: '/app/cliente-a/assets/d1',
   },
 ]
 
@@ -29,7 +29,7 @@ describe('TenantRecentDevicesTable ("Últimas atualizações" do dashboard) — 
 
     fireEvent.click(screen.getByText('Windows 11'))
 
-    expect(pushMock).toHaveBeenCalledWith('/tenant/cliente-a/assets/d1')
+    expect(pushMock).toHaveBeenCalledWith('/app/cliente-a/assets/d1')
   })
 
   it('Enter com foco na linha tambem navega (acessibilidade de teclado)', () => {
@@ -38,7 +38,7 @@ describe('TenantRecentDevicesTable ("Últimas atualizações" do dashboard) — 
     const row = screen.getByText('Windows 11').closest('tr')
     fireEvent.keyDown(row as HTMLElement, { key: 'Enter' })
 
-    expect(pushMock).toHaveBeenCalledWith('/tenant/cliente-a/assets/d1')
+    expect(pushMock).toHaveBeenCalledWith('/app/cliente-a/assets/d1')
   })
 
   it('hostname continua sendo um link direto para o detalhe', () => {
@@ -46,7 +46,7 @@ describe('TenantRecentDevicesTable ("Últimas atualizações" do dashboard) — 
 
     const link = screen.getByText('PC-01').closest('a')
 
-    expect(link?.getAttribute('href')).toBe('/tenant/cliente-a/assets/d1')
+    expect(link?.getAttribute('href')).toBe('/app/cliente-a/assets/d1')
   })
 
   it('lista vazia mostra o estado vazio em vez de uma tabela quebrada', () => {

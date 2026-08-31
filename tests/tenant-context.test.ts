@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { canAccessTenant, type TenantRef } from '@/lib/permissions'
 
 // Sprint 08, item 2. `requireTenantContext` (lib/tenant-context.ts) e o
-// chokepoint usado por toda pagina sob /tenant/[clientSlug]/*. Ate esta
+// chokepoint usado por toda pagina sob /app/[clientSlug]/*. Ate esta
 // sprint so era exercitado indiretamente via 3 rotas/actions especificas —
 // nenhum teste chamava a funcao diretamente para provar que os 3 casos de
 // falha (slug inexistente, slug de outra organizacao, sem sessao) resultam

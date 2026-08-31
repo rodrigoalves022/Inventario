@@ -46,7 +46,7 @@ describe('buildTenantDeviceRow', () => {
 
   it('detailsPath aponta sempre para assets/<id>, independente do tenant', () => {
     const row = buildTenantDeviceRow(makeDevice(), settings, 'cliente-a')
-    expect(row.detailsPath).toBe('/tenant/cliente-a/assets/dev-1')
+    expect(row.detailsPath).toBe('/app/cliente-a/assets/dev-1')
   })
 
   it('lowestDiskFreeGb é o menor espaço livre entre os discos (funciona para servidor, não só computador)', () => {

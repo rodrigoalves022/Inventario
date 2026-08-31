@@ -11,7 +11,7 @@ import {
   deleteAlertRuleAction,
   toggleAlertRuleAction,
   type AlertRuleActionState,
-} from '@/app/tenant/[clientSlug]/alerts/actions'
+} from '@/app/app/[clientSlug]/alerts/actions'
 import { ALERT_METRICS, ALERT_METRIC_LABELS, ALERT_SEVERITIES, type AlertMetric, type AlertSeverity } from '@/lib/alert-rules'
 import { cn } from '@/lib/utils'
 

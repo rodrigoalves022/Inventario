@@ -150,9 +150,16 @@ Hoje o isolamento é `Device → AgentAuth → Client`, ou seja, **um JOIN em to
 
 ## 5. Páginas do site
 
-As 7 páginas globais que eram apenas `redirect('/clients')` já foram removidas (ver A3). O
-que falta da consolidação é renomear `/tenant/[slug]/*` → `/app/*` e `/clients` → `/admin/*`
-— rotas abaixo descritas no nome-alvo, ainda não aplicado.
+As 7 páginas globais que eram apenas `redirect('/clients')` já foram removidas (ver A3).
+
+**Estado real das rotas (Sprint 5, 2026-08-31)**: `/tenant/[clientSlug]/*` foi renomeado para
+`/app/[clientSlug]/*` e `/clients` para `/admin/clients` — puro rename, preservando a estrutura
+atual centrada em `Client` (URLs antigas respondem 308). As tabelas 5.1/5.2 abaixo descrevem uma
+reestruturação de navegação **maior e ainda não implementada** — `/admin/organizations` (girando
+em torno de `Organization`, não de `Client`) e um `/app/devices` consolidado entre clientes de uma
+mesma organização — registrada como discrepância na Sprint 5 e deixada como decisão em aberto: se
+vira sprint própria ou se esta seção é revisada para refletir o rename mais simples que já existe.
+Não confundir o nome-alvo destas tabelas com o path real hoje.
 
 ### 5.1 `/admin/*` — Plataforma (`PLATFORM_ADMIN`)
 | Rota | Função |
@@ -273,19 +280,20 @@ ficou preservado em `prisma/dev.db.backup-pre-postgres`.
 autorização de tenant concentrada em `requireTenantContext` (fail-closed, responde
 `notFound()` para não revelar tenant de outra organização).
 
-**A3. Consolidação de rotas — parcial**
+**A3. Consolidação de rotas ✅ Concluído (Sprint 5, 2026-08-31)**
 Feito: removidos 7 stubs mortos (`/computers`, `/network`, `/processors`, `/servers`,
 `/storage`, `/reports`, `/assets/[id]`), `/settings` (fingia salvar), e substituídos os
-dados fabricados de `/users` e `/security` por dados reais.
-**Pendente**: renomear `/tenant/[slug]/*` → `/app/*` e `/clients` → `/admin/*`.
-Mexe em ~12 páginas e em todas as URLs; é churn estrutural sem ganho funcional
-imediato, então ficou por último dentro da fase.
+dados fabricados de `/users` e `/security` por dados reais. `/tenant/[clientSlug]/*` renomeado
+para `/app/[clientSlug]/*` e `/clients` para `/admin/clients`, com redirect 308 das URLs antigas
+e lint real ativo sobre `app/**`/`components/**`/`lib/**`. A reestruturação maior de navegação
+descrita em §5.1/§5.2 (`/admin/organizations`, `/app/devices` consolidado) continua fora de
+escopo — ver nota em "5. Páginas do site".
 
 ### Fase A4 — Redesenho do frontend *(direcionado, não reconstrução)*
 
 A base atual (Tailwind v4 + shadcn/ui + Radix) **fica** — o problema não é o design system, é a **disposição e o fluxo** de telas específicas.
 
-**Prioridade 1 — Criação/provisionamento de agente. ✅ Implementado** (`/clients/novo`).
+**Prioridade 1 — Criação/provisionamento de agente. ✅ Implementado** (`/admin/clients/novo`).
 
 O problema era despejar seis caminhos de instalação simultâneos (chave, comando bootstrap, .exe, PS1, comando manual, "abrir script") sem hierarquia, sem destacar que a chave só aparece uma vez, e sem nunca confirmar se a máquina conectou.
 
@@ -309,7 +317,7 @@ nunca era carregada, e a pilha não tinha fallback genérico — o navegador ca�
 serifada padrão. Agora Inter (UI) + JetBrains Mono (valores técnicos) via `next/font`,
 números tabulares e tracking negativo em títulos.
 
-**Modal "Credenciais ativas" ✅ Redesenhado.** Mesmo padrão do assistente `/clients/novo`
+**Modal "Credenciais ativas" ✅ Redesenhado.** Mesmo padrão do assistente `/admin/clients/novo`
 (botão primário + chave em caixa de aviso + "outras formas de instalar" recolhido),
 com `CopyField` extraído para componente compartilhado entre os dois pontos de entrada.
 
@@ -330,7 +338,7 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
   retenção (`Client.metricsRetentionDays`, padrão 90 dias) nasceram junto com a
   coleta — o expurgo roda a cada ingestão (`DELETE` indexado por `deviceId`), não em
   job separado, porque o projeto ainda não tem onde rodar um cron. Aba "Métricas" com
-  gráficos reais (recharts) em `/tenant/.../assets/[id]` e no portal.
+  gráficos reais (recharts) em `/app/.../assets/[id]` e no portal.
 - **B3. Periféricos e monitores ✅ Concluído.** Monitores via `WmiMonitorID` (namespace
   `root\wmi` — `Win32_DesktopMonitor` não tem fabricante/serial reais), impressoras via
   `Win32_Printer`, USB via `Win32_PnPEntity` filtrando hubs e deduplicando por
@@ -350,7 +358,7 @@ Cada item = schema + coletor Go + tela. Ordem por relação valor/esforço:
   dependência) — precisou `serverExternalPackages: ['pdfkit']` no `next.config.mjs`
   porque o webpack do Next quebra a leitura dos arquivos `.afm` de fonte que a lib lê
   do disco em runtime. Mesma consulta (`lib/reports/device-report.ts`) reaproveitada
-  por `/tenant/[clientSlug]/reports` e `/portal/reports` (rota nova).
+  por `/app/[clientSlug]/reports` e `/portal/reports` (rota nova).
 - **C3. Alertas por regra ✅ Concluído.** Catálogo fechado de 4 métricas sobre a
   postura de segurança de B1 (antivírus/firewall/UAC/BitLocker — até então só
   visíveis passivamente na aba Segurança). Cliente cria quantas `AlertRule`
@@ -435,10 +443,6 @@ somar valores absolutos de máquinas diferentes. Ao adicionar uma tela nova que 
 por tenant, checar essa lib antes de escrever uma consulta nova.
 
 **Próximos passos candidatos** (nenhum bloqueia o outro):
-- **Consolidação de rotas (A3, pendente desde a Fase A)**: renomear `/tenant/[slug]/*` →
-  `/app/*` e `/clients` → `/admin/*`. Puro código, mexe em ~12 páginas e todas as URLs
-  internas — churn estrutural sem ganho funcional imediato, por isso sempre ficou por último,
-  mas nada mais bloqueia.
 - **Deploy assistido GPO/Intune** (Fase D): o único item de Fase D que não depende de recurso
   externo que só o usuário tem. Mais documentação/scripts `.ps1`/`.mst` do que código de produto.
 - **Bloqueados por recurso externo — não iniciar sem resolver o bloqueio antes**: assinatura

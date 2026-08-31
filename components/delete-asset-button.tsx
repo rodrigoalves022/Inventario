@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import {
   deleteTenantAssetAction,
   type DeleteAssetActionState,
-} from '@/app/tenant/[clientSlug]/assets/[id]/actions'
+} from '@/app/app/[clientSlug]/assets/[id]/actions'
 
 // Objeto simples, nao pode viver no arquivo "use server" de actions.ts: esse
 // tipo de arquivo so pode exportar funcoes async, nunca valores.

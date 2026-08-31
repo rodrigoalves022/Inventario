@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { rotateEnrollmentKeyAction } from '@/app/clients/actions'
+import { rotateEnrollmentKeyAction } from '@/app/admin/clients/actions'
 
 // aes-256-gcm precisa de um segredo mestre (lib/provisioning-credentials.ts)
 process.env.AUTH_SECRET = process.env.AUTH_SECRET ?? 'test-secret-for-vitest-only'
@@ -17,7 +17,7 @@ type FakeClient = {
 // qualquer import estatico. Estado mutavel usado dentro das factories de
 // mock precisa vir de vi.hoisted() por isso — senao a factory fecharia
 // sobre uma const ainda nao inicializada (TDZ) no momento em que o import
-// real (ex.: '@/app/clients/actions') e resolvido.
+// real (ex.: '@/app/admin/clients/actions') e resolvido.
 const { clients, auditLogs, sessionRef, fakePrisma } = vi.hoisted(() => {
   const clients = new Map<string, FakeClient>()
   const auditLogs: Array<Record<string, unknown>> = []

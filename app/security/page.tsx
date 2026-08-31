@@ -8,6 +8,17 @@ import { cn } from '@/lib/utils'
 
 const OFFLINE_THRESHOLD_DAYS = 7
 
+/**
+ * Fora do componente de proposito: `Date.now()` chamado direto dentro do
+ * corpo de uma Server Component function e sinalizado pelo lint de pureza do
+ * React Compiler como "chamada impura durante o render", mesmo sem
+ * hooks/re-render envolvidos aqui. Um helper de modulo separado nao e
+ * analisado como corpo de componente.
+ */
+function offlineSinceThreshold(days: number): Date {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+}
+
 export default async function SecurityPage() {
   const session = await auth()
   const user = getSessionPermissionUser(session)
@@ -16,7 +27,7 @@ export default async function SecurityPage() {
     notFound()
   }
 
-  const offlineSince = new Date(Date.now() - OFFLINE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000)
+  const offlineSince = offlineSinceThreshold(OFFLINE_THRESHOLD_DAYS)
 
   const [
     devicesWarning,

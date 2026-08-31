@@ -21,7 +21,7 @@ sequenceDiagram
     participant Agent as Agente Go
     participant API as POST /api/agent/register
 
-    Admin->>DB: cria Client (Server Action, app/clients/actions.ts)
+    Admin->>DB: cria Client (Server Action, app/admin/clients/actions.ts)
     Note over Admin,DB: Client.enrollmentKeyHash gravado — a chave em claro só existe nesta resposta, uma vez
     Admin->>Agent: instala com client + enrollmentKey<br/>(script bootstrap .ps1 ou instalação manual)
     Agent->>API: POST { name, client, enrollmentKey }
@@ -336,7 +336,7 @@ key: string.min(16)
 
 | Mecanismo | Onde | Header/campo | Verificação |
 |---|---|---|---|
-| Sessão NextAuth | páginas `/tenant/*`, `/clients`, `/portal/*`, rotas de API tenant-scoped | cookie de sessão | `auth()` + guard de `lib/permissions.ts` por rota |
+| Sessão NextAuth | páginas `/app/*`, `/admin/clients`, `/portal/*`, rotas de API tenant-scoped | cookie de sessão | `auth()` + guard de `lib/permissions.ts` por rota |
 | `X-Api-Key` | todas as rotas `/api/agent/{checkin,metrics,commands/*}` | header `X-Api-Key` | `validateAgentApiKey` — hash SHA-256 do valor recebido, lookup exato em `AgentAuth.apiKeyHash` |
 | `X-Admin-Secret` | `register` (caminho alternativo), `/api/inventory/computers` | header `X-Admin-Secret` | comparação `===` contra `process.env.ADMIN_SECRET` |
 
@@ -350,11 +350,12 @@ um esquecimento, e vale registrar como tal.
 
 1. **Proxy** (`proxy.ts`, ex-`middleware.ts` — convenção renomeada no Next.js 16, roda antes de qualquer coisa, sem acesso a banco):
    redireciona não-autenticado para `/login`; bloqueia `CLIENT_VIEWER` fora de `/portal`; chama
-   `canPossiblyAccessTenantSlug` como portão grosseiro para `/tenant/*` (só confirma que o
+   `canPossiblyAccessTenantSlug` como portão grosseiro para `/app/*` (só confirma que o
    usuário *tem* uma `organizationId`, não que ela é dona daquele slug); bloqueia área de conta
-   (`/clients`, `/users`) e área de plataforma (`/security`) por papel.
+   (`/admin/clients`, `/users`) e área de plataforma (`/security`) por papel; redireciona 308 as
+   URLs antigas `/tenant/[slug]/*` e `/clients` para os prefixos atuais (Sprint 5).
 2. **Guard definitivo por página/rota**, com acesso a banco: `requireTenantContext()` (ADR 0004)
-   para todo `/tenant/[clientSlug]/*`; `canAccessTenant`/`canOperateTenant`/`canManageTenant` (e
+   para todo `/app/[clientSlug]/*`; `canAccessTenant`/`canOperateTenant`/`canManageTenant` (e
    os que delegam neles) chamados explicitamente em cada rota de API tenant-scoped.
 
 O comentário do próprio middleware é explícito sobre a divisão: *"Portao GROSSEIRO... A

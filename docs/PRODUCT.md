@@ -17,7 +17,7 @@
 | ID | Requisito | Descrição |
 |---|---|---|
 | RF001 | Autenticação de usuários | NextAuth com `CredentialsProvider` (`auth.ts`), verificação de senha via `bcrypt.compare` contra `User.passwordHash`. Sessão carrega `id`, `role`, `organizationId`, `clientId`. |
-| RF002 | Cadastro de tenant (Client) | `PLATFORM_ADMIN` ou `ORG_ADMIN` cadastra um `Client` pelo assistente `/clients/novo`, via Server Action `createClientAction` (`app/clients/actions.ts`). O sistema gera `enrollmentKeyHash` e exibe a chave em claro uma única vez. |
+| RF002 | Cadastro de tenant (Client) | `PLATFORM_ADMIN` ou `ORG_ADMIN` cadastra um `Client` pelo assistente `/admin/clients/novo`, via Server Action `createClientAction` (`app/admin/clients/actions.ts`). O sistema gera `enrollmentKeyHash` e exibe a chave em claro uma única vez. |
 | RF003 | Enrollment de agente | O agente troca a `enrollmentKey` de uso único do `Client` por uma `apiKey` própria e permanente, gravada como `AgentAuth.apiKeyHash`, via `POST /api/agent/register`. O banco nunca guarda nenhuma das duas chaves em claro. |
 | RF004 | Check-in de agente | `POST /api/agent/checkin`, autenticado por header `X-Api-Key` (`validateAgentApiKey`), payload validado por `agentCheckinSchema` (Zod) antes de tocar o banco. Ciclo de 1 hora no agente. |
 | RF005 | Coleta de hardware | Tabela `Hardware` (1:1 com `Device`): sistema operacional, versão, processador, RAM total, slots de memória (1 a 4), placa-mãe, tipo de armazenamento. |
@@ -33,8 +33,8 @@
 | RF015 | Ciclo de vida de alertas | `AlertEvent` abre na transição condição-ok → condição-problema (`firedAt`) e resolve na transição inversa (`resolvedAt`), sem duplicar linha enquanto o problema persiste. Não há exclusão — o histórico é permanente. |
 | RF016 | Webhooks | Configurável via Server Action (`Client.alertWebhookEnabled`/`alertWebhookUrl`), disparado fire-and-forget (timeout 4s) no check-in quando o status do dispositivo transiciona de/para alerta. |
 | RF017 | Comandos remotos | Catálogo fechado de 5 tipos (`lib/agent-commands.ts`): `collect_now`, `collect_metrics_now`, `restart_service` (allowlist de 4 serviços), `run_script` (allowlist de 4 scripts), `restart_computer`. Nunca texto livre — allowlist validada nos dois lados (servidor via Zod, agente via mapa espelhado). |
-| RF018 | Dashboard por tenant | `/tenant/[clientSlug]`, Server Component que consulta o Prisma diretamente (sem rota de API intermediária), guardado por `requireTenantContext()`. |
-| RF019 | Listagens filtráveis | `/tenant/[clientSlug]/computers`, `/servers`, `/storage`, `/processors`, `/network` — filtros aplicados via `searchParams`, sem API REST dedicada. |
+| RF018 | Dashboard por tenant | `/app/[clientSlug]`, Server Component que consulta o Prisma diretamente (sem rota de API intermediária), guardado por `requireTenantContext()`. |
+| RF019 | Listagens filtráveis | `/app/[clientSlug]/computers`, `/servers`, `/storage`, `/processors`, `/network` — filtros aplicados via `searchParams`, sem API REST dedicada. |
 | RF020 | Relatórios | `GET /api/tenant/[clientSlug]/reports/{csv,pdf}` e os equivalentes `/api/portal/reports/{csv,pdf}` reaproveitam a mesma consulta (`lib/reports/device-report.ts`), que agrega por contagem de máquinas por faixa (nunca soma valores absolutos entre máquinas heterogêneas). |
 | RF021 | Portal do cliente | `/portal/*`, contexto derivado exclusivamente da sessão (`CLIENT_VIEWER`), nunca de slug na URL — sem parâmetro para enumerar outros tenants. Somente leitura. |
 | RF022 | Auditoria | `AuditLog` registra ator, ação, tipo e id do alvo, metadados em JSON. Escrita explícita em pontos sensíveis do código (ex.: exclusão de dispositivo, emissão e resultado de comando) — não é um interceptor genérico; cobertura depende de cada ação sensível chamar `recordAuditLog()`. |
@@ -53,7 +53,7 @@
 | RNF005 | Performance | Índices compostos dimensionados para as tabelas de maior crescimento: `MetricSample` acumula ~4.300 amostras por máquina/mês, com `@@index([deviceId, collectedAt])` e `@@index([clientId, collectedAt])` desenhados para o gráfico de uma máquina e para o corte por tenant. |
 | RNF006 | Disponibilidade | Check-in é parcialmente idempotente: `Device`/`Hardware`/tabelas relacionadas usam `upsert` chaveado por `agentAuthId` (reenvio não duplica estado); `CollectionLog.create()` é insert puro (reenvio gera nova linha de log, não erro). |
 | RNF007 | Retenção de dados | `Client.metricsRetentionDays` (default 90) — o expurgo de `MetricSample` roda inline em toda ingestão de métrica bem-sucedida, não em job/cron separado (o projeto ainda não tem onde rodar um cron). |
-| RNF008 | Usabilidade | Portal (`CLIENT_VIEWER`) tem shell e componentes próprios, sem compartilhar layout administrativo com `/tenant/*` — nenhum componente que aceite ações de mutação (`onDelete`, `onCommand`) entra no portal. |
+| RNF008 | Usabilidade | Portal (`CLIENT_VIEWER`) tem shell e componentes próprios, sem compartilhar layout administrativo com `/app/*` — nenhum componente que aceite ações de mutação (`onDelete`, `onCommand`) entra no portal. |
 | RNF009 | Auditabilidade | `recordAuditLog()` é chamado explicitamente nos pontos sensíveis identificados (exclusão de ativo, emissão/resultado de comando) — não há garantia estrutural de cobertura automática para toda ação futura. |
 | RNF010 | Escalabilidade horizontal | O rate limiting (`lib/rate-limit.ts`) usa um `Map` em memória de processo — funciona por instância, não é compartilhado entre réplicas; limitação documentada explicitamente no próprio módulo. |
 | RNF011 | Portabilidade | PostgreSQL é o único banco suportado, inclusive em desenvolvimento (ver ADR [0003](./adr/0003-postgresql-only.md)) — elimina a divergência entre ambiente de dev e produção que existia com SQLite. |
@@ -67,7 +67,7 @@
 |---|---|
 | RN001 | Hierarquia real: `Organization → Client → AgentAuth → Device`. A identidade do endpoint é `Device.agentAuthId` (`@unique`, `onDelete: Cascade` a partir de `AgentAuth` — apagar a credencial apaga o dispositivo, nunca o contrário). `Device.clientId` é desnormalizado e opcional, nulo apenas para agentes legados registrados sem cliente. |
 | RN002 | `Organization.type` (`MSP` ou `DIRECT`) é convenção documentada por comentário, não constraint de banco. No modo `DIRECT`, a `Organization` possui exatamente um `Client` — o mesmo caminho de código atende os dois modelos de negócio, sem ramificação `if (isMsp)`. |
-| RN003 | Isolamento por tenant via `canAccessTenant`: `PLATFORM_ADMIN` sempre tem acesso; `ORG_ADMIN`/`ORG_OPERATOR` só se `user.organizationId === tenant.organizationId`; `CLIENT_VIEWER` nunca — por design, esse papel só acessa `/portal`, nunca `/tenant/*`. |
+| RN003 | Isolamento por tenant via `canAccessTenant`: `PLATFORM_ADMIN` sempre tem acesso; `ORG_ADMIN`/`ORG_OPERATOR` só se `user.organizationId === tenant.organizationId`; `CLIENT_VIEWER` nunca — por design, esse papel só acessa `/portal`, nunca `/app/*`. |
 | RN004 | RBAC de 4 papéis (`lib/permissions.ts`, tipo `AppRole`): `PLATFORM_ADMIN`, `ORG_ADMIN`, `ORG_OPERATOR`, `CLIENT_VIEWER`. Como `User.role` é `String` livre no schema, qualquer valor fora desses 4 é normalizado para `null` por `getPermissionUser()` — ou seja, sem nenhum privilégio até correção manual. |
 | RN005 | `AgentAuth.apiKeyHash` e `Client.enrollmentKeyHash` são `@unique` — apenas o hash é persistido, nunca a chave em claro, para as duas credenciais do sistema. |
 | RN006 | `AlertEvent` nunca é apagado — o ciclo é aberto→resolvido por atualização de `resolvedAt`. Aplica-se apenas ao catálogo de 4 métricas de segurança; os limiares fixos de disco/RAM/offline não geram `AlertEvent` — alimentam o status calculado do dispositivo e o webhook diretamente. |
@@ -90,9 +90,9 @@
 - **Ator**: `PLATFORM_ADMIN` ou `ORG_ADMIN`.
 - **Pré-condição**: ator autenticado, com sessão válida.
 - **Fluxo principal**:
-  1. Ator acessa `/clients/novo`.
+  1. Ator acessa `/admin/clients/novo`.
   2. Preenche nome do cliente e observações do assistente de 3 passos.
-  3. Server Action `createClientAction` (`app/clients/actions.ts`, guard `hasClientsAdminAccess`) cria o `Client`, vinculado à `Organization` do ator (ou à escolhida, se `PLATFORM_ADMIN`).
+  3. Server Action `createClientAction` (`app/admin/clients/actions.ts`, guard `hasClientsAdminAccess`) cria o `Client`, vinculado à `Organization` do ator (ou à escolhida, se `PLATFORM_ADMIN`).
   4. Sistema gera `enrollmentKey` e grava apenas `enrollmentKeyHash`; a chave em claro é exibida uma única vez, em aviso de destaque.
   5. Ator segue para o passo de instalação (ver 3.2).
 - **Fluxos alternativos**: ator sem `hasClientsAdminAccess` — Server Action recusa a execução.
@@ -136,7 +136,7 @@
 - **Ator**: qualquer usuário autenticado com acesso ao tenant (`PLATFORM_ADMIN`, `ORG_ADMIN`, `ORG_OPERATOR`).
 - **Pré-condição**: sessão válida.
 - **Fluxo principal**:
-  1. Usuário acessa `/tenant/[clientSlug]`.
+  1. Usuário acessa `/app/[clientSlug]`.
   2. `requireTenantContext(clientSlug)` resolve o tenant pelo slug e valida `canAccessTenant()` na mesma chamada.
   3. Server Component consulta o Prisma diretamente (sem rota de API intermediária).
   4. Frontend renderiza indicadores agregados (por contagem de máquinas em faixa, nunca soma) e gráficos (Recharts).
@@ -165,7 +165,7 @@ Dois fluxos distintos, com guards diferentes:
 
 **(a) Limiares fixos** (disco, RAM, horas offline, webhook)
 - **Ator**: `PLATFORM_ADMIN` ou `ORG_ADMIN` (`canManageTenantAlerts`).
-- **Fluxo**: abre "Configurações de Alerta" em `/tenant/[slug]/computers` → Server Action `saveTenantAlertSettingsAction` atualiza os campos em `Client` → passam a alimentar o status calculado e o disparo de webhook no próximo check-in.
+- **Fluxo**: abre "Configurações de Alerta" em `/app/[slug]/computers` → Server Action `saveTenantAlertSettingsAction` atualiza os campos em `Client` → passam a alimentar o status calculado e o disparo de webhook no próximo check-in.
 
 **(b) `AlertRule` de segurança** (catálogo fechado de 4 métricas)
 - **Ator**: `PLATFORM_ADMIN`, `ORG_ADMIN` ou `ORG_OPERATOR`.
@@ -190,7 +190,7 @@ Dois fluxos distintos, com guards diferentes:
 ### 3.8 Registro de patrimônio
 
 - **Ator**: `PLATFORM_ADMIN`, `ORG_ADMIN` ou `ORG_OPERATOR` com `canManageAssetRecord` (= `canOperateTenant`) sobre o tenant do dispositivo. `CLIENT_VIEWER` nunca tem escrita — no portal, a aba de patrimônio é fixada em modo leitura.
-- **Pré-condição**: sessão com permissão de operação sobre o tenant; `Device` já existe em `/tenant/[clientSlug]/assets/[id]`.
+- **Pré-condição**: sessão com permissão de operação sobre o tenant; `Device` já existe em `/app/[clientSlug]/assets/[id]`.
 - **Fluxo principal**:
   1. A página resolve o tenant (`requireTenantContext`) e calcula `canManageAsset = canManageAssetRecord(user, tenant)`, repassado ao componente de abas.
   2. A aba "Patrimônio / financeiro" só renderiza o formulário editável (`AssetRecordForm`) quando essa permissão é verdadeira; caso contrário mostra os campos em modo leitura.
@@ -349,9 +349,9 @@ flowchart TB
             AuthRoutes["/api/auth/*\n(NextAuth)"]
         end
         subgraph Pages["Server Components (sem API intermediária)"]
-            TenantPages["/tenant/[slug]/*\nrequireTenantContext()"]
+            TenantPages["/app/[slug]/*\nrequireTenantContext()"]
             PortalPages["/portal/*\ngetPortalContext()"]
-            ClientPages["/clients, /users\ncanAccessGlobalAdmin / isOrgAdmin"]
+            ClientPages["/admin/clients, /users\ncanAccessGlobalAdmin / isOrgAdmin"]
         end
         Prisma["Prisma Client"]
     end
@@ -393,7 +393,7 @@ flowchart TB
 1. Usuário acessa `/login` → NextAuth (`app/api/auth/[...nextauth]/route.ts`, delega a `handlers` configurados em `auth.ts`) → `CredentialsProvider` verifica `bcrypt.compare(senha, User.passwordHash)`.
 2. Sessão resultante carrega `id`, `role`, `organizationId`, `clientId`.
 3. **Não existe um middleware único que resolve tudo** — cada superfície de entrada revalida por conta própria:
-   - Páginas `/tenant/[clientSlug]/*` → `requireTenantContext()`.
+   - Páginas `/app/[clientSlug]/*` → `requireTenantContext()`.
    - Páginas `/portal/*` → `getPortalContext()`.
    - Rotas de API tenant-scoped → `auth()` + `canAccessTenant()`/`canOperateTenant()` chamados manualmente em cada handler.
    - Rotas do agente → `validateAgentApiKey()`, mecanismo independente de sessão.
@@ -402,8 +402,8 @@ flowchart TB
 
 Dois níveis de checagem, deliberadamente distintos:
 
-1. **Proxy (`proxy.ts`, ex-`middleware.ts` — convenção renomeada no Next.js 16)** — roda antes de qualquer rota ser renderizada, sem acesso a banco. Redireciona não-autenticado para `/login`; confina `CLIENT_VIEWER` a `/portal`; aplica `canPossiblyAccessTenantSlug` como portão grosseiro em `/tenant/*` (só confirma que o usuário *tem* uma `organizationId`, não que ela é dona daquele slug específico); bloqueia áreas de conta (`/clients`, `/users`) e de plataforma (`/security`) por papel.
-2. **`requireTenantContext()` (server-side, com banco)** — chokepoint definitivo: resolve o `Client` pelo slug **e** valida `canAccessTenant()` na mesma chamada, respondendo `notFound()` (nunca `403`) para não revelar a existência de um tenant de outra organização a quem não tem acesso. Usado por toda página sob `/tenant/[clientSlug]/*`. Rotas de API tenant-scoped repetem o mesmo padrão manualmente (`canAccessTenant`/`canOperateTenant`), sem delegar a um proxy compartilhado.
+1. **Proxy (`proxy.ts`, ex-`middleware.ts` — convenção renomeada no Next.js 16)** — roda antes de qualquer rota ser renderizada, sem acesso a banco. Redireciona não-autenticado para `/login`; confina `CLIENT_VIEWER` a `/portal`; aplica `canPossiblyAccessTenantSlug` como portão grosseiro em `/app/*` (só confirma que o usuário *tem* uma `organizationId`, não que ela é dona daquele slug específico); bloqueia áreas de conta (`/admin/clients`, `/users`) e de plataforma (`/security`) por papel; redireciona 308 as URLs antigas `/tenant/[slug]/*` e `/clients` para os prefixos atuais (Sprint 5).
+2. **`requireTenantContext()` (server-side, com banco)** — chokepoint definitivo: resolve o `Client` pelo slug **e** valida `canAccessTenant()` na mesma chamada, respondendo `notFound()` (nunca `403`) para não revelar a existência de um tenant de outra organização a quem não tem acesso. Usado por toda página sob `/app/[clientSlug]/*`. Rotas de API tenant-scoped repetem o mesmo padrão manualmente (`canAccessTenant`/`canOperateTenant`), sem delegar a um proxy compartilhado.
 
 Ver ADR [0004](./adr/0004-tenant-isolation-fail-closed.md) para a decisão registrada e ADR [0001](./adr/0001-device-identity-by-agentauthid.md) para a identidade do dispositivo.
 
@@ -416,7 +416,7 @@ Validada linha a linha contra `lib/permissions.ts` e `proxy.ts`. **4 papéis con
 | Ação | PLATFORM_ADMIN | ORG_ADMIN | ORG_OPERATOR | CLIENT_VIEWER | Guard real |
 |---|---|---|---|---|---|
 | Ver todas as organizações / admin global | ✅ | ❌ | ❌ | ❌ | `canAccessGlobalAdmin` (= `isPlatformAdmin`) |
-| Acessar `/tenant/[slug]/*` (própria org) | ✅ | ✅ (mesma org) | ✅ (mesma org) | ❌ sempre, por design | `canAccessTenant` |
+| Acessar `/app/[slug]/*` (própria org) | ✅ | ✅ (mesma org) | ✅ (mesma org) | ❌ sempre, por design | `canAccessTenant` |
 | Administrar tenant (credenciais, exclusões, alertas, usuários) | ✅ | ✅ (mesma org) | ❌ | ❌ | `canManageTenant` |
 | Criar/editar `Client` | ✅ | ✅ | ❌ | ❌ | `hasClientsAdminAccess` (Server Action própria, não delega a `canManageTenant`) |
 | Disparar `AgentCommand` | ✅ | ✅ (mesma org) | ✅ (mesma org) | ❌ | `canOperateTenant` |
@@ -467,7 +467,7 @@ Inventário completo dos 19 arquivos `route.ts` sob `app/api/`. A maior parte da
 
 **`GET/POST /api/clients`** — `GET`: `200` → `{ id, name, slug, isActive, createdAt, _count: { agents } }[]`, ordenado por nome; `401` se não `PLATFORM_ADMIN`. `POST`: request `{ name: string (min 3), slug?: string (min 3, regex ^[a-z0-9-]+$) }`; `201` → `{ id, name, slug, enrollmentKey, message }` (gera par plaintext/hash da chave e persiste o pacote de provisionamento criptografado em transação); `400` payload inválido; `409` slug já existe.
 
-**`GET /api/clients/[id]/status`** — `200` → `{ clientSlug, agentCount, device: { id, hostname, lastSeenAt } | null }`; `401` sem sessão; `404` cliente inexistente ou fora da organização do ator (mesma resposta para os dois casos, evita enumeração). Usado em polling pelo wizard `/clients/novo`.
+**`GET /api/clients/[id]/status`** — `200` → `{ clientSlug, agentCount, device: { id, hostname, lastSeenAt } | null }`; `401` sem sessão; `404` cliente inexistente ou fora da organização do ator (mesma resposta para os dois casos, evita enumeração). Usado em polling pelo wizard `/admin/clients/novo`.
 
 **`GET /api/clients/[id]/credentials`** — query `?serverUrl?` (URL válida, opcional). `200` com `status: 'unavailable'` (cliente legado sem pacote persistido) ou `status: 'available'` → `{ generatedAt, package: { clientId, clientName, clientSlug, enrollmentKey, ...artifacts } }`, chave descriptografada sob demanda; toda visualização grava `AuditLog` (`credentials.view`); header `Cache-Control: no-store`; `401` sem `canManageTenant`; `404` cliente não encontrado.
 
@@ -615,7 +615,7 @@ erDiagram
 
 **Client** — A empresa/unidade inventariada, dona dos `Device`s. Sempre presente mesmo no modo `DIRECT` — existe uma linha redundante para não bifurcar código em `if (isMsp)`. *Evitar*: Customer, "empresa-cliente".
 
-**Tenant** — Não é uma entidade do schema; é o conceito de isolamento aplicado a um `Client` específico (usado em código/URLs: `tenantSlug`, `/tenant/[clientSlug]`). Ao falar do registro no banco, use `Client`; ao falar do escopo de acesso, "tenant" é aceitável. *Evitar*: usar "tenant" para se referir a `Organization` — são níveis diferentes da hierarquia.
+**Tenant** — Não é uma entidade do schema; é o conceito de isolamento aplicado a um `Client` específico (usado em código: `tenantSlug`; na URL da página operacional: `/app/[clientSlug]` — o segmento `/tenant/` do path foi removido na Sprint 5, só o identificador `tenantSlug` no código continua com esse nome). Ao falar do registro no banco, use `Client`; ao falar do escopo de acesso, "tenant" é aceitável. *Evitar*: usar "tenant" para se referir a `Organization` — são níveis diferentes da hierarquia.
 
 **Device** — Um endpoint inventariado. Identidade real é `agentAuthId`, nunca `hostname` — hostnames colidem entre máquinas distintas (confirmado: um agente rodando em sessão WSL2 reporta o mesmo hostname da máquina Windows hospedeira). *Evitar*: tratar hostname como chave, mesmo "só para exibição".
 
@@ -643,6 +643,6 @@ erDiagram
 
 ## Cobertura deste documento
 
-**Lido integralmente para esta versão**: `prisma/schema.prisma`, `lib/permissions.ts`, `proxy.ts`, `app/clients/actions.ts`, `lib/inventory-alerts.ts` (função de presença), `CONTEXT.md`, `docs/PRODUTO.md`, `docs/SPEC.md`, `docs/adr/*`, estrutura de diretórios de `agent-go/`, os 19 arquivos `route.ts` sob `app/api/`, `lib/auth.ts`, `lib/rate-limit.ts`, `lib/schemas/agent-checkin.ts`, `lib/schemas/agent-metrics.ts`, `lib/agent-commands.ts`, `lib/portal-context.ts`, `auth.ts`, `auth.config.ts`, `app/login/page.tsx`, `app/login/actions.ts`, `app/users/page.tsx`, `components/asset-record-form.tsx`, `app/tenant/[clientSlug]/assets/[id]/actions.ts`, `lib/schemas/asset-record.ts`, `app/portal/page.tsx`, `app/portal/layout.tsx`, `app/portal/devices/[id]/page.tsx`, `app/portal/reports/page.tsx`, `app/api/auth/signup/route.ts`.
+**Lido integralmente para esta versão**: `prisma/schema.prisma`, `lib/permissions.ts`, `proxy.ts`, `app/admin/clients/actions.ts`, `lib/inventory-alerts.ts` (função de presença), `CONTEXT.md`, `docs/PRODUTO.md`, `docs/SPEC.md`, `docs/adr/*`, estrutura de diretórios de `agent-go/`, os 19 arquivos `route.ts` sob `app/api/`, `lib/auth.ts`, `lib/rate-limit.ts`, `lib/schemas/agent-checkin.ts`, `lib/schemas/agent-metrics.ts`, `lib/agent-commands.ts`, `lib/portal-context.ts`, `auth.ts`, `auth.config.ts`, `app/login/page.tsx`, `app/login/actions.ts`, `app/users/page.tsx`, `components/asset-record-form.tsx`, `app/app/[clientSlug]/assets/[id]/actions.ts`, `lib/schemas/asset-record.ts`, `app/portal/page.tsx`, `app/portal/layout.tsx`, `app/portal/devices/[id]/page.tsx`, `app/portal/reports/page.tsx`, `app/api/auth/signup/route.ts`.
 
 **Não lido nesta passada**: código Go do agente além da estrutura de diretórios e do que já está documentado em `docs/PRODUTO.md` §6; `lib/reports/device-report.ts` (consumido por referência, não lido linha a linha nesta revisão); `lib/provisioning-credentials.ts` além do que `SPEC.md` já documenta.

@@ -19,7 +19,7 @@ const servers: TenantServerRow[] = [
     ramTotalGb: 64,
     storageLabel: '500 GB SSD',
     effectiveStatus: 'online',
-    detailsPath: '/tenant/cliente-a/assets/s1',
+    detailsPath: '/app/cliente-a/assets/s1',
   },
 ]
 
@@ -29,7 +29,7 @@ describe('TenantServersTable — linha inteira clicavel, nao so o hostname (corr
 
     fireEvent.click(screen.getByText('10.0.0.1'))
 
-    expect(pushMock).toHaveBeenCalledWith('/tenant/cliente-a/assets/s1')
+    expect(pushMock).toHaveBeenCalledWith('/app/cliente-a/assets/s1')
   })
 
   it('Enter com foco na linha tambem navega (acessibilidade de teclado)', () => {
@@ -38,7 +38,7 @@ describe('TenantServersTable — linha inteira clicavel, nao so o hostname (corr
     const row = screen.getByText('10.0.0.1').closest('tr')
     fireEvent.keyDown(row as HTMLElement, { key: 'Enter' })
 
-    expect(pushMock).toHaveBeenCalledWith('/tenant/cliente-a/assets/s1')
+    expect(pushMock).toHaveBeenCalledWith('/app/cliente-a/assets/s1')
   })
 
   it('a linha tem role="button" e e alcancavel via tab (tabIndex 0)', () => {
@@ -55,7 +55,7 @@ describe('TenantServersTable — linha inteira clicavel, nao so o hostname (corr
 
     const link = screen.getByText('SRV-01').closest('a')
 
-    expect(link?.getAttribute('href')).toBe('/tenant/cliente-a/assets/s1')
+    expect(link?.getAttribute('href')).toBe('/app/cliente-a/assets/s1')
   })
 
   it('lista vazia mostra mensagem de "nenhum servidor" em vez de uma tabela quebrada', () => {

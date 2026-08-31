@@ -25,7 +25,7 @@ import { getRowEffectiveStatus } from '@/lib/reports/device-report'
  *     os cards de resumo — um superconjunto intencional, não uma reimplementação
  *     divergente da regra.
  *   - storage/page.tsx chama getDevicePresence, a mesma função que o
- *     dashboard usa para o badge "ao vivo" (app/tenant/[clientSlug]/page.tsx).
+ *     dashboard usa para o badge "ao vivo" (app/app/[clientSlug]/page.tsx).
  *   - processors/page.tsx não exibe status por dispositivo — N/A para RN010.
  *   - servers/page.tsx é a ÚNICA exceção real: exibe `device.status` bruto,
  *     sem chamar nenhuma das funções acima. Isso é uma violação pré-existente

@@ -25,7 +25,7 @@ const STATUS_BADGE_CLASS: Record<TenantServerRow['effectiveStatus'], string> = {
 
 /**
  * Tabela de /servers. Componente client separado do Server Component da
- * pagina (app/tenant/[clientSlug]/servers/page.tsx) so para poder usar
+ * pagina (app/app/[clientSlug]/servers/page.tsx) so para poder usar
  * useRouter() e tornar a linha inteira clicavel — mesmo padrao aplicado em
  * tenant-computers-table.tsx e tenant-recent-devices-table.tsx.
  */

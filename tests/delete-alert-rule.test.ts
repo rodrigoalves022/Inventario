@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { deleteAlertRuleAction } from '@/app/tenant/[clientSlug]/alerts/actions'
+import { deleteAlertRuleAction } from '@/app/app/[clientSlug]/alerts/actions'
 
 type FakeTenant = { id: string; name: string; slug: string; isActive: boolean; organizationId: string }
 type FakeRule = { id: string; clientId: string; name: string; metric: string; severity: string; enabled: boolean }

@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 
-const args = ['eslint', 'scripts/verification/**/*.mjs', 'eslint.config.mjs', '--max-warnings=0']
+const args = ['eslint', 'app', 'components', 'lib', 'scripts/verification/**/*.mjs', 'eslint.config.mjs', '--max-warnings=0']
 const result = spawnSync('npm', ['exec', '--', ...args], {
   stdio: 'inherit',
   shell: process.platform === 'win32',
