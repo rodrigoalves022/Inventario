@@ -125,7 +125,8 @@ export function TenantAlertSettingsForm({
 
           <div className="flex items-center justify-between gap-4 pt-4 border-t">
             <p className={`text-xs ${state.status === 'error' ? 'text-destructive font-medium' : 'text-muted-foreground italic'}`}>
-              {state.message ?? 'Os webhooks são disparados apenas em transições de status crítico durante o check-in.'}
+              {state.message ??
+                'Os webhooks disparam nas transições de status do próprio dispositivo durante o check-in, e também numa varredura de disponibilidade/disco do cliente inteiro a cada check-in de qualquer máquina. Limite conhecido: um cliente com uma única máquina, ou cuja frota inteira fica muda ao mesmo tempo, não aciona essa varredura — nenhuma nova requisição chega para reavaliar.'}
             </p>
             <SubmitButton />
           </div>

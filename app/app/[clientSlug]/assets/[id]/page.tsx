@@ -12,6 +12,8 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
+import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
+import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
 
 function getStatusIcon(status: string) {
   switch (status) {
@@ -39,6 +41,13 @@ function formatStatus(status: string) {
   if (status === 'online') return 'Online'
   if (status === 'offline') return 'Offline'
   return 'Atenção'
+}
+
+// Funcao de modulo (fora do corpo do componente) para o Date.now() nao ser
+// tratado como chamada impura durante o render pela regra react-hooks/purity.
+function computeCheckinLatencyMinutes(lastCollectedAt: Date | null): number | null {
+  if (!lastCollectedAt) return null
+  return Math.floor((Date.now() - lastCollectedAt.getTime()) / 60000)
 }
 
 export default async function TenantAssetDetailsPage({ params }: PageProps<'/app/[clientSlug]/assets/[id]'>) {
@@ -74,7 +83,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
   // Busca as amostras mais recentes em ordem decrescente (usa o indice
   // deviceId+collectedAt) e inverte para o grafico, que espera ordem
   // cronologica. 500 amostras a ~10 min cobre ~3,5 dias.
-  const [recentMetrics, clientRetention] = await Promise.all([
+  const [recentMetrics, clientRetention, alertSettings] = await Promise.all([
     prisma.metricSample.findMany({
       where: { deviceId: asset.id },
       orderBy: { collectedAt: 'desc' },
@@ -84,8 +93,31 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
       where: { id: tenant.id },
       select: { metricsRetentionDays: true },
     }),
+    getTenantAlertSettingsByClientId(tenant.id),
   ])
   const metrics = recentMetrics.reverse()
+
+  // Snapshot inicial (SSR) de saude do dispositivo — mesmo calculo usado por
+  // GET /api/tenant/[clientSlug]/devices/[deviceId]/metrics (Sprint 9, A.3),
+  // que reassume esse valor a cada ciclo de polling client-side.
+  const lastCollectedAt = asset.logs[0]?.coletadoEm ?? asset.updatedAt
+  const deviceIssues = alertSettings?.alertsEnabled
+    ? deriveInventoryIssues(
+        {
+          updatedAt: asset.updatedAt,
+          lastCollectionAt: lastCollectedAt,
+          hardware: asset.hardware,
+          disks: asset.disks,
+        },
+        alertSettings
+      )
+    : []
+  const deviceHealth = {
+    status: asset.status,
+    effectiveStatus: getEffectiveDeviceStatus(asset.status, deviceIssues) as 'online' | 'warning' | 'offline',
+    lastCollectedAt: lastCollectedAt?.toISOString() ?? null,
+    checkinLatencyMinutes: computeCheckinLatencyMinutes(lastCollectedAt),
+  }
 
   const permissionUser = getSessionPermissionUser(session)
   const canDeleteAsset = canDeleteTenantAsset(permissionUser, tenant)
@@ -241,6 +273,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
           uptimeSegundos: sample.uptimeSegundos,
         }))}
         metricsRetentionDays={clientRetention?.metricsRetentionDays ?? 90}
+        deviceHealth={deviceHealth}
         monitors={asset.monitors.map((monitor) => ({
           id: monitor.id,
           fabricante: monitor.fabricante,

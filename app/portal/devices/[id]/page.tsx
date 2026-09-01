@@ -4,6 +4,15 @@ import { Button } from '@/components/ui/button'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs-lazy'
 import prisma from '@/lib/prisma'
 import { getPortalDeviceMetrics, requirePortalContext, requirePortalDevice } from '@/lib/portal-context'
+import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
+import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
+
+// Funcao de modulo (fora do corpo do componente) para o Date.now() nao ser
+// tratado como chamada impura durante o render pela regra react-hooks/purity.
+function computeCheckinLatencyMinutes(lastCollectedAt: Date | null): number | null {
+  if (!lastCollectedAt) return null
+  return Math.floor((Date.now() - lastCollectedAt.getTime()) / 60000)
+}
 
 export default async function PortalDeviceDetailPage({
   params,
@@ -13,13 +22,35 @@ export default async function PortalDeviceDetailPage({
   const { id } = await params
   const context = await requirePortalContext()
   const device = await requirePortalDevice(id, context.clientId)
-  const [metrics, client] = await Promise.all([
+  const [metrics, client, alertSettings] = await Promise.all([
     getPortalDeviceMetrics(device.id),
     prisma.client.findUnique({ where: { id: context.clientId }, select: { metricsRetentionDays: true } }),
+    getTenantAlertSettingsByClientId(context.clientId),
   ])
 
   const latestLog = device.logs[0]
   const primaryNetwork = device.networks[0]
+
+  // Portal nao recebe polling (Sprint 9, A.3 e' escopada a /app/[clientSlug]/*)
+  // — so o snapshot estatico do SSR, mesmo calculo usado la.
+  const lastCollectedAt = latestLog?.coletadoEm ?? device.updatedAt
+  const deviceIssues = alertSettings?.alertsEnabled
+    ? deriveInventoryIssues(
+        {
+          updatedAt: device.updatedAt,
+          lastCollectionAt: lastCollectedAt,
+          hardware: device.hardware,
+          disks: device.disks,
+        },
+        alertSettings
+      )
+    : []
+  const deviceHealth = {
+    status: device.status,
+    effectiveStatus: getEffectiveDeviceStatus(device.status, deviceIssues) as 'online' | 'warning' | 'offline',
+    lastCollectedAt: lastCollectedAt?.toISOString() ?? null,
+    checkinLatencyMinutes: computeCheckinLatencyMinutes(lastCollectedAt),
+  }
 
   return (
     <div className="space-y-6">
@@ -134,6 +165,7 @@ export default async function PortalDeviceDetailPage({
           uptimeSegundos: sample.uptimeSegundos,
         }))}
         metricsRetentionDays={client?.metricsRetentionDays ?? 90}
+        deviceHealth={deviceHealth}
         monitors={device.monitors.map((monitor) => ({
           id: monitor.id,
           fabricante: monitor.fabricante,

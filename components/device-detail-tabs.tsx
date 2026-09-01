@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag, Wifi, WifiOff, AlertCircle, RefreshCw } from 'lucide-react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -87,6 +87,23 @@ export type DeviceMetricSample = {
   uptimeSegundos: number | null
 }
 
+/**
+ * Sprint 9 (A.3). Snapshot de saude servido tanto no primeiro render (SSR,
+ * calculado igual a lib/tenant-device-rows.ts) quanto pelo polling client-side
+ * (GET /api/tenant/[clientSlug]/devices/[deviceId]/metrics). "Versao do
+ * agente" foi deliberadamente OMITIDA aqui: o payload de check-in carrega
+ * `agentVersion`, mas nenhum campo do schema persiste esse valor por
+ * dispositivo hoje (so e' usado para decidir `updateAvailable` na resposta do
+ * check-in, depois descartado) — adicionar isso exigiria migration nova, que
+ * a sprint pediu para nao decidir sozinho. Ver relatorio de implementacao.
+ */
+export type DeviceHealth = {
+  status: string
+  effectiveStatus: 'online' | 'warning' | 'offline'
+  lastCollectedAt: string | null
+  checkinLatencyMinutes: number | null
+}
+
 export type DeviceMonitor = {
   id: string
   fabricante: string | null
@@ -136,6 +153,8 @@ type Props = {
   localAccounts: DeviceLocalAccount[]
   metrics: DeviceMetricSample[]
   metricsRetentionDays: number
+  /** Snapshot inicial (SSR) usado antes do primeiro ciclo de polling — ver DeviceHealth. */
+  deviceHealth: DeviceHealth
   monitors: DeviceMonitor[]
   printers: DevicePrinter[]
   usbDevices: DeviceUsbDevice[]
@@ -331,6 +350,207 @@ function MetricChart({
   )
 }
 
+// Ciclo de metricas real e' ~10min (RF011) — 60s so evita ter que dar F5 pra
+// ver a amostra nova assim que ela chega, sem fingir "tempo real" sub-segundo
+// que o agente nao produziria dado novo pra sustentar (ver docs/SPRINTS.md,
+// Sprint 9, secao A.3, "Decisao de escopo").
+const METRICS_POLL_INTERVAL_MS = 60_000
+
+function formatLatency(minutes: number | null) {
+  if (minutes === null) return 'sem coletas'
+  if (minutes < 1) return 'agora mesmo'
+  if (minutes < 60) return `há ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `há ${hours}h ${minutes % 60}min`
+  const days = Math.floor(hours / 24)
+  return `há ${days}d ${hours % 24}h`
+}
+
+function HealthBadge({ effectiveStatus }: { effectiveStatus: DeviceHealth['effectiveStatus'] }) {
+  const meta =
+    effectiveStatus === 'online'
+      ? { label: 'Online', Icon: Wifi, className: 'border-success/30 bg-success/10 text-success' }
+      : effectiveStatus === 'offline'
+        ? { label: 'Offline', Icon: WifiOff, className: 'border-destructive/30 bg-destructive/10 text-destructive' }
+        : { label: 'Atenção', Icon: AlertCircle, className: 'border-warning/30 bg-warning/10 text-warning' }
+
+  return (
+    <span
+      data-testid="device-health-badge"
+      className={cn('flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium', meta.className)}
+    >
+      <meta.Icon className="h-3.5 w-3.5" />
+      {meta.label}
+    </span>
+  )
+}
+
+/**
+ * Sprint 9 (A.3). Dono do polling client-side (~60s) que substitui o retrato
+ * estatico anterior da aba Metricas — chama a mesma consulta do carregamento
+ * inicial via GET /api/tenant/[clientSlug]/devices/[deviceId]/metrics, pausa
+ * quando a aba fica invisivel (document.visibilityState) para nao gerar
+ * trafego atoa, e retoma (com refresh imediato) quando volta a ficar visivel.
+ * `tenantSlug` nulo (portal) desliga o polling — a rota nova e' escopada a
+ * /app/[clientSlug]/*, o portal continua com o retrato estatico do SSR.
+ */
+function DeviceMetricsSection({
+  deviceId,
+  tenantSlug,
+  initialMetrics,
+  initialHealth,
+  metricsRetentionDays,
+}: {
+  deviceId: string
+  tenantSlug: string | null
+  initialMetrics: DeviceMetricSample[]
+  initialHealth: DeviceHealth
+  metricsRetentionDays: number
+}) {
+  const [metrics, setMetrics] = useState(initialMetrics)
+  const [health, setHealth] = useState(initialHealth)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const refresh = useCallback(async () => {
+    if (!tenantSlug) return
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/devices/${deviceId}/metrics`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) return
+      const data = await response.json()
+      if (Array.isArray(data?.metrics)) setMetrics(data.metrics)
+      if (data?.device) setHealth(data.device)
+    } catch {
+      // Falha de rede/timeout: mantem o ultimo estado conhecido em tela,
+      // tenta de novo no proximo ciclo — nunca quebra a pagina por isso.
+    }
+  }, [tenantSlug, deviceId])
+
+  useEffect(() => {
+    if (!tenantSlug) return
+
+    function startPolling() {
+      if (intervalRef.current) return
+      intervalRef.current = setInterval(refresh, METRICS_POLL_INTERVAL_MS)
+    }
+    function stopPolling() {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void refresh()
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    if (document.visibilityState === 'visible') {
+      startPolling()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      stopPolling()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [refresh, tenantSlug])
+
+  const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null
+  const diskUsagePercent =
+    latestMetric?.discoUsadoGb != null && latestMetric?.discoLivreGb != null
+      ? Math.round(
+          (latestMetric.discoUsadoGb / (latestMetric.discoUsadoGb + latestMetric.discoLivreGb)) * 100
+        )
+      : null
+
+  return (
+    <>
+      {tenantSlug && (
+        <Panel>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <HealthBadge effectiveStatus={health.effectiveStatus} />
+            <div className="text-xs text-muted-foreground">
+              Última coleta:{' '}
+              <span data-testid="device-health-latency" className="font-medium text-foreground">
+                {formatLatency(health.checkinLatencyMinutes)}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Versão do agente: <span className="font-medium text-foreground">não disponível</span>
+            </div>
+            <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+              <RefreshCw className="h-3 w-3" />
+              Atualiza automaticamente a cada 60s
+            </div>
+          </div>
+        </Panel>
+      )}
+
+      {metrics.length === 0 ? (
+        <Panel>
+          <p className="text-sm text-muted-foreground">
+            Nenhuma métrica coletada ainda. O ciclo de métricas roda a cada ~10 minutos, separado
+            da coleta completa — se o agente acabou de ser instalado, aguarde a próxima amostra.
+          </p>
+        </Panel>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Panel>
+              <p className="text-xs text-muted-foreground">CPU agora</p>
+              <p className="text-2xl font-semibold text-foreground">
+                {latestMetric?.cpuPercent != null ? `${latestMetric.cpuPercent.toFixed(0)}%` : 'Não apurado'}
+              </p>
+            </Panel>
+            <Panel>
+              <p className="text-xs text-muted-foreground">RAM em uso</p>
+              <p className="text-2xl font-semibold text-foreground">
+                {latestMetric?.ramUsadaGb != null && latestMetric?.ramTotalGb != null
+                  ? `${latestMetric.ramUsadaGb.toFixed(1)} / ${latestMetric.ramTotalGb.toFixed(1)} GB`
+                  : 'Não apurado'}
+              </p>
+            </Panel>
+            <Panel>
+              <p className="text-xs text-muted-foreground">Disco (unidade do sistema)</p>
+              <p className="text-2xl font-semibold text-foreground">
+                {diskUsagePercent != null ? `${diskUsagePercent}% usado` : 'Não apurado'}
+              </p>
+            </Panel>
+            <Panel>
+              <p className="text-xs text-muted-foreground">Uptime</p>
+              <p className="text-2xl font-semibold text-foreground">
+                {formatUptime(latestMetric?.uptimeSegundos ?? null)}
+              </p>
+            </Panel>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <MetricChart title="CPU" unit="%" data={metrics} dataKey="cpuPercent" color="var(--chart-1)" domain={[0, 100]} />
+            <MetricChart title="RAM usada" unit="GB" data={metrics} dataKey="ramUsadaGb" color="var(--chart-2)" />
+            <MetricChart
+              title="Disco usado (unidade do sistema)"
+              unit="GB"
+              data={metrics}
+              dataKey="discoUsadoGb"
+              color="var(--chart-3)"
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {metrics.length} amostras · retenção de {metricsRetentionDays} dias configurada para
+            este cliente · lacunas no gráfico indicam períodos sem coleta, não zero.
+          </p>
+        </>
+      )}
+    </>
+  )
+}
+
 export function DeviceDetailTabs({
   device,
   hardware,
@@ -343,6 +563,7 @@ export function DeviceDetailTabs({
   localAccounts,
   metrics,
   metricsRetentionDays,
+  deviceHealth,
   monitors,
   printers,
   usbDevices,
@@ -363,14 +584,6 @@ export function DeviceDetailTabs({
         (item.versao ?? '').toLowerCase().includes(term)
     )
   }, [query, software])
-
-  const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null
-  const diskUsagePercent =
-    latestMetric?.discoUsadoGb != null && latestMetric?.discoLivreGb != null
-      ? Math.round(
-          (latestMetric.discoUsadoGb / (latestMetric.discoUsadoGb + latestMetric.discoLivreGb)) * 100
-        )
-      : null
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
@@ -674,75 +887,13 @@ export function DeviceDetailTabs({
 
       {/* ---------- Métricas ---------- */}
       <TabsContent value="metrics" className="space-y-6">
-        {metrics.length === 0 ? (
-          <Panel>
-            <p className="text-sm text-muted-foreground">
-              Nenhuma métrica coletada ainda. O ciclo de métricas roda a cada ~10 minutos, separado
-              da coleta completa — se o agente acabou de ser instalado, aguarde a próxima amostra.
-            </p>
-          </Panel>
-        ) : (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Panel>
-                <p className="text-xs text-muted-foreground">CPU agora</p>
-                <p className="text-2xl font-semibold text-foreground">
-                  {latestMetric?.cpuPercent != null ? `${latestMetric.cpuPercent.toFixed(0)}%` : 'Não apurado'}
-                </p>
-              </Panel>
-              <Panel>
-                <p className="text-xs text-muted-foreground">RAM em uso</p>
-                <p className="text-2xl font-semibold text-foreground">
-                  {latestMetric?.ramUsadaGb != null && latestMetric?.ramTotalGb != null
-                    ? `${latestMetric.ramUsadaGb.toFixed(1)} / ${latestMetric.ramTotalGb.toFixed(1)} GB`
-                    : 'Não apurado'}
-                </p>
-              </Panel>
-              <Panel>
-                <p className="text-xs text-muted-foreground">Disco (unidade do sistema)</p>
-                <p className="text-2xl font-semibold text-foreground">
-                  {diskUsagePercent != null ? `${diskUsagePercent}% usado` : 'Não apurado'}
-                </p>
-              </Panel>
-              <Panel>
-                <p className="text-xs text-muted-foreground">Uptime</p>
-                <p className="text-2xl font-semibold text-foreground">
-                  {formatUptime(latestMetric?.uptimeSegundos ?? null)}
-                </p>
-              </Panel>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <MetricChart
-                title="CPU"
-                unit="%"
-                data={metrics}
-                dataKey="cpuPercent"
-                color="var(--chart-1)"
-                domain={[0, 100]}
-              />
-              <MetricChart
-                title="RAM usada"
-                unit="GB"
-                data={metrics}
-                dataKey="ramUsadaGb"
-                color="var(--chart-2)"
-              />
-              <MetricChart
-                title="Disco usado (unidade do sistema)"
-                unit="GB"
-                data={metrics}
-                dataKey="discoUsadoGb"
-                color="var(--chart-3)"
-              />
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              {metrics.length} amostras · retenção de {metricsRetentionDays} dias configurada para
-              este cliente · lacunas no gráfico indicam períodos sem coleta, não zero.
-            </p>
-          </>
-        )}
+        <DeviceMetricsSection
+          deviceId={deviceId}
+          tenantSlug={tenantSlug}
+          initialMetrics={metrics}
+          initialHealth={deviceHealth}
+          metricsRetentionDays={metricsRetentionDays}
+        />
       </TabsContent>
 
       {/* ---------- Periféricos ---------- */}

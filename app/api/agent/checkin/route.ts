@@ -6,6 +6,8 @@ import { getAgentBinarySha256 } from '@/lib/agent-binary'
 import { deriveInventoryIssues, getWarningTransitionIssues } from '@/lib/inventory-alerts'
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 import { reconcileAlertEvents } from '@/lib/alert-rules'
+import { reconcileAvailabilityEvents } from '@/lib/availability-alerts'
+import { sendAlertWebhook } from '@/lib/alert-webhook'
 import { agentCheckinSchema } from '@/lib/schemas/agent-checkin'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -291,6 +293,26 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // Sprint 9 (A.1): fecha o gap do caminho reativo abaixo, que so reage ao
+    // PROPRIO dispositivo que fez check-in — uma maquina que para de
+    // reportar nunca dispararia nada sozinha. Varre TODOS os dispositivos do
+    // cliente (piggyback, sem cron externo — RNF007) a cada check-in de
+    // QUALQUER UM deles.
+    if (auth.agentAuth.clientId && alertSettings) {
+      await reconcileAvailabilityEvents({
+        clientId: auth.agentAuth.clientId,
+        clientName: auth.agentAuth.clientName ?? null,
+        clientSlug: auth.agentAuth.clientSlug ?? null,
+        settings: alertSettings,
+        checkedInDeviceId: device.id,
+      }).catch((error) => console.error('[agent/checkin] Falha ao reconciliar disponibilidade:', error))
+    }
+
+    // Caminho reativo original (RF016): dispara so quando o PROPRIO
+    // dispositivo que fez este check-in transiciona de/para 'warning' —
+    // continua dependendo apenas de previousDevice.status !== nextStatus,
+    // sem relacao com a varredura acima (que so cobre device_offline/low_disk
+    // sinteticos dos DEMAIS dispositivos do cliente).
     const shouldSendWebhook =
       alertSettings?.alertsEnabled &&
       alertSettings.alertWebhookEnabled &&
@@ -300,27 +322,20 @@ export async function POST(req: NextRequest) {
       (previousDevice.status === 'warning' || nextStatus === 'warning')
 
     if (shouldSendWebhook) {
-      void fetch(alertSettings.alertWebhookUrl as string, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          event: nextStatus === 'warning' ? 'device.warning' : 'device.recovered',
-          tenant: {
-            id: auth.agentAuth.clientId,
-            name: auth.agentAuth.clientName,
-            slug: auth.agentAuth.clientSlug,
-          },
-          device: {
-            id: device.id,
-            hostname: device.hostname,
-            status: nextStatus,
-          },
-          issues: warningIssues,
-          collectedAt: new Date().toISOString(),
-        }),
-        signal: AbortSignal.timeout(4000),
-      }).catch((error) => {
-        console.error('[alerts/webhook] Falha ao enviar webhook:', error)
+      sendAlertWebhook(alertSettings.alertWebhookUrl as string, {
+        event: nextStatus === 'warning' ? 'device.warning' : 'device.recovered',
+        tenant: {
+          id: auth.agentAuth.clientId,
+          name: auth.agentAuth.clientName,
+          slug: auth.agentAuth.clientSlug,
+        },
+        device: {
+          id: device.id,
+          hostname: device.hostname,
+          status: nextStatus,
+        },
+        issues: warningIssues,
+        collectedAt: new Date().toISOString(),
       })
     }
 
