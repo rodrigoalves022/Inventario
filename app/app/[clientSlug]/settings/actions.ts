@@ -8,7 +8,8 @@ import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissio
 import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantPath } from '@/lib/tenant-links'
 import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
-import { generateWebhookSecret, WEBHOOK_EVENTS } from '@/lib/webhook-endpoints'
+import { encryptWebhookSecret, generateWebhookSecret, WEBHOOK_EVENTS } from '@/lib/webhook-endpoints'
+import { checkWebhookUrlSafety } from '@/lib/webhook-url-guard'
 
 // Mesmo guard ja usado por saveTenantAlertSettingsAction/
 // tenant-alert-settings-form.tsx (app/app/[clientSlug]/computers/actions.ts)
@@ -37,17 +38,39 @@ export type WebhookEndpointActionState = {
   secret?: string | null
 }
 
-const createSchema = z.object({
-  tenantSlug: z.string().trim().min(1),
-  url: z.string().trim().url('Informe uma URL valida (https://...).'),
-  events: z.array(z.enum(WEBHOOK_EVENTS)).min(1, 'Selecione ao menos um evento.'),
-})
+// Limite por tenant (Sprint 11, Backlog item 6 — MEDIO, corrigido nesta
+// sessao). Conta TODOS os endpoints do cliente, ativos ou nao — contar so os
+// ativos permitiria contornar o limite desativando e recriando. 20 e' folgado
+// o suficiente pra qualquer uso legitimo (integracoes reais raramente
+// passam de poucas unidades) e apertado o suficiente pra impedir o
+// fan-out de port-scan/DoS descrito no achado original.
+const MAX_WEBHOOK_ENDPOINTS_PER_TENANT = 20
+
+class WebhookEndpointLimitError extends Error {}
+
+// A checagem de SSRF (checkWebhookUrlSafety) roda dentro do proprio Zod via
+// superRefine assincrono — feedback imediato no formulario de
+// criacao/edicao. SOZINHA nao protege contra DNS rebinding (o DNS pode mudar
+// depois do cadastro); a protecao real e' a nova checagem repetida a cada
+// disparo em lib/webhook-endpoints.ts#dispatchClientWebhookEndpoints.
+const createSchema = z
+  .object({
+    tenantSlug: z.string().trim().min(1),
+    url: z.string().trim().url('Informe uma URL valida (https://...).'),
+    events: z.array(z.enum(WEBHOOK_EVENTS)).min(1, 'Selecione ao menos um evento.'),
+  })
+  .superRefine(async (data, ctx) => {
+    const safety = await checkWebhookUrlSafety(data.url)
+    if (!safety.ok) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: safety.reason })
+    }
+  })
 
 export async function createWebhookEndpointAction(
   _previousState: WebhookEndpointActionState,
   formData: FormData
 ): Promise<WebhookEndpointActionState> {
-  const parsed = createSchema.safeParse({
+  const parsed = await createSchema.safeParseAsync({
     tenantSlug: formData.get('tenantSlug'),
     url: formData.get('url'),
     events: formData.getAll('events').map(String),
@@ -64,37 +87,55 @@ export async function createWebhookEndpointAction(
 
   // Segredo SEMPRE gerado no servidor (crypto.randomBytes) — nunca aceito de
   // formulario, para nao permitir segredo fraco/reusado escolhido pelo
-  // usuario. Ver nota em lib/webhook-endpoints.ts e no schema.prisma sobre
-  // `secret` ser texto plano (nao hash): HMAC precisa do valor de volta a
-  // cada disparo.
+  // usuario. Ver nota em lib/webhook-endpoints.ts: nao e' hash (HMAC precisa
+  // do valor de volta a cada disparo), mas cifrado em repouso
+  // (encryptWebhookSecret, AES-256-GCM) — o texto plano so existe em memoria
+  // aqui, pra ser devolvido UMA vez nesta resposta.
   const secret = generateWebhookSecret()
   const session = await auth()
   const actor = getSessionAuditActor(getSessionPermissionUser(session))
 
-  const endpoint = await prisma.$transaction(async (tx) => {
-    const created = await tx.webhookEndpoint.create({
-      data: {
-        clientId: tenant.id,
-        url: parsed.data.url,
-        events: parsed.data.events,
-        secret,
-      },
+  let endpoint
+  try {
+    endpoint = await prisma.$transaction(async (tx) => {
+      const existingCount = await tx.webhookEndpoint.count({ where: { clientId: tenant.id } })
+      if (existingCount >= MAX_WEBHOOK_ENDPOINTS_PER_TENANT) {
+        throw new WebhookEndpointLimitError()
+      }
+
+      const created = await tx.webhookEndpoint.create({
+        data: {
+          clientId: tenant.id,
+          url: parsed.data.url,
+          events: parsed.data.events,
+          secret: encryptWebhookSecret(secret),
+        },
+      })
+
+      await recordAuditLog(
+        {
+          action: 'webhook.create',
+          targetType: 'webhook_endpoint',
+          targetId: created.id,
+          clientId: tenant.id,
+          actor,
+          metadata: { url: parsed.data.url, events: parsed.data.events, tenantSlug: parsed.data.tenantSlug },
+        },
+        tx
+      )
+
+      return created
     })
-
-    await recordAuditLog(
-      {
-        action: 'webhook.create',
-        targetType: 'webhook_endpoint',
-        targetId: created.id,
-        clientId: tenant.id,
-        actor,
-        metadata: { url: parsed.data.url, events: parsed.data.events, tenantSlug: parsed.data.tenantSlug },
-      },
-      tx
-    )
-
-    return created
-  })
+  } catch (error) {
+    if (error instanceof WebhookEndpointLimitError) {
+      return {
+        status: 'error',
+        message: `Limite de ${MAX_WEBHOOK_ENDPOINTS_PER_TENANT} webhooks por cliente atingido.`,
+        secret: null,
+      }
+    }
+    throw error
+  }
 
   revalidatePath(getTenantPath(parsed.data.tenantSlug, 'settings'))
 
@@ -105,18 +146,25 @@ export async function createWebhookEndpointAction(
   }
 }
 
-const updateSchema = z.object({
-  tenantSlug: z.string().trim().min(1),
-  endpointId: z.string().trim().min(1),
-  url: z.string().trim().url('Informe uma URL valida (https://...).'),
-  events: z.array(z.enum(WEBHOOK_EVENTS)).min(1, 'Selecione ao menos um evento.'),
-})
+const updateSchema = z
+  .object({
+    tenantSlug: z.string().trim().min(1),
+    endpointId: z.string().trim().min(1),
+    url: z.string().trim().url('Informe uma URL valida (https://...).'),
+    events: z.array(z.enum(WEBHOOK_EVENTS)).min(1, 'Selecione ao menos um evento.'),
+  })
+  .superRefine(async (data, ctx) => {
+    const safety = await checkWebhookUrlSafety(data.url)
+    if (!safety.ok) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: safety.reason })
+    }
+  })
 
 export async function updateWebhookEndpointAction(
   _previousState: WebhookEndpointActionState,
   formData: FormData
 ): Promise<WebhookEndpointActionState> {
-  const parsed = updateSchema.safeParse({
+  const parsed = await updateSchema.safeParseAsync({
     tenantSlug: formData.get('tenantSlug'),
     endpointId: formData.get('endpointId'),
     url: formData.get('url'),

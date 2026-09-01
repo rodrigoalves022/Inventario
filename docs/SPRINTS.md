@@ -727,11 +727,14 @@ incluída por este planner.
 
 ## Sprint 11 — Painel de Webhooks, `agentVersion` e AuditLog em `createClientAction`
 
-**Status**: 🟢 Concluída (2026-09-01), com **1 achado de segurança ALTO aberto, não corrigido nesta
-sprint** — ver seção "Auditoria de segurança" abaixo antes de considerar esta funcionalidade pronta
-para uso em produção com URLs de webhook não confiáveis. Execução direta aprovada pelo usuário nesta
-conversa, sem fase de planejamento separada (`sprint-planner` não rodou antes da implementação, só
-depois, para este registro e para o Backlog). Commit: `6f20150`.
+**Status**: 🟢 Concluída (2026-09-01). Execução direta aprovada pelo usuário nesta conversa, sem fase
+de planejamento separada (`sprint-planner` não rodou antes da implementação, só depois, para este
+registro e para o Backlog). Commit: `6f20150`.
+
+**Atualização (2026-09-01, mesma conversa)**: os 3 achados de segurança abertos na auditoria abaixo
+(SSRF ALTO, limite de endpoints MÉDIO, secret em texto plano BAIXO) foram **corrigidos** mediante
+aprovação explícita do usuário — ver detalhe em cada achado na seção "Auditoria de segurança" e nos
+itens 5/6/7 do Backlog.
 
 ### Escopo entregue
 
@@ -784,29 +787,54 @@ restritiva disponível abaixo de `PLATFORM_ADMIN`, correta para uma superfície 
 dados de dispositivo a um destino externo escolhido pelo usuário); persistência de `agentVersion`
 (sem superfície de injeção nova, string exibida como texto JSX puro, sem `dangerouslySetInnerHTML`).
 
-**❌ Achado 1 — ALTO — SSRF, não corrigido**: `app/app/[clientSlug]/settings/actions.ts` (schemas
-`createSchema`/`updateSchema`, campo `url: z.string().url()`) não valida protocolo nem destino da
-URL do webhook — nenhum bloqueio de `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
-`169.254.0.0/16` (metadata de cloud), `::1`, `fc00::/7`. O servidor (`lib/webhook-endpoints.ts:85-92`,
-`dispatchClientWebhookEndpoints`) chama `fetch(endpoint.url, ...)` automaticamente e de forma
-recorrente (a cada evento de dispositivo cadastrado), não como ação pontual supervisionada. Um
-`ORG_ADMIN` (nível já correto pelo guard, mas ainda assim capaz disso) pode cadastrar um endpoint
-apontando para a rede interna ou para metadata de cloud e receber requisições POST indefinidamente.
-SSRF "blind" (resposta não volta ao atacante), mas serve para reconhecimento de rede interna e como
-vetor contra serviços HTTP internos. **Não corrigido nesta sprint — decisão do usuário sobre corrigir
-agora ou tratar como item de sprint futura, registrada também no Backlog abaixo.**
+**✅ Achado 1 — ALTO — SSRF — CORRIGIDO (2026-09-01)**: `app/app/[clientSlug]/settings/actions.ts`
+(schemas `createSchema`/`updateSchema`, campo `url: z.string().url()`) não validava protocolo nem
+destino da URL do webhook — nenhum bloqueio de `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`, `169.254.0.0/16` (metadata de cloud), `::1`, `fc00::/7`. O servidor
+(`lib/webhook-endpoints.ts`, `dispatchClientWebhookEndpoints`) chama `fetch(endpoint.url, ...)`
+automaticamente e de forma recorrente (a cada evento de dispositivo cadastrado), não como ação
+pontual supervisionada. Um `ORG_ADMIN` (nível já correto pelo guard, mas ainda assim capaz disso)
+podia cadastrar um endpoint apontando para a rede interna ou para metadata de cloud e receber
+requisições POST indefinidamente. **Correção**: guard centralizado
+`lib/webhook-url-guard.ts#checkWebhookUrlSafety` — só aceita `https:`, resolve o hostname
+(`dns.promises.lookup(..., { all: true })`) e rejeita se qualquer IP resolvido cair nas faixas
+privadas/loopback/link-local/metadata listadas acima (IPv4 e IPv6), além de `localhost` e IP literal
+bloqueado direto (sem round-trip de DNS). Aplicado em DOIS pontos: (a) `createSchema`/`updateSchema`
+via `superRefine` assíncrono, feedback imediato no formulário; (b) **de novo, a cada disparo**, em
+`dispatchClientWebhookEndpoints`, imediatamente antes de cada `fetch` — a proteção real contra DNS
+rebinding, já que (a) sozinho não pega um hostname que resolvia para IP público no cadastro e foi
+trocado para IP interno depois. Falha em (b) não dispara, loga (`console.error`) e não derruba o
+restante do fan-out nem o check-in. Prova: `tests/webhook-url-guard.test.ts` (guard isolado, 12
+casos incl. hostname que resolve via DNS mockado para IP privado) e
+`tests/webhook-endpoints.test.ts` (integração com a action e com o dispatch, incl. DNS rebinding
+simulado entre cadastro e disparo).
 
-**⚠️ Achado 2 — MÉDIO — sem limite de endpoints por tenant**: `createWebhookEndpointAction` não impõe
-teto de quantidade nem rate limit. Combinado com o Achado 1, permite cadastrar dezenas de endpoints
-apontando para portas diferentes de um mesmo host interno, funcionando como primitivo de
-port-scan/DoS via fan-out de `fetch` simultâneo a cada evento.
+**✅ Achado 2 — MÉDIO — sem limite de endpoints por tenant — CORRIGIDO (2026-09-01)**:
+`createWebhookEndpointAction` não impunha teto de quantidade nem rate limit. Combinado com o Achado
+1, permitia cadastrar dezenas de endpoints apontando para portas diferentes de um mesmo host interno,
+funcionando como primitivo de port-scan/DoS via fan-out de `fetch` simultâneo a cada evento.
+**Correção**: limite de 20 `WebhookEndpoint` por `clientId`, contando TODOS (ativos ou não — contar
+só os ativos permitiria contornar o limite desativando e recriando), checado dentro da mesma
+transação da criação (`tx.webhookEndpoint.count`) para não haver corrida entre a contagem e o
+`create`. Acima do limite, retorna erro sem escrever no banco. Prova:
+`tests/webhook-endpoints.test.ts` ("limite de endpoints por tenant" — cria até 20 com sucesso, o 21º
+é rejeitado sem alterar `endpoints.size`; e um segundo caso confirmando que desativar todos não
+libera o limite).
 
-**Nota — BAIXO — secret em texto plano em repouso**: necessário para HMAC (raciocínio já documentado
-no código está correto — um hash não serviria), mitigado só por mascaramento na UI, não por
-criptografia em repouso. O projeto já tem um padrão de criptografia simétrica reversível
-(`lib/provisioning-credentials.ts`, AES-256-GCM com segredo mestre) que poderia ser reaproveitado
-aqui como *hardening* futuro — não é correção obrigatória desta sprint, só uma nota de risco
-registrada.
+**✅ Nota — BAIXO — secret em texto plano em repouso — CORRIGIDO (2026-09-01)**: necessário para HMAC
+(raciocínio já documentado no código está correto — um hash não serviria), mitigado antes só por
+mascaramento na UI, não por criptografia em repouso. **Correção**: núcleo AES-256-GCM de
+`lib/provisioning-credentials.ts` extraído/generalizado para `lib/encrypted-secret.ts`
+(`encryptJsonSecret`/`decryptJsonSecret`, aceita qualquer payload serializável + um `keySalt` por
+domínio de segredo); `lib/webhook-endpoints.ts` ganhou `encryptWebhookSecret`/`decryptWebhookSecret`
+reaproveitando esse núcleo com `keySalt` próprio. `WebhookEndpoint.secret` continua `String` no
+schema (sem migration) — só o conteúdo passou a ser o payload cifrado serializado; decifrado
+somente no momento do disparo (`dispatchClientWebhookEndpoints`) e na leitura mascarada da página de
+configurações (`app/app/[clientSlug]/settings/page.tsx`, decifra antes de `maskWebhookSecret`).
+**Dado existente**: tabela `webhook_endpoints` conferida vazia no banco de dev nesta sessão (`0`
+linhas) — sem dado em texto plano pra migrar/limpar. Prova: `tests/webhook-endpoints.test.ts` (secret
+persistido é cifrado — `created.secret !== result.secret` —, decifra de volta para o mesmo valor, e o
+disparo decifra corretamente antes de assinar, com paridade de HMAC contra o secret original).
 
 ---
 
@@ -902,50 +930,56 @@ Sprint 9 já registrou explicitamente que não decidiria isso sozinha. Candidato
 futura se `Device.agentVersion` (migration nova, campo opcional) vale o custo, e então popular o card
 de saúde a partir do check-in seguinte à migration.
 
-### 5. SSRF no cadastro de URL de `WebhookEndpoint` — ALTO, não corrigido
+### 5. SSRF no cadastro de URL de `WebhookEndpoint` — ALTO — ✅ RESOLVIDO (2026-09-01)
 
 **Origem**: `security-auditor`, auditoria da Sprint 11 rodada após o commit `6f20150` (2026-09-01).
 
 **Achado**: `app/app/[clientSlug]/settings/actions.ts` (`createSchema`/`updateSchema`, campo
-`url: z.string().url()`) aceita qualquer URL sintaticamente válida, sem restringir protocolo nem
+`url: z.string().url()`) aceitava qualquer URL sintaticamente válida, sem restringir protocolo nem
 bloquear destinos internos (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
 `169.254.0.0/16` — inclui metadata de cloud —, `::1`, `fc00::/7`). O servidor
 (`lib/webhook-endpoints.ts`, `dispatchClientWebhookEndpoints`) chama `fetch(endpoint.url, ...)`
 automaticamente a cada evento de dispositivo cadastrado — não é uma ação pontual do usuário, é um
 gatilho recorrente e não supervisionado. Um `ORG_ADMIN` (o guard já é o correto — o achado não é de
-autorização, é de validação de destino) pode cadastrar um endpoint apontando pra rede interna e
-receber requisições POST indefinidamente. Detalhe completo do cenário de exploração na seção
-"Auditoria de segurança" da Sprint 11 acima.
+autorização, é de validação de destino) podia cadastrar um endpoint apontando pra rede interna e
+receber requisições POST indefinidamente.
 
-**Por que fica pendente**: severidade alta o suficiente para não ser ignorada, mas a correção
-(resolver DNS antes de CADA disparo, não só na criação — para mitigar DNS rebinding — e rejeitar
-faixas privadas/loopback/link-local) é um escopo de implementação real, não um registro de decisão.
-Fica pendente de o usuário decidir: corrigir imediatamente (recomendado, dado a severidade) ou tratar
-como primeiro item de uma sprint de hardening.
+**Resolução (aprovada explicitamente pelo usuário nesta conversa)**: `lib/webhook-url-guard.ts`
+(`checkWebhookUrlSafety`) — só `https:`, resolve o hostname a cada chamada
+(`dns.promises.lookup(..., { all: true })`) e bloqueia qualquer IP resolvido nas faixas acima (IPv4 e
+IPv6), `localhost` e IP literal bloqueado sem round-trip de DNS. Aplicado em dois pontos: no Zod de
+create/update (feedback imediato) e — a proteção real contra DNS rebinding — de novo em
+`dispatchClientWebhookEndpoints`, imediatamente antes de cada `fetch`. Detalhe completo na seção
+"Auditoria de segurança" da Sprint 11 acima. Prova: `tests/webhook-url-guard.test.ts` (12 casos) +
+`tests/webhook-endpoints.test.ts` (integração, incl. DNS rebinding simulado).
 
-### 6. Sem limite de `WebhookEndpoint` por tenant — MÉDIO, não corrigido
+### 6. Sem limite de `WebhookEndpoint` por tenant — MÉDIO — ✅ RESOLVIDO (2026-09-01)
 
 **Origem**: `security-auditor`, mesma auditoria do item 5.
 
-**Achado**: `createWebhookEndpointAction` não impõe teto de quantidade nem rate limit por `clientId`.
-Combinado com o item 5, permite cadastrar dezenas de endpoints apontando para portas diferentes de um
-mesmo host interno, funcionando como primitivo de port-scan/DoS via fan-out de `fetch` simultâneo a
-cada evento de dispositivo.
+**Achado**: `createWebhookEndpointAction` não impunha teto de quantidade nem rate limit por
+`clientId`. Combinado com o item 5, permitia cadastrar dezenas de endpoints apontando para portas
+diferentes de um mesmo host interno, funcionando como primitivo de port-scan/DoS via fan-out de
+`fetch` simultâneo a cada evento de dispositivo.
 
-**Por que fica pendente**: correção simples (limite de 10-20 endpoints ativos por `clientId` na
-própria action) — pendente só porque ainda não foi aprovada/implementada, não por complexidade.
-Natural de resolver junto com o item 5, mesma sprint de hardening se for esse o caminho escolhido.
+**Resolução**: limite de 20 `WebhookEndpoint` por `clientId`, contando TODOS (ativos ou não, pra não
+permitir contornar desativando e recriando), checado dentro da mesma transação da criação. Acima do
+limite, erro sem escrever no banco. Prova: `tests/webhook-endpoints.test.ts`, describe "limite de
+endpoints por tenant".
 
-### 7. `WebhookEndpoint.secret` em texto plano em repouso — nota de risco, BAIXO
+### 7. `WebhookEndpoint.secret` em texto plano em repouso — BAIXO — ✅ RESOLVIDO (2026-09-01)
 
 **Origem**: `security-auditor`, mesma auditoria dos itens 5 e 6.
 
 **Achado**: necessário para HMAC (um hash não serviria — o servidor precisa do segredo de volta a
-cada disparo para recalcular a assinatura). Mitigado hoje só por mascaramento na UI
-(`maskWebhookSecret`), não por criptografia em repouso. O projeto já tem um padrão de criptografia
-simétrica reversível (`lib/provisioning-credentials.ts`, AES-256-GCM com segredo mestre) que poderia
-cifrar `secret` em repouso, decifrando só no momento do `dispatch`.
+cada disparo para recalcular a assinatura). Mitigado antes só por mascaramento na UI
+(`maskWebhookSecret`), não por criptografia em repouso.
 
-**Por que fica pendente**: não é explorável via aplicação (exige acesso direto a banco/dump/backup) —
-nota de *hardening* futuro, não correção obrigatória. Candidato a agrupar com os itens 5 e 6 numa
-eventual sprint de hardening de segurança do painel de webhooks.
+**Resolução**: núcleo AES-256-GCM de `lib/provisioning-credentials.ts` generalizado para
+`lib/encrypted-secret.ts` (aceita qualquer payload serializável + `keySalt` por domínio de segredo);
+`lib/webhook-endpoints.ts` ganhou `encryptWebhookSecret`/`decryptWebhookSecret` reaproveitando esse
+núcleo. `WebhookEndpoint.secret` continua `String` (sem migration) — só o conteúdo passou a ser o
+payload cifrado; decifrado somente no disparo e na leitura mascarada da página de configurações.
+Tabela `webhook_endpoints` conferida vazia no banco de dev nesta sessão — sem dado em texto plano pra
+migrar. Prova: `tests/webhook-endpoints.test.ts` (secret persistido cifrado, decifra corretamente,
+paridade de HMAC contra o secret original).

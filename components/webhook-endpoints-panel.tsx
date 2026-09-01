@@ -13,7 +13,7 @@ import {
   updateWebhookEndpointAction,
   type WebhookEndpointActionState,
 } from '@/app/app/[clientSlug]/settings/actions'
-import { WEBHOOK_EVENTS, WEBHOOK_EVENT_LABELS, type WebhookEvent } from '@/lib/webhook-endpoints'
+import { WEBHOOK_EVENTS, WEBHOOK_EVENT_LABELS, type WebhookEvent } from '@/lib/webhook-event-catalog'
 import { cn } from '@/lib/utils'
 
 // Objeto simples, nao pode viver no arquivo "use server" de actions.ts: esse

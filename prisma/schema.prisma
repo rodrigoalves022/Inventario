@@ -457,14 +457,19 @@ model AlertEvent {
 /// permite VARIOS endpoints por cliente, cada um recebendo so os eventos que
 /// escolheu, com o payload assinado (header X-Webhook-Signature).
 ///
-/// `secret` fica em TEXTO PLANO de proposito — correcao deliberada ao pedido
-/// original, que citava `secretHash`: HMAC-SHA256 precisa do segredo de volta
-/// a cada disparo pra recalcular a assinatura (um hash e' unidirecional, nao
-/// serve pra assinar nada). Isso e' diferente de Client.enrollmentKeyHash, que
-/// so precisa COMPARAR um hash contra uma chave apresentada pelo agente,
-/// nunca devolve-la. Gerado no servidor (crypto.randomBytes), nunca aceito de
-/// formulario; nunca devolvido em texto pleno fora do instante da criacao
-/// (ver app/app/[clientSlug]/settings/actions.ts e lib/webhook-endpoints.ts).
+/// `secret` NAO e' um hash (`secretHash`, como o pedido original citava):
+/// HMAC-SHA256 precisa do segredo de volta a cada disparo pra recalcular a
+/// assinatura (um hash e' unidirecional, nao serve pra assinar nada). Isso e'
+/// diferente de Client.enrollmentKeyHash, que so precisa COMPARAR um hash
+/// contra uma chave apresentada pelo agente, nunca devolve-la. Gerado no
+/// servidor (crypto.randomBytes), nunca aceito de formulario; nunca devolvido
+/// em texto pleno fora do instante da criacao (ver
+/// app/app/[clientSlug]/settings/actions.ts). Cifrado em repouso desde a
+/// Sprint 11/Backlog item 7 (AES-256-GCM, lib/webhook-endpoints.ts#encryptWebhookSecret,
+/// mesmo nucleo de lib/encrypted-secret.ts usado por
+/// lib/provisioning-credentials.ts) — o CAMPO continua `String`, so o
+/// CONTEUDO passou a ser o payload cifrado serializado em vez do hex plano;
+/// decifrado so no momento do disparo (dispatchClientWebhookEndpoints).
 model WebhookEndpoint {
   id        String   @id @default(cuid())
   clientId  String

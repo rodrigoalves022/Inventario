@@ -3,7 +3,12 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
 import { WebhookEndpointsPanel } from '@/components/webhook-endpoints-panel'
-import { WEBHOOK_EVENT_LABELS, maskWebhookSecret, type WebhookEvent } from '@/lib/webhook-endpoints'
+import {
+  decryptWebhookSecret,
+  maskWebhookSecret,
+  WEBHOOK_EVENT_LABELS,
+  type WebhookEvent,
+} from '@/lib/webhook-endpoints'
 
 export default async function TenantSettingsPage({ params }: PageProps<'/app/[clientSlug]/settings'>) {
   const { clientSlug } = await params
@@ -19,14 +24,28 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
     select: { id: true, url: true, events: true, isActive: true, secret: true, createdAt: true },
   })
 
-  const rows = endpoints.map((endpoint) => ({
-    id: endpoint.id,
-    url: endpoint.url,
-    events: endpoint.events as WebhookEvent[],
-    isActive: endpoint.isActive,
-    maskedSecret: maskWebhookSecret(endpoint.secret),
-    createdAt: endpoint.createdAt.toISOString(),
-  }))
+  const rows = endpoints.map((endpoint) => {
+    // `secret` esta cifrado em repouso (Sprint 11, Backlog item 7) — precisa
+    // decifrar antes de mascarar, senao maskWebhookSecret mostraria os
+    // ultimos 4 caracteres do payload cifrado (sem relacao com o segredo
+    // real). Defensivo contra falha de decifragem (nao deveria acontecer em
+    // uso normal) para nao derrubar a pagina inteira por causa de uma linha.
+    let maskedSecret = '••••••••????'
+    try {
+      maskedSecret = maskWebhookSecret(decryptWebhookSecret(endpoint.secret))
+    } catch (error) {
+      console.error(`[settings] Falha ao decifrar secret do endpoint ${endpoint.id}:`, error)
+    }
+
+    return {
+      id: endpoint.id,
+      url: endpoint.url,
+      events: endpoint.events as WebhookEvent[],
+      isActive: endpoint.isActive,
+      maskedSecret,
+      createdAt: endpoint.createdAt.toISOString(),
+    }
+  })
 
   return (
     <div className="space-y-6">
