@@ -725,6 +725,91 @@ incluída por este planner.
 
 ---
 
+## Sprint 11 — Painel de Webhooks, `agentVersion` e AuditLog em `createClientAction`
+
+**Status**: 🟢 Concluída (2026-09-01), com **1 achado de segurança ALTO aberto, não corrigido nesta
+sprint** — ver seção "Auditoria de segurança" abaixo antes de considerar esta funcionalidade pronta
+para uso em produção com URLs de webhook não confiáveis. Execução direta aprovada pelo usuário nesta
+conversa, sem fase de planejamento separada (`sprint-planner` não rodou antes da implementação, só
+depois, para este registro e para o Backlog). Commit: `6f20150`.
+
+### Escopo entregue
+
+| Item | Entrega | RF/RN | Testes |
+|---|---|---|---|
+| A — Painel de Webhooks | `WebhookEndpoint` (múltiplos endpoints por tenant, filtro por evento, assinatura HMAC-SHA256, header `X-Webhook-Signature`), página `/app/[clientSlug]/settings`, guardada por `canManageTenantAlerts` | RF026, RN016 (novos) | `tests/webhook-endpoints.test.ts` (9 testes) |
+| B — `agentVersion` | `Device.agentVersion` (schema aplicado via `prisma db push`, backup prévio `prisma/backups/pre-sprint11-20260901085402.sql`), persistido no check-in a partir de `body.agentVersion`, exibido no card de saúde | RF027 (novo) | `tests/device-detail-tabs-metrics-polling.test.tsx`, `tests/tenant-device-metrics-route.test.ts` (atualizados) |
+| C — AuditLog em `createClientAction` | `recordAuditLog('client.create', ...)` dentro da mesma transação, mesmo padrão de `rotateEnrollmentKeyAction`/`revokeAgentAuthAction` — fecha o gap 1 do Backlog (ver seção abaixo, item removido do Backlog) | RF002 (existente, comportamento corrigido) | `tests/create-client-action.test.ts` (2 testes novos) |
+
+**Correções técnicas aplicadas antes/durante a execução** (documentadas para rastreabilidade, não são
+desvio silencioso):
+- `secret` armazenado em texto plano (`WebhookEndpoint.secret`), não `secretHash` como o pedido
+  original citava — HMAC exige o segredo de volta a cada disparo para recalcular a assinatura; um
+  hash é unidirecional e não serve para assinar nada. Gerado sempre no servidor
+  (`crypto.randomBytes(32)`), nunca aceito de formulário.
+- Itens A e B executados por um único `implementation-agent` (não 3 agentes totalmente paralelos como
+  o pedido sugeria) porque os dois alteram `prisma/schema.prisma` e exigem migration — rodar em
+  paralelo real arriscaria dois processos editando o schema/gerando migration ao mesmo tempo. Item C
+  rodou isolado em paralelo, sem tocar nesses arquivos.
+- Schema aplicado via `npx prisma db push` (não `prisma migrate dev`, que o pedido original citava) —
+  o projeto nunca teve `prisma/migrations/` rastreado; `migrate dev` pela primeira vez forçaria uma
+  decisão de baseline arriscada contra o banco de desenvolvimento real. Seguido o padrão já
+  estabelecido no projeto (backup `pg_dump` antes de `db push`, mesmo padrão de 4 backups anteriores
+  já existentes em `prisma/backups/`).
+- IDs de requisito corrigidos: o pedido original citava "RF024/RN016" e "RF025" para as duas novas
+  entregas, mas RF024 (auto-update do agente) e RF025 (coleta multiplataforma) já existiam em
+  `docs/PRODUCT.md` para outra coisa. Registrado como **RF026/RN016** (webhooks) e **RF027**
+  (`agentVersion`) — RN016 não colidia, só os dois RF citados.
+
+### Verificação (independente, sessão principal, não só autorrelato dos agentes)
+1. `npx tsc --noEmit` — limpo.
+2. `npm run lint` — limpo (regra real).
+3. `npm run build` — sucesso, `/app/[clientSlug]/settings` presente na listagem de rotas.
+4. `npm run test` — **306/306 passando** (42 arquivos), confirmado estável em duas rodadas seguidas.
+5. Confirmado diretamente no banco (`npx prisma db pull --print`) que `Device.agentVersion` e o model
+   `WebhookEndpoint` foram de fato aplicados, não só declarados no schema local.
+6. Lógica de assinatura HMAC (`lib/webhook-endpoints.ts`) e guard da página/actions
+   (`canManageTenantAlerts`, reaproveitado corretamente) revisados linha a linha pela sessão principal
+   antes do commit.
+
+### Auditoria de segurança (`security-auditor`, rodada após o commit `6f20150`)
+
+**✅ Validado sem ressalva**: isolamento por tenant em `WebhookEndpoint` (todas as operações —
+create/update/toggle/dispatch/leitura — escopadas por `clientId` derivado do contexto de sessão,
+nunca de input do formulário; padrão anti-oráculo consistente); geração e proteção do `secret`
+(256 bits, servidor-only, nunca logado em `AuditLog`, nunca reexibido em texto pleno depois da
+criação); assinatura HMAC-SHA256 (secret por endpoint, corpo assinado idêntico ao corpo enviado,
+sem transformação entre os dois); adequação do guard `canManageTenantAlerts` (já é a faixa mais
+restritiva disponível abaixo de `PLATFORM_ADMIN`, correta para uma superfície que envolve enviar
+dados de dispositivo a um destino externo escolhido pelo usuário); persistência de `agentVersion`
+(sem superfície de injeção nova, string exibida como texto JSX puro, sem `dangerouslySetInnerHTML`).
+
+**❌ Achado 1 — ALTO — SSRF, não corrigido**: `app/app/[clientSlug]/settings/actions.ts` (schemas
+`createSchema`/`updateSchema`, campo `url: z.string().url()`) não valida protocolo nem destino da
+URL do webhook — nenhum bloqueio de `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
+`169.254.0.0/16` (metadata de cloud), `::1`, `fc00::/7`. O servidor (`lib/webhook-endpoints.ts:85-92`,
+`dispatchClientWebhookEndpoints`) chama `fetch(endpoint.url, ...)` automaticamente e de forma
+recorrente (a cada evento de dispositivo cadastrado), não como ação pontual supervisionada. Um
+`ORG_ADMIN` (nível já correto pelo guard, mas ainda assim capaz disso) pode cadastrar um endpoint
+apontando para a rede interna ou para metadata de cloud e receber requisições POST indefinidamente.
+SSRF "blind" (resposta não volta ao atacante), mas serve para reconhecimento de rede interna e como
+vetor contra serviços HTTP internos. **Não corrigido nesta sprint — decisão do usuário sobre corrigir
+agora ou tratar como item de sprint futura, registrada também no Backlog abaixo.**
+
+**⚠️ Achado 2 — MÉDIO — sem limite de endpoints por tenant**: `createWebhookEndpointAction` não impõe
+teto de quantidade nem rate limit. Combinado com o Achado 1, permite cadastrar dezenas de endpoints
+apontando para portas diferentes de um mesmo host interno, funcionando como primitivo de
+port-scan/DoS via fan-out de `fetch` simultâneo a cada evento.
+
+**Nota — BAIXO — secret em texto plano em repouso**: necessário para HMAC (raciocínio já documentado
+no código está correto — um hash não serviria), mitigado só por mascaramento na UI, não por
+criptografia em repouso. O projeto já tem um padrão de criptografia simétrica reversível
+(`lib/provisioning-credentials.ts`, AES-256-GCM com segredo mestre) que poderia ser reaproveitado
+aqui como *hardening* futuro — não é correção obrigatória desta sprint, só uma nota de risco
+registrada.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -734,7 +819,7 @@ de escopo (adicionar uma gravação, escrever um teste numa linguagem fora do pa
 decidir se vale uma migration nova) que este planner não toma sozinho. Entram numa sprint numerada
 quando alguém aprovar explicitamente o escopo.
 
-### 1. `createClientAction` não grava `AuditLog` na criação de cliente
+### 1. `createClientAction` não grava `AuditLog` na criação de cliente — ✅ RESOLVIDO (Sprint 11, 2026-09-01)
 
 **Origem**: achado durante a execução da Sprint 10 (cobertura de teste dos gaps estruturais,
 concluída no commit `77610fd`), reportado pelo `implementation-agent` do grupo responsável pelo
@@ -797,7 +882,7 @@ comportamento, só ausência de teste unitário isolado da função. Candidato: 
 escrever se uma auditoria futura (`test-auditor` ou `requirements-auditor`) confirmar que os testes de
 fluxo existentes têm lacunas reais nos casos de borda dessa função especificamente.
 
-### 4. Campo `agentVersion` no schema `Device` — requer migration Prisma
+### 4. Campo `agentVersion` no schema `Device` — requer migration Prisma — ✅ RESOLVIDO (Sprint 11, 2026-09-01)
 
 **Origem**: achado da Sprint 9 (webhook piggyback + métricas de saúde do agente, item A.3, concluída
 no commit `6c768bf`), registrado neste Backlog por pedido direto do usuário nesta conversa
@@ -816,3 +901,51 @@ exibir a versão do agente no card de saúde?), não um bug — o sistema funcio
 Sprint 9 já registrou explicitamente que não decidiria isso sozinha. Candidato: avaliar numa sprint
 futura se `Device.agentVersion` (migration nova, campo opcional) vale o custo, e então popular o card
 de saúde a partir do check-in seguinte à migration.
+
+### 5. SSRF no cadastro de URL de `WebhookEndpoint` — ALTO, não corrigido
+
+**Origem**: `security-auditor`, auditoria da Sprint 11 rodada após o commit `6f20150` (2026-09-01).
+
+**Achado**: `app/app/[clientSlug]/settings/actions.ts` (`createSchema`/`updateSchema`, campo
+`url: z.string().url()`) aceita qualquer URL sintaticamente válida, sem restringir protocolo nem
+bloquear destinos internos (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
+`169.254.0.0/16` — inclui metadata de cloud —, `::1`, `fc00::/7`). O servidor
+(`lib/webhook-endpoints.ts`, `dispatchClientWebhookEndpoints`) chama `fetch(endpoint.url, ...)`
+automaticamente a cada evento de dispositivo cadastrado — não é uma ação pontual do usuário, é um
+gatilho recorrente e não supervisionado. Um `ORG_ADMIN` (o guard já é o correto — o achado não é de
+autorização, é de validação de destino) pode cadastrar um endpoint apontando pra rede interna e
+receber requisições POST indefinidamente. Detalhe completo do cenário de exploração na seção
+"Auditoria de segurança" da Sprint 11 acima.
+
+**Por que fica pendente**: severidade alta o suficiente para não ser ignorada, mas a correção
+(resolver DNS antes de CADA disparo, não só na criação — para mitigar DNS rebinding — e rejeitar
+faixas privadas/loopback/link-local) é um escopo de implementação real, não um registro de decisão.
+Fica pendente de o usuário decidir: corrigir imediatamente (recomendado, dado a severidade) ou tratar
+como primeiro item de uma sprint de hardening.
+
+### 6. Sem limite de `WebhookEndpoint` por tenant — MÉDIO, não corrigido
+
+**Origem**: `security-auditor`, mesma auditoria do item 5.
+
+**Achado**: `createWebhookEndpointAction` não impõe teto de quantidade nem rate limit por `clientId`.
+Combinado com o item 5, permite cadastrar dezenas de endpoints apontando para portas diferentes de um
+mesmo host interno, funcionando como primitivo de port-scan/DoS via fan-out de `fetch` simultâneo a
+cada evento de dispositivo.
+
+**Por que fica pendente**: correção simples (limite de 10-20 endpoints ativos por `clientId` na
+própria action) — pendente só porque ainda não foi aprovada/implementada, não por complexidade.
+Natural de resolver junto com o item 5, mesma sprint de hardening se for esse o caminho escolhido.
+
+### 7. `WebhookEndpoint.secret` em texto plano em repouso — nota de risco, BAIXO
+
+**Origem**: `security-auditor`, mesma auditoria dos itens 5 e 6.
+
+**Achado**: necessário para HMAC (um hash não serviria — o servidor precisa do segredo de volta a
+cada disparo para recalcular a assinatura). Mitigado hoje só por mascaramento na UI
+(`maskWebhookSecret`), não por criptografia em repouso. O projeto já tem um padrão de criptografia
+simétrica reversível (`lib/provisioning-credentials.ts`, AES-256-GCM com segredo mestre) que poderia
+cifrar `secret` em repouso, decifrando só no momento do `dispatch`.
+
+**Por que fica pendente**: não é explorável via aplicação (exige acesso direto a banco/dump/backup) —
+nota de *hardening* futuro, não correção obrigatória. Candidato a agrupar com os itens 5 e 6 numa
+eventual sprint de hardening de segurança do painel de webhooks.
