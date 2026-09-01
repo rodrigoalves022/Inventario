@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
+import { auth } from '@/auth'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
 import { buildTenantDeviceRow } from '@/lib/tenant-device-rows'
+import { canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantComputersTable } from '@/components/tenant-computers-table'
 
@@ -49,6 +51,9 @@ export default async function TenantAssetsPage({ params, searchParams }: PagePro
   const settings = tenantAlertSettings ?? { clientId: tenant.id, ...getDefaultAlertSettings() }
   const devices = allDevices.map((device) => buildTenantDeviceRow(device, settings, tenantSlug))
 
+  const session = await auth()
+  const canOperate = canOperateTenant(getSessionPermissionUser(session), tenant)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -69,6 +74,8 @@ export default async function TenantAssetsPage({ params, searchParams }: PagePro
         initialSearch={initialSearch}
         initialStatusFilter={initialStatusFilter}
         showTypeColumn
+        tenantSlug={tenantSlug}
+        canOperate={canOperate}
       />
     </div>
   )

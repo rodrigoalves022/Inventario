@@ -1,9 +1,11 @@
 import prisma from '@/lib/prisma'
+import { auth } from '@/auth'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { getTenantPath } from '@/lib/tenant-links'
 import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
+import { canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantServersTable, type TenantServerRow } from '@/components/tenant-servers-table'
 
@@ -11,6 +13,8 @@ export default async function TenantServersPage({ params }: PageProps<'/app/[cli
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
+  const session = await auth()
+  const canOperate = canOperateTenant(getSessionPermissionUser(session), tenant)
 
   const [allDevices, tenantAlertSettings] = await Promise.all([
     prisma.device.findMany({
@@ -77,7 +81,7 @@ export default async function TenantServersPage({ params }: PageProps<'/app/[cli
         {/* Action buttons... */}
       </div>
 
-      <TenantServersTable servers={servers} />
+      <TenantServersTable servers={servers} tenantSlug={tenantSlug} canOperate={canOperate} />
     </div>
   )
 }

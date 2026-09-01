@@ -413,6 +413,13 @@ model AlertRule {
   metric    String
   severity  String   @default("warning") // "warning" | "critical"
   enabled   Boolean  @default(true)
+  /// Sprint 12. So usado quando metric === 'software_blacklisted': o texto
+  /// livre do nome do software a bloquear (ex: "uTorrent", "AnyDesk"),
+  /// comparado case-insensitive por .includes() contra o nome de cada
+  /// software coletado no check-in (lib/alert-rules.ts). Nulo para as
+  /// demais 4 metricas (antivirus/firewall/UAC/BitLocker), que nao usam
+  /// texto livre — catalogo fechado.
+  pattern   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -440,6 +447,12 @@ model AlertEvent {
   metric     String
   severity   String
   message    String
+  /// Sprint 12. JSON serializado (mesmo padrao de AuditLog.metadataJson/
+  /// AgentCheckLog.detailsJson — string, nao coluna JSON nativa) com detalhe
+  /// estruturado do disparo. Hoje so preenchido para metric ===
+  /// 'software_blacklisted' ({ softwareNome, softwareVersao }); nulo para as
+  /// demais metricas, cuja mensagem em `message` ja e autoexplicativa.
+  metadataJson String?
 
   firedAt    DateTime   @default(now())
   resolvedAt DateTime?

@@ -26,7 +26,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
     prisma.alertRule.findMany({
       where: { clientId: tenant.id },
       orderBy: { createdAt: 'asc' },
-      select: { id: true, name: true, metric: true, severity: true, enabled: true },
+      select: { id: true, name: true, metric: true, severity: true, enabled: true, pattern: true },
     }),
     prisma.alertEvent.findMany({
       where: { clientId: tenant.id },
@@ -66,6 +66,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
                   <p className="truncate text-sm font-medium text-foreground">{rule.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {ALERT_METRIC_LABELS[rule.metric as AlertMetric] ?? rule.metric}
+                    {rule.pattern ? ` ("${rule.pattern}")` : ''}
                   </p>
                 </div>
                 <span

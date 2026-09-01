@@ -13,7 +13,14 @@ import { reconcileAlertEvents, evaluateAlertMetric, ALERT_METRICS } from '@/lib/
 // tests/checkin-availability-reconciliation.test.ts (nenhuma referencia a
 // reconcileAlertEvents).
 
-type FakeRule = { id: string; clientId: string; metric: string; severity: string; enabled: boolean }
+type FakeRule = {
+  id: string
+  clientId: string
+  metric: string
+  severity: string
+  enabled: boolean
+  pattern?: string | null
+}
 type FakeEvent = {
   id: string
   clientId: string
@@ -22,6 +29,7 @@ type FakeEvent = {
   metric: string
   severity: string
   message: string
+  metadataJson?: string | null
   firedAt: Date
   resolvedAt: Date | null
 }
@@ -71,7 +79,7 @@ const { rules, events, fakePrisma } = vi.hoisted(() => {
 vi.mock('@/lib/prisma', () => ({ default: fakePrisma }))
 
 function seedRule(overrides: Partial<FakeRule> & { id: string; clientId: string; metric: string }) {
-  const rule: FakeRule = { severity: 'warning', enabled: true, ...overrides }
+  const rule: FakeRule = { severity: 'warning', enabled: true, pattern: null, ...overrides }
   rules.set(rule.id, rule)
   return rule
 }
@@ -155,14 +163,14 @@ describe('reconcileAlertEvents — ciclo de vida ok<->problema (RF015)', () => {
   })
 })
 
-describe('reconcileAlertEvents — catalogo fechado das 4 metricas (antivirus/firewall/UAC/BitLocker)', () => {
-  it('ALERT_METRICS e exatamente o catalogo de 4 metricas documentado', () => {
+describe('reconcileAlertEvents — catalogo fechado das 5 metricas (antivirus/firewall/UAC/BitLocker/software_blacklisted)', () => {
+  it('ALERT_METRICS e exatamente o catalogo de 5 metricas documentado (Sprint 12 acrescenta software_blacklisted)', () => {
     expect(new Set(ALERT_METRICS)).toEqual(
-      new Set(['antivirus_inactive', 'firewall_inactive', 'uac_inactive', 'bitlocker_missing'])
+      new Set(['antivirus_inactive', 'firewall_inactive', 'uac_inactive', 'bitlocker_missing', 'software_blacklisted'])
     )
   })
 
-  it.each(ALERT_METRICS)('metrica "%s" com dado NAO apurado (null) nao dispara nem resolve nada', async (metric) => {
+  it.each(ALERT_METRICS)('metrica "%s" com dado NAO apurado (null/pattern vazio) nao dispara nem resolve nada', async (metric) => {
     seedRule({ id: `rule-${metric}`, clientId: 'client-a', metric })
 
     await reconcileAlertEvents({
@@ -236,5 +244,165 @@ describe('reconcileAlertEvents — sem regra habilitada, nao consulta AlertEvent
 
     expect(fakePrisma.alertEvent.findMany).not.toHaveBeenCalled()
     expect(events).toHaveLength(0)
+  })
+})
+
+// Sprint 12. RF novo — deteccao de software proibido (blacklist), regra
+// software_blacklisted com AlertRule.pattern (texto livre, case-insensitive,
+// .includes() contra o nome de cada software coletado no check-in).
+describe('evaluateAlertMetric — software_blacklisted (Sprint 12)', () => {
+  it('pattern nulo/vazio na regra: "nao apurado" de verdade, devolve null (nao dispara)', () => {
+    expect(evaluateAlertMetric('software_blacklisted', null, [], { software: [{ nome: 'uTorrent', versao: null }], pattern: null })).toBeNull()
+    expect(evaluateAlertMetric('software_blacklisted', null, [], { software: [], pattern: '' })).toBeNull()
+    expect(evaluateAlertMetric('software_blacklisted', null, [], { software: [], pattern: '   ' })).toBeNull()
+  })
+
+  it('lista de software vazia (pattern valido): resultado valido "nao encontrado", NUNCA null', () => {
+    const result = evaluateAlertMetric('software_blacklisted', null, [], { software: [], pattern: 'uTorrent' })
+    expect(result).not.toBeNull()
+    expect(result?.firing).toBe(false)
+  })
+
+  it('nome do software bate por .includes() case-insensitive, mesmo com sufixo/prefixo', () => {
+    const result = evaluateAlertMetric('software_blacklisted', null, [], {
+      software: [{ nome: 'uTorrent 3.6.0 (build 46691)', versao: '3.6.0' }],
+      pattern: 'utorrent',
+    })
+    expect(result?.firing).toBe(true)
+    expect(result?.message).toContain('uTorrent 3.6.0 (build 46691)')
+    expect(result?.metadata).toEqual({ softwareNome: 'uTorrent 3.6.0 (build 46691)', softwareVersao: '3.6.0' })
+  })
+
+  it('nenhum software da lista bate no pattern: firing false, sem lancar', () => {
+    const result = evaluateAlertMetric('software_blacklisted', null, [], {
+      software: [{ nome: 'Google Chrome', versao: '120.0' }],
+      pattern: 'AnyDesk',
+    })
+    expect(result?.firing).toBe(false)
+  })
+})
+
+describe('reconcileAlertEvents — software_blacklisted, ciclo de vida ok<->problema', () => {
+  it('transicao ok->problema abre AlertEvent com metadataJson (softwareNome/softwareVersao)', async () => {
+    seedRule({ id: 'rule-sw', clientId: 'client-a', metric: 'software_blacklisted', pattern: 'AnyDesk' })
+
+    await reconcileAlertEvents({
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: null,
+      disks: [],
+      software: [{ nome: 'AnyDesk', versao: '7.1.0' }],
+    })
+
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({ ruleId: 'rule-sw', metric: 'software_blacklisted', resolvedAt: null })
+    expect(JSON.parse(events[0].metadataJson!)).toEqual({ softwareNome: 'AnyDesk', softwareVersao: '7.1.0' })
+  })
+
+  it('check-ins repetidos com o MESMO software ainda instalado nao duplicam o AlertEvent', async () => {
+    seedRule({ id: 'rule-sw', clientId: 'client-a', metric: 'software_blacklisted', pattern: 'AnyDesk' })
+    const params = {
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: null,
+      disks: [],
+      software: [{ nome: 'AnyDesk', versao: '7.1.0' }],
+    }
+
+    await reconcileAlertEvents(params)
+    await reconcileAlertEvents(params)
+    await reconcileAlertEvents(params)
+
+    expect(events).toHaveLength(1)
+  })
+
+  it('software desinstalado (some da lista) resolve o AlertEvent aberto', async () => {
+    seedRule({ id: 'rule-sw', clientId: 'client-a', metric: 'software_blacklisted', pattern: 'AnyDesk' })
+
+    await reconcileAlertEvents({
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: null,
+      disks: [],
+      software: [{ nome: 'AnyDesk', versao: '7.1.0' }],
+    })
+    expect(events[0].resolvedAt).toBeNull()
+
+    await reconcileAlertEvents({
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: null,
+      disks: [],
+      software: [], // desinstalado
+    })
+
+    expect(events).toHaveLength(1)
+    expect(events[0].resolvedAt).not.toBeNull()
+  })
+
+  it('software vindo undefined (omitido) e tratado como lista vazia, nao lanca', async () => {
+    seedRule({ id: 'rule-sw', clientId: 'client-a', metric: 'software_blacklisted', pattern: 'AnyDesk' })
+
+    await expect(
+      reconcileAlertEvents({ clientId: 'client-a', deviceId: 'device-1', security: null, disks: [] })
+    ).resolves.not.toThrow()
+    expect(events).toHaveLength(0)
+  })
+
+  it('regra software_blacklisted com pattern nulo (malformada) nunca dispara', async () => {
+    seedRule({ id: 'rule-sw', clientId: 'client-a', metric: 'software_blacklisted', pattern: null })
+
+    await reconcileAlertEvents({
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: null,
+      disks: [],
+      software: [{ nome: 'AnyDesk', versao: '7.1.0' }],
+    })
+
+    expect(events).toHaveLength(0)
+  })
+
+  it('devolve a lista de eventos RECEM-abertos nesta chamada (usado pelo checkin route pra disparar webhook)', async () => {
+    seedRule({ id: 'rule-sw', clientId: 'client-a', metric: 'software_blacklisted', pattern: 'Cheat Engine' })
+
+    const opened = await reconcileAlertEvents({
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: null,
+      disks: [],
+      software: [{ nome: 'Cheat Engine 7.5', versao: '7.5' }],
+    })
+
+    expect(opened).toHaveLength(1)
+    expect(opened[0]).toMatchObject({
+      metric: 'software_blacklisted',
+      metadata: { softwareNome: 'Cheat Engine 7.5', softwareVersao: '7.5' },
+    })
+
+    // Na segunda chamada (condicao persiste), nao ha evento NOVO — a lista
+    // devolvida fica vazia mesmo com o AlertEvent continuando aberto.
+    const openedAgain = await reconcileAlertEvents({
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: null,
+      disks: [],
+      software: [{ nome: 'Cheat Engine 7.5', versao: '7.5' }],
+    })
+    expect(openedAgain).toHaveLength(0)
+  })
+
+  it('outras 4 metricas (antivirus/firewall/UAC/BitLocker) nunca aparecem na lista de recem-abertos por software', async () => {
+    seedRule({ id: 'rule-av', clientId: 'client-a', metric: 'antivirus_inactive' })
+
+    const opened = await reconcileAlertEvents({
+      clientId: 'client-a',
+      deviceId: 'device-1',
+      security: { antivirusAtivo: false, firewallAtivo: null, uacAtivo: null },
+      disks: [],
+    })
+
+    expect(opened).toHaveLength(1)
+    expect(opened[0].metric).toBe('antivirus_inactive')
   })
 })

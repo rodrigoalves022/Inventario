@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
     // seguranca deste check-in. Sem clientId (agente legado sem tenant) nao
     // ha regra pra avaliar.
     if (auth.agentAuth.clientId) {
-      await reconcileAlertEvents({
+      const newlyOpenedAlertEvents = await reconcileAlertEvents({
         clientId: auth.agentAuth.clientId,
         deviceId: device.id,
         security: body.seguranca
@@ -229,7 +229,39 @@ export async function POST(req: NextRequest) {
             }
           : null,
         disks: (body.discos ?? []).map((disk) => ({ criptografia: disk.criptografia ?? null })),
-      }).catch((error) => console.error('[agent/checkin] Falha ao reconciliar alertas:', error))
+        // Sprint 12: alimenta a regra 'software_blacklisted'.
+        software: (body.software ?? []).map((software) => ({ nome: software.nome, versao: software.versao ?? null })),
+      }).catch((error) => {
+        console.error('[agent/checkin] Falha ao reconciliar alertas:', error)
+        return []
+      })
+
+      // Sprint 12: dispara webhook 'device.warning' SO na abertura de um
+      // AlertEvent baseado em AlertRule (hoje so 'software_blacklisted' pode
+      // chegar aqui recem-aberto) — caminho INDEPENDENTE do bloco
+      // `statusTransitioned` mais abaixo, que cobre so warningIssues
+      // derivados de disco/RAM/coleta (RF016), nunca AlertRule. Uma maquina
+      // pode continuar 'online' (nextStatus) e ainda assim abrir um alerta de
+      // software proibido — os dois mecanismos nao se sobrepoem.
+      for (const opened of newlyOpenedAlertEvents) {
+        const alertPayload = {
+          event: 'device.warning' as WebhookEvent,
+          tenant: {
+            id: auth.agentAuth.clientId,
+            name: auth.agentAuth.clientName,
+            slug: auth.agentAuth.clientSlug,
+          },
+          device: { id: device.id, hostname: device.hostname, status: nextStatus },
+          alert: {
+            metric: opened.metric,
+            severity: opened.severity,
+            message: opened.message,
+            metadata: opened.metadata,
+          },
+          collectedAt: new Date().toISOString(),
+        }
+        void dispatchClientWebhookEndpoints(auth.agentAuth.clientId, 'device.warning', alertPayload)
+      }
     }
 
     if (body.monitores && body.monitores.length > 0) {

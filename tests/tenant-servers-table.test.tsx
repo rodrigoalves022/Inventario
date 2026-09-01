@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TenantServersTable, type TenantServerRow } from '@/components/tenant-servers-table'
 
@@ -7,6 +7,15 @@ const pushMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
+}))
+
+// Mesmo motivo de tests/tenant-computers-table.test.tsx: components/bulk-command-bar.tsx
+// (Sprint 12, importado incondicionalmente por tenant-servers-table.tsx) puxa
+// app/app/[clientSlug]/computers/actions.ts -> '@/auth', que quebra fora do
+// build real do Next dentro do vitest.
+vi.mock('@/app/app/[clientSlug]/computers/actions', () => ({
+  bulkEnqueueDeviceCommandAction: vi.fn(),
+  saveTenantAlertSettingsAction: vi.fn(),
 }))
 
 const servers: TenantServerRow[] = [
@@ -62,5 +71,31 @@ describe('TenantServersTable — linha inteira clicavel, nao so o hostname (corr
     render(<TenantServersTable servers={[]} />)
 
     expect(screen.getByText('Nenhum servidor registrado para o cliente atual.')).toBeTruthy()
+  })
+})
+
+/** Sprint 12, item 2 — mesmo contrato de tenant-computers-table.tsx. */
+describe('TenantServersTable — seleção múltipla e barra de comando em lote (Sprint 12)', () => {
+  beforeEach(() => {
+    pushMock.mockClear()
+  })
+
+  it('sem tenantSlug/canOperate, nenhuma checkbox aparece (comportamento anterior preservado)', () => {
+    render(<TenantServersTable servers={servers} />)
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('com tenantSlug E canOperate=true, uma checkbox aparece por linha + uma de "selecionar todos"', () => {
+    render(<TenantServersTable servers={servers} tenantSlug="cliente-a" canOperate />)
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(2)
+  })
+
+  it('marcar a checkbox de uma linha NÃO navega e mostra a barra flutuante com a contagem', () => {
+    render(<TenantServersTable servers={servers} tenantSlug="cliente-a" canOperate />)
+
+    fireEvent.click(screen.getByLabelText('Selecionar SRV-01'))
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(screen.getByText('1 dispositivo selecionado')).toBeTruthy()
   })
 })

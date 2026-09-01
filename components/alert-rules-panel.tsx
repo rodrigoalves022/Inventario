@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -30,10 +30,17 @@ export type AlertRuleRow = {
   metric: string
   severity: string
   enabled: boolean
+  /** Sprint 12. So preenchido para metric === 'software_blacklisted'. */
+  pattern?: string | null
 }
 
 function CreateRuleForm({ tenantSlug }: { tenantSlug: string }) {
   const [state, formAction] = useActionState(createAlertRuleAction, idleState)
+  // Controla a visibilidade do campo "Nome do software": so aparece quando a
+  // condicao selecionada e' 'software_blacklisted' (unica metrica de texto
+  // livre do catalogo). Precisa de estado porque o <select> de metric era
+  // nao-controlado (defaultValue) — sem isso nao ha como reagir a mudanca.
+  const [metric, setMetric] = useState<string>(ALERT_METRICS[0])
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-dashed p-4">
@@ -48,15 +55,28 @@ function CreateRuleForm({ tenantSlug }: { tenantSlug: string }) {
           id="metric"
           name="metric"
           className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-          defaultValue={ALERT_METRICS[0]}
+          value={metric}
+          onChange={(event) => setMetric(event.target.value)}
         >
-          {ALERT_METRICS.map((metric) => (
-            <option key={metric} value={metric}>
-              {ALERT_METRIC_LABELS[metric as AlertMetric]}
+          {ALERT_METRICS.map((metricOption) => (
+            <option key={metricOption} value={metricOption}>
+              {ALERT_METRIC_LABELS[metricOption as AlertMetric]}
             </option>
           ))}
         </select>
       </div>
+      {metric === 'software_blacklisted' && (
+        <div className="space-y-1.5">
+          <Label htmlFor="pattern" className="text-xs">Nome do software</Label>
+          <Input
+            id="pattern"
+            name="pattern"
+            placeholder="Ex: uTorrent, AnyDesk, Cheat Engine"
+            className="h-9 w-56"
+            required
+          />
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label htmlFor="severity" className="text-xs">Severidade</Label>
         <select
@@ -150,7 +170,8 @@ export function AlertRulesPanel({ tenantSlug, rules }: { tenantSlug: string; rul
               <div className="min-w-0 space-y-0.5">
                 <p className="truncate text-sm font-medium text-foreground">{rule.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {ALERT_METRIC_LABELS[rule.metric as AlertMetric] ?? rule.metric} ·{' '}
+                  {ALERT_METRIC_LABELS[rule.metric as AlertMetric] ?? rule.metric}
+                  {rule.pattern ? ` ("${rule.pattern}")` : ''} ·{' '}
                   {SEVERITY_LABELS[rule.severity as AlertSeverity] ?? rule.severity}
                 </p>
               </div>

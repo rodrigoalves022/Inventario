@@ -14,9 +14,11 @@ import {
   History
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { SummaryCard } from '@/components/ui/summary-card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { cn } from '@/lib/utils'
 import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
 import { isServerOperatingSystem } from '@/lib/device-classification'
@@ -99,6 +101,8 @@ export function TenantComputersTable({
   initialSearch = '',
   initialStatusFilter = 'all',
   showTypeColumn = false,
+  tenantSlug,
+  canOperate = false,
 }: {
   devices: TenantComputerRow[]
   initialSearch?: string
@@ -106,11 +110,28 @@ export function TenantComputersTable({
   /** Listagem unificada (`/assets`): mostra a coluna "Tipo" (Computador/Servidor)
    * e generaliza o texto de estado vazio, que por padrao fala em "computador". */
   showTypeColumn?: boolean
+  /** Sprint 12. Seleção múltipla + barra de comando em lote só aparecem
+   * quando `tenantSlug` e `canOperate` (canOperateTenant, calculado no Server
+   * Component da página) estão presentes — omitidos, a tabela se comporta
+   * exatamente como antes (nenhuma checkbox, nenhuma barra flutuante). */
+  tenantSlug?: string
+  canOperate?: boolean
 }) {
   const router = useRouter()
   const [search, setSearch] = useState(initialSearch)
   const [statusFilter, setStatusFilter] = useState<'all' | TenantComputerRow['effectiveStatus']>(initialStatusFilter)
   const [criticalFilter, setCriticalFilter] = useState<'all' | 'low_disk' | 'low_ram' | 'stale_collection'>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const canBulkOperate = Boolean(tenantSlug && canOperate)
+
+  function toggleSelected(deviceId: string, checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(deviceId)
+      else next.delete(deviceId)
+      return next
+    })
+  }
 
   const summary = useMemo(() => ({
     total: devices.length,
@@ -223,6 +244,24 @@ export function TenantComputersTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
+                {canBulkOperate && (
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider w-10">
+                    <Checkbox
+                      aria-label="Selecionar todos os dispositivos visíveis"
+                      checked={
+                        filteredDevices.length > 0 && filteredDevices.every((device) => selectedIds.has(device.id))
+                      }
+                      onCheckedChange={(checked) => {
+                        setSelectedIds((current) => {
+                          const next = new Set(current)
+                          if (checked) filteredDevices.forEach((device) => next.add(device.id))
+                          else filteredDevices.forEach((device) => next.delete(device.id))
+                          return next
+                        })
+                      }}
+                    />
+                  </th>
+                )}
                 <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Hostname</th>
                 {showTypeColumn && (
                   <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Tipo</th>
@@ -237,7 +276,10 @@ export function TenantComputersTable({
             <tbody className="divide-y">
               {filteredDevices.length === 0 ? (
                 <tr>
-                  <td colSpan={showTypeColumn ? 7 : 6} className="px-5 py-12 text-center">
+                  <td
+                    colSpan={(showTypeColumn ? 7 : 6) + (canBulkOperate ? 1 : 0)}
+                    className="px-5 py-12 text-center"
+                  >
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Search className="h-8 w-8 opacity-20" />
                       <p className="text-base font-medium">
@@ -262,6 +304,17 @@ export function TenantComputersTable({
                     }}
                     className={cn('group', CLICKABLE_ROW_CLASS)}
                   >
+                    {canBulkOperate && (
+                      // stopPropagation: mesmo padrao do <Link> do hostname abaixo —
+                      // marcar a checkbox nao pode disparar a navegacao da linha.
+                      <td className="px-5 py-4" onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          aria-label={`Selecionar ${device.hostname}`}
+                          checked={selectedIds.has(device.id)}
+                          onCheckedChange={(checked) => toggleSelected(device.id, checked === true)}
+                        />
+                      </td>
+                    )}
                     <td className="px-5 py-4 font-mono font-medium">
                       <Link
                         href={device.detailsPath}
@@ -382,6 +435,14 @@ export function TenantComputersTable({
           </div>
         )}
       </div>
+
+      {canBulkOperate && tenantSlug && (
+        <BulkCommandBar
+          tenantSlug={tenantSlug}
+          deviceIds={[...selectedIds]}
+          onClear={() => setSelectedIds(new Set())}
+        />
+      )}
     </div>
   )
 }

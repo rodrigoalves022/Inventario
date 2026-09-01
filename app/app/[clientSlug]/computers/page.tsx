@@ -6,7 +6,7 @@ import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { getTenantPath } from '@/lib/tenant-links'
 import { buildTenantDeviceRow } from '@/lib/tenant-device-rows'
-import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
+import { canManageTenantAlerts, canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantAlertSettingsForm } from '@/components/tenant-alert-settings-form'
 import { TenantComputersTable } from '@/components/tenant-computers-table'
@@ -49,7 +49,9 @@ export default async function TenantComputersPage({ params, searchParams }: Page
     .filter((device) => !isServerOperatingSystem(device.hardware?.sistema))
     .map((device) => buildTenantDeviceRow(device, settings, tenantSlug))
 
-  const canManageAlerts = canManageTenantAlerts(getSessionPermissionUser(session), tenant)
+  const sessionUser = getSessionPermissionUser(session)
+  const canManageAlerts = canManageTenantAlerts(sessionUser, tenant)
+  const canOperate = canOperateTenant(sessionUser, tenant)
 
   return (
     <div className="space-y-6">
@@ -67,7 +69,13 @@ export default async function TenantComputersPage({ params, searchParams }: Page
 
       {canManageAlerts ? <TenantAlertSettingsForm tenantSlug={tenantSlug} settings={settings} /> : null}
 
-      <TenantComputersTable devices={devices} initialSearch={initialSearch} initialStatusFilter={initialStatusFilter} />
+      <TenantComputersTable
+        devices={devices}
+        initialSearch={initialSearch}
+        initialStatusFilter={initialStatusFilter}
+        tenantSlug={tenantSlug}
+        canOperate={canOperate}
+      />
     </div>
   )
 }

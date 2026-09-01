@@ -9,6 +9,19 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
 }))
 
+// components/bulk-command-bar.tsx (Sprint 12, importado incondicionalmente por
+// tenant-computers-table.tsx) importa bulkEnqueueDeviceCommandAction de
+// app/app/[clientSlug]/computers/actions.ts, que por sua vez importa '@/auth'
+// (next-auth) — fora do build real do Next isso quebra a resolucao de
+// 'next/server' dentro do vitest, mesmo motivo documentado em
+// tests/device-detail-tabs-metrics-polling.test.tsx pro mesmo padrao de
+// import. Mockado por nao ser o objeto deste arquivo (ver
+// tests/bulk-enqueue-command-action.test.ts pra cobertura da action em si).
+vi.mock('@/app/app/[clientSlug]/computers/actions', () => ({
+  bulkEnqueueDeviceCommandAction: vi.fn(),
+  saveTenantAlertSettingsAction: vi.fn(),
+}))
+
 const devices: TenantComputerRow[] = [
   {
     id: 'd1',
@@ -140,5 +153,56 @@ describe('TenantComputersTable — card "Warnings Ativos" filtra por status, sin
     const table = within(container.querySelector('table') as HTMLElement)
     expect(table.queryByText('PC-WARNING')).toBeTruthy()
     expect(table.queryByText('PC-ONLINE')).toBeTruthy()
+  })
+})
+
+/**
+ * Sprint 12, item 2 — seleção múltipla + barra flutuante de comando em lote.
+ * Só aparece quando `tenantSlug` E `canOperate` são passados juntos — omitidos
+ * (como em todos os testes acima, escritos antes desta sprint), a tabela se
+ * comporta exatamente como antes: nenhuma checkbox, nenhum `role="button"` a
+ * mais no DOM. Isso é o que garante que esta sprint não quebrou nenhum teste
+ * pré-existente do componente.
+ */
+describe('TenantComputersTable — seleção múltipla e barra de comando em lote (Sprint 12)', () => {
+  beforeEach(() => {
+    pushMock.mockClear()
+  })
+
+  it('sem tenantSlug/canOperate, nenhuma checkbox aparece (comportamento anterior preservado)', () => {
+    render(<TenantComputersTable devices={devices} />)
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('com canOperate=true mas SEM tenantSlug, nenhuma checkbox aparece (os dois são exigidos)', () => {
+    render(<TenantComputersTable devices={devices} canOperate />)
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('com tenantSlug E canOperate=true, uma checkbox aparece por linha + uma de "selecionar todos"', () => {
+    render(<TenantComputersTable devices={devices} tenantSlug="cliente-a" canOperate />)
+    // 1 dispositivo na fixture -> 1 checkbox de linha + 1 checkbox de cabeçalho.
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(2)
+  })
+
+  it('marcar a checkbox de uma linha NÃO navega (stopPropagation) e mostra a barra flutuante com a contagem', () => {
+    render(<TenantComputersTable devices={devices} tenantSlug="cliente-a" canOperate />)
+
+    const rowCheckbox = screen.getByLabelText('Selecionar PC-01')
+    fireEvent.click(rowCheckbox)
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(screen.getByText('1 dispositivo selecionado')).toBeTruthy()
+  })
+
+  it('desmarcar a única linha selecionada esconde a barra flutuante de novo', () => {
+    render(<TenantComputersTable devices={devices} tenantSlug="cliente-a" canOperate />)
+
+    const rowCheckbox = screen.getByLabelText('Selecionar PC-01')
+    fireEvent.click(rowCheckbox)
+    expect(screen.getByText('1 dispositivo selecionado')).toBeTruthy()
+
+    fireEvent.click(rowCheckbox)
+    expect(screen.queryByText('1 dispositivo selecionado')).toBeNull()
   })
 })

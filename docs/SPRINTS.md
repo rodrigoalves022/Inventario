@@ -838,6 +838,113 @@ disparo decifra corretamente antes de assinar, com paridade de HMAC contra o sec
 
 ---
 
+## Sprint 12 — Blacklist de Software com Alerta/Webhook e Comandos Remotos em Lote
+
+**Status**: 🟢 Concluída (2026-09-01). Execução direta aprovada pelo usuário nesta conversa (o próprio
+usuário escreveu o escopo), sem fase de planejamento separada (`sprint-planner` não rodou antes da
+implementação) — mesmo padrão da Sprint 11. Verificação independente do orquestrador (não só o
+autorrelato do `implementation-agent`): `git status` conferido, `npx tsc --noEmit` limpo, `npm run lint`
+limpo, `npm run build` limpo (14 rotas de tenant geradas, incluindo `/app/[clientSlug]/alerts`),
+`npx vitest run` 361/361 estável em 2 execuções consecutivas, `npx prisma db pull --print` confirmando
+`AlertRule.pattern`/`AlertEvent.metadataJson` aplicados no banco real (não só no `schema.prisma` local),
+e revisão manual linha a linha de `bulkEnqueueDeviceCommandAction`, `lib/alert-rules.ts` e
+`app/app/[clientSlug]/alerts/actions.ts` (escopo de tenant, guards de permissão, AuditLog).
+
+### Escopo entregue
+
+| Item | Entrega | RF/RN | Testes |
+|---|---|---|---|
+| 1 — Blacklist de software | Métrica `software_blacklisted` no catálogo de alertas (`lib/alert-rules.ts`), `AlertRule.pattern` (texto livre, ex: "uTorrent"/"AnyDesk"), comparação case-insensitive por `.includes()` contra `Software.nome` coletado no check-in, `AlertEvent.metadataJson` com `{ softwareNome, softwareVersao }`, webhook `device.warning` (`WebhookEndpoint`) disparado SÓ na abertura (transição ok→problema), painel `/app/[clientSlug]/alerts` estendido para cadastrar/remover regras desse tipo | RF014 (existente, catálogo de alertas de 4→5 métricas — `docs/PRODUCT.md` atualizado) | `tests/alert-rules.test.ts` (+16 casos), `tests/checkin-software-blacklist-webhook.test.ts` (3, integração da rota real), `tests/create-alert-rule-action.test.ts` (4) |
+| 2 — Comandos remotos em lote | `bulkEnqueueDeviceCommandAction` (`app/app/[clientSlug]/computers/actions.ts`) — mesmo catálogo fechado de `lib/agent-commands.ts`, escopo estrito por tenant (ids fora do escopo ignorados silenciosamente), N `AgentCommand` + 1 `AuditLog` agregado (`command.bulk_enqueue`) numa única transação; checkboxes + barra flutuante (`components/bulk-command-bar.tsx`) em `components/tenant-computers-table.tsx` (`/computers`, `/assets`) e `components/tenant-servers-table.tsx` (`/servers`) | RF017 (existente, disparo em lote além do disparo unitário já coberto) | `tests/bulk-enqueue-command-action.test.ts` (9), `tests/tenant-computers-table.test.tsx` / `tests/tenant-servers-table.test.tsx` (+5 casos de seleção) |
+
+### Modelos de banco alterados (2, ambos aditivos/nullable — `prisma db push`, sem `migrate dev`)
+
+- `AlertRule.pattern String?` — texto livre da regra `software_blacklisted`; `null` para as outras 4
+  métricas.
+- `AlertEvent.metadataJson String?` — JSON serializado (mesmo padrão de `AuditLog.metadataJson`/
+  `AgentCheckLog.detailsJson`, string, não coluna JSON nativa) com `{ softwareNome, softwareVersao }`;
+  `null` para as demais métricas.
+
+Backup prévio: `prisma/backups/pre-sprint12-20260901154753.sql` (`docker exec inventario-db pg_dump`,
+458KB). Aplicado com `npx prisma db push --accept-data-loss` (nenhuma perda real — só colunas novas
+nullable). Confirmado com `npx prisma db pull --print`: as duas colunas (`pattern` em `alert_rules`,
+`metadataJson` em `alert_events`) apareceram no schema introspectado do banco real, não só no
+`schema.prisma` local.
+
+### Decisões técnicas (desvios documentados em relação ao pedido original do usuário)
+
+1. **`canOperateTenant` reaproveitado, não recriado** — já existia em `lib/permissions.ts` com
+   exatamente a semântica pedida (`canManageTenant` OR `isOrgOperator` do mesmo `organizationId`).
+2. **Bulk action em `app/app/[clientSlug]/computers/actions.ts`** (arquivo existente), não em
+   `app/app/[clientSlug]/devices/actions.ts` (não existe) — segue o padrão já estabelecido de
+   `saveTenantAlertSettingsAction` no mesmo arquivo.
+3. **Seleção múltipla implementada em DOIS componentes, não um só**: a suposição inicial era que
+   `/servers` reusava `components/tenant-computers-table.tsx` (como `/computers` e `/assets` fazem via
+   `showTypeColumn`) — verificado durante a implementação que `/servers` na verdade usa um componente
+   separado e mais simples, `components/tenant-servers-table.tsx` (sem filtros/summary cards). Como o
+   pedido original cobria explicitamente "tabela de computadores/servidores", a seleção múltipla foi
+   adicionada aos DOIS componentes, compartilhando a mesma barra flutuante
+   (`components/bulk-command-bar.tsx`) para não duplicar a lógica de disparo — só a lógica de seleção
+   (checkbox por linha) precisou ser replicada, por viverem em componentes distintos.
+4. **Resolução de device por `agentAuthId`, nunca por `deviceId` direto** — `AgentCommand` é indexado
+   por `agentAuthId` (`Device.agentAuthId` é `@unique`). O bulk action resolve
+   `prisma.device.findMany({ where: { id: { in: deviceIds }, ...getTenantDeviceWhere(tenantSlug) }, select: { id, hostname, agentAuthId, agentAuth: { clientId } } })`
+   — mesmo padrão de `app/api/tenant/[clientSlug]/devices/[deviceId]/commands/route.ts` (rota de
+   disparo unitário), usado aqui como referência direta.
+5. **`deviceIds` fora do tenant: ignorados silenciosamente, não rejeita o lote inteiro** — decisão
+   explícita (a alternativa documentada no pedido original). Um id de outro tenant misturado numa
+   seleção legítima não derruba o disparo para os ids válidos; `AuditLog.metadata` registra
+   `requestedCount`/`appliedCount`/`ignoredCount` para rastreabilidade. Erro só quando **nenhum**
+   deviceId resolve dentro do tenant.
+6. **Catálogo de comandos 100% reaproveitado** de `lib/agent-commands.ts`
+   (`agentCommandInputSchema`/`toParamsJson`/`AGENT_COMMAND_TTL_MS`) — nenhum tipo de comando novo.
+7. **Schema**: as duas colunas novas descritas acima, `db push` (não `migrate dev` — projeto nunca
+   teve `prisma/migrations/` rastreado, mesmo padrão das Sprints 9/10/11), backup `pg_dump` antes via
+   `docker exec inventario-db` (Postgres roda em container Docker neste ambiente, `pg_dump` não está
+   no PATH do host).
+8. **`lib/alert-rules.ts` estendido, não reescrito**: `evaluateAlertMetric` ganhou um 4º parâmetro
+   opcional `context: { software, pattern }` (só lido pelo case `software_blacklisted`, os outros 4
+   ignoram); `reconcileAlertEvents` ganhou `software?: SoftwareSnapshot[]` nos params e passou a
+   **devolver a lista de `AlertEvent` recém-abertos nesta chamada** — necessário porque a função não
+   tem `clientName`/`clientSlug` disponíveis para montar o payload do webhook sozinha, e não fazia
+   sentido adicionar esses dois campos só para isso quando o caller (`checkin/route.ts`) já os tem.
+   Regra com `pattern` nulo/vazio (malformada) é tratada como "não apurado" (`evaluateAlertMetric`
+   devolve `null`, não dispara); lista de software vazia no check-in é um resultado válido "nada
+   encontrado" (`firing: false`), nunca `null` — distinção coberta explicitamente em
+   `tests/alert-rules.test.ts`.
+9. **`app/api/agent/checkin/route.ts`**: o disparo do webhook por `software_blacklisted` é um caminho
+   **independente** do bloco `statusTransitioned` pré-existente (que só cobre `warningIssues` de
+   disco/RAM/coleta atrasada, nunca `AlertRule`) — uma máquina pode continuar com `status: 'online'` e
+   ainda assim abrir um alerta de software proibido. Payload segue o mesmo formato de
+   `statusTransitioned` (`event`, `tenant`, `device`, `collectedAt`), com um bloco `alert` no lugar de
+   `issues` para carregar `metric`/`severity`/`message`/`metadata` do `AlertEvent`. Fire-and-forget
+   (`void dispatchClientWebhookEndpoints(...)`), mesmo padrão já usado ali.
+10. **`AuditLog` em `createAlertRuleAction`**: a ação de criar `AlertRule` não tinha auditoria antes
+    desta sprint (só `deleteAlertRuleAction` tinha). Adicionada **restrita a `metric ===
+    'software_blacklisted'`**, seguindo literalmente o escopo pedido — as outras 4 métricas continuam
+    sem `AuditLog` na criação (mudar isso para elas também não fazia parte do pedido, ficaria como
+    item de backlog se o usuário quiser).
+11. **Confirmação de guard com login real nos 4 papéis — NÃO EXECUTADA end-to-end via browser**: o
+    ambiente desta sessão não expõe uma ferramenta de automação de browser/E2E. Em vez disso, os
+    guards reais (`canOperateTenant`/`canManageTenantAlerts`, sem mock) foram exercitados por testes de
+    integração com sessão sintética para os 4 papéis (`tests/bulk-enqueue-command-action.test.ts`:
+    ORG_OPERATOR e ORG_ADMIN autorizados, CLIENT_VIEWER e ator de outra organização bloqueados, sem
+    nenhuma escrita no bloqueio). Login real via browser nos 4 usuários seed fica como verificação
+    manual pendente antes do commit, se o usuário/orquestrador quiser confirmar visualmente.
+
+### Verificação
+
+1. `npx tsc --noEmit` — limpo.
+2. `npm run lint` — limpo (regra real, `scripts/verification/run-lint.mjs`).
+3. `npm run build` — sucesso; `/app/[clientSlug]/alerts`, `/app/[clientSlug]/computers`,
+   `/app/[clientSlug]/servers`, `/app/[clientSlug]/assets` presentes na listagem de rotas.
+4. `npm run test` — **361/361 passando** (46 arquivos), confirmado estável em duas rodadas seguidas.
+5. Confirmado no banco real (`npx prisma db pull --print`) que `AlertRule.pattern` e
+   `AlertEvent.metadataJson` foram de fato aplicados, não só declarados no schema local.
+6. `go vet`/build cruzado do agente: **N/A** — esta sprint não tocou `agent-go/`.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são

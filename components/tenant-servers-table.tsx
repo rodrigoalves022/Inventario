@@ -2,6 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { cn } from '@/lib/utils'
 import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
 
@@ -29,8 +32,29 @@ const STATUS_BADGE_CLASS: Record<TenantServerRow['effectiveStatus'], string> = {
  * useRouter() e tornar a linha inteira clicavel — mesmo padrao aplicado em
  * tenant-computers-table.tsx e tenant-recent-devices-table.tsx.
  */
-export function TenantServersTable({ servers }: { servers: TenantServerRow[] }) {
+export function TenantServersTable({
+  servers,
+  tenantSlug,
+  canOperate = false,
+}: {
+  servers: TenantServerRow[]
+  /** Sprint 12. Mesmo contrato de tenant-computers-table.tsx: seleção múltipla
+   * + barra de comando em lote só aparecem quando os dois estão presentes. */
+  tenantSlug?: string
+  canOperate?: boolean
+}) {
   const router = useRouter()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const canBulkOperate = Boolean(tenantSlug && canOperate)
+
+  function toggleSelected(deviceId: string, checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(deviceId)
+      else next.delete(deviceId)
+      return next
+    })
+  }
 
   if (servers.length === 0) {
     return (
@@ -48,6 +72,22 @@ export function TenantServersTable({ servers }: { servers: TenantServerRow[] }) 
         <table className="w-full text-sm">
           <thead className="border-b">
             <tr className="text-muted-foreground">
+              {canBulkOperate && (
+                <th className="px-4 py-3 text-left font-medium w-10">
+                  <Checkbox
+                    aria-label="Selecionar todos os servidores"
+                    checked={servers.length > 0 && servers.every((server) => selectedIds.has(server.id))}
+                    onCheckedChange={(checked) => {
+                      setSelectedIds((current) => {
+                        const next = new Set(current)
+                        if (checked) servers.forEach((server) => next.add(server.id))
+                        else servers.forEach((server) => next.delete(server.id))
+                        return next
+                      })
+                    }}
+                  />
+                </th>
+              )}
               <th className="px-4 py-3 text-left font-medium">Hostname</th>
               <th className="px-4 py-3 text-left font-medium">IP</th>
               <th className="px-4 py-3 text-left font-medium">Sistema</th>
@@ -72,6 +112,15 @@ export function TenantServersTable({ servers }: { servers: TenantServerRow[] }) 
                 }}
                 className={cn('border-b last:border-0', CLICKABLE_ROW_CLASS)}
               >
+                {canBulkOperate && (
+                  <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                    <Checkbox
+                      aria-label={`Selecionar ${server.hostname}`}
+                      checked={selectedIds.has(server.id)}
+                      onCheckedChange={(checked) => toggleSelected(server.id, checked === true)}
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3 font-mono font-medium">
                   <Link
                     href={server.detailsPath}
@@ -100,6 +149,14 @@ export function TenantServersTable({ servers }: { servers: TenantServerRow[] }) 
           </tbody>
         </table>
       </div>
+
+      {canBulkOperate && tenantSlug && (
+        <BulkCommandBar
+          tenantSlug={tenantSlug}
+          deviceIds={[...selectedIds]}
+          onClear={() => setSelectedIds(new Set())}
+        />
+      )}
     </div>
   )
 }
