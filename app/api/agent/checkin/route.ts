@@ -8,6 +8,7 @@ import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 import { reconcileAlertEvents } from '@/lib/alert-rules'
 import { reconcileAvailabilityEvents } from '@/lib/availability-alerts'
 import { sendAlertWebhook } from '@/lib/alert-webhook'
+import { dispatchClientWebhookEndpoints, type WebhookEvent } from '@/lib/webhook-endpoints'
 import { agentCheckinSchema } from '@/lib/schemas/agent-checkin'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -97,6 +98,10 @@ export async function POST(req: NextRequest) {
         dominio: body.dominio,
         usuario: body.usuario,
         status: nextStatus,
+        // Sprint 11 (B): mesmo campo que ja alimentava a mensagem do
+        // CollectionLog abaixo e a decisao de updateAvailable — agora tambem
+        // persistido por dispositivo, pra exibir no card de saude.
+        agentVersion: body.agentVersion ?? null,
       },
       update: {
         hostname,
@@ -109,6 +114,7 @@ export async function POST(req: NextRequest) {
         dominio: body.dominio,
         usuario: body.usuario,
         status: nextStatus,
+        agentVersion: body.agentVersion ?? null,
         updatedAt: new Date(),
       },
     })
@@ -312,18 +318,20 @@ export async function POST(req: NextRequest) {
     // dispositivo que fez este check-in transiciona de/para 'warning' —
     // continua dependendo apenas de previousDevice.status !== nextStatus,
     // sem relacao com a varredura acima (que so cobre device_offline/low_disk
-    // sinteticos dos DEMAIS dispositivos do cliente).
-    const shouldSendWebhook =
+    // sinteticos dos DEMAIS dispositivos do cliente). Condicao de transicao
+    // extraida (statusTransitioned) para ser compartilhada pelos dois
+    // mecanismos de webhook (legado + WebhookEndpoint, Sprint 11) sem
+    // duplicar logica nem alterar o comportamento ja existente do legado.
+    const statusTransitioned =
       alertSettings?.alertsEnabled &&
-      alertSettings.alertWebhookEnabled &&
-      alertSettings.alertWebhookUrl &&
       previousDevice &&
       previousDevice.status !== nextStatus &&
       (previousDevice.status === 'warning' || nextStatus === 'warning')
 
-    if (shouldSendWebhook) {
-      sendAlertWebhook(alertSettings.alertWebhookUrl as string, {
-        event: nextStatus === 'warning' ? 'device.warning' : 'device.recovered',
+    if (statusTransitioned && alertSettings) {
+      const eventName: WebhookEvent = nextStatus === 'warning' ? 'device.warning' : 'device.recovered'
+      const payload = {
+        event: eventName,
         tenant: {
           id: auth.agentAuth.clientId,
           name: auth.agentAuth.clientName,
@@ -336,7 +344,18 @@ export async function POST(req: NextRequest) {
         },
         issues: warningIssues,
         collectedAt: new Date().toISOString(),
-      })
+      }
+
+      // Mecanismo antigo (Client.alertWebhookUrl): inalterado, mesmo gate de
+      // sempre (alertWebhookEnabled + alertWebhookUrl configurados).
+      if (alertSettings.alertWebhookEnabled && alertSettings.alertWebhookUrl) {
+        sendAlertWebhook(alertSettings.alertWebhookUrl, payload)
+      }
+      // Mecanismo adicional (Sprint 11): WebhookEndpoint, com seu proprio
+      // filtro por evento/isActive, independente do gate acima.
+      if (auth.agentAuth.clientId) {
+        void dispatchClientWebhookEndpoints(auth.agentAuth.clientId, eventName, payload)
+      }
     }
 
     const LATEST_AGENT_VERSION = "1.0.0"

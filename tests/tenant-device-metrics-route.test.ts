@@ -19,6 +19,7 @@ type FakeDevice = {
   hardware: { ramTotalGb: number | null } | null
   disks: Array<{ espacoLivreGb: number | null }>
   logs: Array<{ coletadoEm: Date }>
+  agentVersion: string | null
 }
 type FakeMetricSample = {
   deviceId: string
@@ -67,6 +68,7 @@ const { clients, devices, metricSamples, alertSettingsByClientId, sessionRef, fa
           hardware: device.hardware,
           disks: device.disks,
           logs: device.logs,
+          agentVersion: device.agentVersion,
         }
       }),
     },
@@ -103,6 +105,7 @@ function seedDevice(overrides: Partial<FakeDevice> & { id: string; clientSlug: s
     hardware: null,
     disks: [],
     logs: [],
+    agentVersion: null,
     ...overrides,
   }
   devices.set(device.id, device)
@@ -189,7 +192,7 @@ describe('GET /api/tenant/[clientSlug]/devices/[deviceId]/metrics — caminho po
   it('dispositivo do tenant correto retorna as amostras (ordem cronologica) e o snapshot de saude', async () => {
     seedClient({ id: 'client-a', slug: 'cliente-a', organizationId: 'org-a' })
     const recent = new Date(Date.now() - 5 * 60 * 1000)
-    seedDevice({ id: 'device-1', clientSlug: 'cliente-a', status: 'online', updatedAt: recent, logs: [{ coletadoEm: recent }] })
+    seedDevice({ id: 'device-1', clientSlug: 'cliente-a', status: 'online', updatedAt: recent, logs: [{ coletadoEm: recent }], agentVersion: '1.2.3' })
     metricSamples.push(
       { deviceId: 'device-1', collectedAt: new Date(Date.now() - 20 * 60 * 1000), cpuPercent: 10, ramUsadaGb: 2, ramTotalGb: 8, discoUsadoGb: 50, discoLivreGb: 50, uptimeSegundos: 3600 },
       { deviceId: 'device-1', collectedAt: recent, cpuPercent: 20, ramUsadaGb: 3, ramTotalGb: 8, discoUsadoGb: 55, discoLivreGb: 45, uptimeSegundos: 3900 }
@@ -208,7 +211,7 @@ describe('GET /api/tenant/[clientSlug]/devices/[deviceId]/metrics — caminho po
     // Cronologico: a amostra mais antiga primeiro.
     expect(body.metrics[0].cpuPercent).toBe(10)
     expect(body.metrics[1].cpuPercent).toBe(20)
-    expect(body.device).toMatchObject({ id: 'device-1', status: 'online', effectiveStatus: 'online' })
+    expect(body.device).toMatchObject({ id: 'device-1', status: 'online', effectiveStatus: 'online', agentVersion: '1.2.3' })
     expect(body.device.checkinLatencyMinutes).toBeLessThanOrEqual(5)
   })
 

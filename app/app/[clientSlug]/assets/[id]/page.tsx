@@ -117,6 +117,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
     effectiveStatus: getEffectiveDeviceStatus(asset.status, deviceIssues) as 'online' | 'warning' | 'offline',
     lastCollectedAt: lastCollectedAt?.toISOString() ?? null,
     checkinLatencyMinutes: computeCheckinLatencyMinutes(lastCollectedAt),
+    agentVersion: asset.agentVersion,
   }
 
   const permissionUser = getSessionPermissionUser(session)

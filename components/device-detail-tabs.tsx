@@ -90,18 +90,21 @@ export type DeviceMetricSample = {
 /**
  * Sprint 9 (A.3). Snapshot de saude servido tanto no primeiro render (SSR,
  * calculado igual a lib/tenant-device-rows.ts) quanto pelo polling client-side
- * (GET /api/tenant/[clientSlug]/devices/[deviceId]/metrics). "Versao do
- * agente" foi deliberadamente OMITIDA aqui: o payload de check-in carrega
- * `agentVersion`, mas nenhum campo do schema persiste esse valor por
- * dispositivo hoje (so e' usado para decidir `updateAvailable` na resposta do
- * check-in, depois descartado) — adicionar isso exigiria migration nova, que
- * a sprint pediu para nao decidir sozinho. Ver relatorio de implementacao.
+ * (GET /api/tenant/[clientSlug]/devices/[deviceId]/metrics).
+ *
+ * "Versao do agente" (agentVersion) foi adicionada na Sprint 11, item B:
+ * Device.agentVersion agora persiste o valor gravado no check-in
+ * (app/api/agent/checkin/route.ts, a partir de body.agentVersion) — antes
+ * disso o campo so era usado para decidir `updateAvailable` na resposta do
+ * check-in e depois descartado, sem nenhum lugar no schema pra guardar por
+ * dispositivo.
  */
 export type DeviceHealth = {
   status: string
   effectiveStatus: 'online' | 'warning' | 'offline'
   lastCollectedAt: string | null
   checkinLatencyMinutes: number | null
+  agentVersion: string | null
 }
 
 export type DeviceMonitor = {
@@ -481,7 +484,10 @@ function DeviceMetricsSection({
               </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Versão do agente: <span className="font-medium text-foreground">não disponível</span>
+              Versão do agente:{' '}
+              <span data-testid="device-agent-version" className="font-medium text-foreground">
+                {health.agentVersion ?? 'não disponível'}
+              </span>
             </div>
             <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
               <RefreshCw className="h-3 w-3" />

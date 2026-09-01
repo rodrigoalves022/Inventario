@@ -51,6 +51,7 @@ model Client {
   agents                    AgentAuth[]
   users                     User[]
   alertRules                AlertRule[]
+  webhookEndpoints          WebhookEndpoint[]
 
   @@index([name])
   @@index([organizationId])
@@ -93,6 +94,12 @@ model Device {
   dominio     String?
   usuario     String?
   status      String    @default("online")
+  /// Sprint 11, item B. Preenchido a partir de body.agentVersion no check-in
+  /// (lib/schemas/agent-checkin.ts) — o mesmo campo que ja alimentava so a
+  /// mensagem do CollectionLog e a decisao de updateAvailable, agora tambem
+  /// persistido por dispositivo. Nulo para agentes antigos que nunca
+  /// reportaram esse campo, ou antes do primeiro check-in pos-migration.
+  agentVersion String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -440,6 +447,42 @@ model AlertEvent {
   @@index([clientId, firedAt])
   @@index([deviceId, ruleId])
   @@map("alert_events")
+}
+
+/// Sprint 11, item A. Webhook por tenant com filtro de eventos e assinatura
+/// HMAC-SHA256 — mecanismo ADICIONAL/paralelo a
+/// Client.alertWebhookEnabled/alertWebhookUrl (lib/alert-webhook.ts), que
+/// continua funcionando exatamente como antes, sem nenhuma alteracao: aquele
+/// e' um unico URL fixo por cliente, sem assinatura nem filtro de evento; este
+/// permite VARIOS endpoints por cliente, cada um recebendo so os eventos que
+/// escolheu, com o payload assinado (header X-Webhook-Signature).
+///
+/// `secret` fica em TEXTO PLANO de proposito — correcao deliberada ao pedido
+/// original, que citava `secretHash`: HMAC-SHA256 precisa do segredo de volta
+/// a cada disparo pra recalcular a assinatura (um hash e' unidirecional, nao
+/// serve pra assinar nada). Isso e' diferente de Client.enrollmentKeyHash, que
+/// so precisa COMPARAR um hash contra uma chave apresentada pelo agente,
+/// nunca devolve-la. Gerado no servidor (crypto.randomBytes), nunca aceito de
+/// formulario; nunca devolvido em texto pleno fora do instante da criacao
+/// (ver app/app/[clientSlug]/settings/actions.ts e lib/webhook-endpoints.ts).
+model WebhookEndpoint {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  url       String
+  /// Catalogo fechado em lib/webhook-endpoints.ts (WEBHOOK_EVENTS) — os
+  /// mesmos eventos ja emitidos hoje pelo caminho reativo do check-in e pela
+  /// varredura de disponibilidade/disco.
+  events    String[]
+  isActive  Boolean  @default(true)
+  secret    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@map("webhook_endpoints")
 }
 
 model AgentCommand {

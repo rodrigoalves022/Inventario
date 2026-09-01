@@ -21,10 +21,9 @@ function notFound() {
  * Sprint 9 (A.3). Rota de LEITURA por sessao (distinta de POST /api/agent/metrics,
  * que e' o protocolo de INGESTAO autenticado por X-Api-Key do agente) —
  * devolve as amostras mais recentes de MetricSample do dispositivo, mais um
- * snapshot de saude (status efetivo, latencia desde a ultima coleta), para o
- * polling client-side em components/device-detail-tabs.tsx
- * (DeviceMetricsSection). "Versao do agente" nao aparece aqui: nenhum campo
- * do schema persiste esse dado hoje (ver nota em DeviceHealth).
+ * snapshot de saude (status efetivo, latencia desde a ultima coleta,
+ * versao do agente — Sprint 11, item B), para o polling client-side em
+ * components/device-detail-tabs.tsx (DeviceMetricsSection).
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<Params> }) {
   const { clientSlug, deviceId } = await params
@@ -44,6 +43,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<Param
       id: true,
       status: true,
       updatedAt: true,
+      agentVersion: true,
       hardware: { select: { ramTotalGb: true } },
       disks: { select: { espacoLivreGb: true } },
       logs: { orderBy: { coletadoEm: 'desc' }, take: 1, select: { coletadoEm: true } },
@@ -98,6 +98,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<Param
         effectiveStatus,
         lastCollectedAt: lastCollectedAt.toISOString(),
         checkinLatencyMinutes,
+        agentVersion: device.agentVersion,
       },
       metrics: samples
         .slice()

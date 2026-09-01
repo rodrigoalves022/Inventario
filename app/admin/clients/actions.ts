@@ -149,7 +149,9 @@ export async function createClientAction(
     }
 
     const { plaintext, hash } = await generateEnrollmentKey()
-    const organizationId = await resolveOrganizationIdForActor(getSessionPermissionUser(await auth()))
+    const user = getSessionPermissionUser(await auth())
+    const organizationId = await resolveOrganizationIdForActor(user)
+    const actor = getSessionAuditActor(user)
     const client = await prisma.$transaction(async (tx: TransactionLike) => {
       const createdClient = await tx.client.create({
         data: {
@@ -161,6 +163,17 @@ export async function createClientAction(
       })
 
       await persistActiveProvisioningKey(tx, createdClient.id, plaintext)
+      await recordAuditLog(
+        {
+          action: 'client.create',
+          targetType: 'client',
+          targetId: createdClient.id,
+          clientId: createdClient.id,
+          actor,
+          metadata: { clientSlug: createdClient.slug },
+        },
+        tx
+      )
       return createdClient
     })
 

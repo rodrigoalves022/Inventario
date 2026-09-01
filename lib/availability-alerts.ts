@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { getLowestDiskFreeGb, type InventoryAlertSettings } from '@/lib/inventory-alerts'
 import { sendAlertWebhook } from '@/lib/alert-webhook'
+import { dispatchClientWebhookEndpoints, type WebhookEvent } from '@/lib/webhook-endpoints'
 
 /**
  * Sprint 9, item A.1. Fecha o gap do caminho reativo existente
@@ -89,16 +90,23 @@ export async function reconcileAvailabilityEvents(params: ReconcileAvailabilityP
       },
     })
 
-    if (canSendWebhook) {
-      sendAlertWebhook(settings.alertWebhookUrl as string, {
-        event: metric === 'device_offline' ? 'device.offline' : 'device.low_disk',
-        tenant: { id: clientId, name: clientName, slug: clientSlug },
-        device: { id: device.id, hostname: device.hostname },
-        metric,
-        message,
-        collectedAt: now.toISOString(),
-      })
+    const eventName: WebhookEvent = metric === 'device_offline' ? 'device.offline' : 'device.low_disk'
+    const payload = {
+      event: eventName,
+      tenant: { id: clientId, name: clientName, slug: clientSlug },
+      device: { id: device.id, hostname: device.hostname },
+      metric,
+      message,
+      collectedAt: now.toISOString(),
     }
+
+    if (canSendWebhook) {
+      sendAlertWebhook(settings.alertWebhookUrl as string, payload)
+    }
+    // WebhookEndpoint (Sprint 11): mecanismo adicional/paralelo, com seu
+    // proprio filtro por evento e isActive — independente do gate acima
+    // (canSendWebhook so controla o mecanismo antigo, Client.alertWebhookUrl).
+    void dispatchClientWebhookEndpoints(clientId, eventName, payload)
   }
 
   async function resolveEvent(device: DeviceForAvailability, metric: AvailabilityMetric, eventId: string, message: string) {
@@ -107,16 +115,20 @@ export async function reconcileAvailabilityEvents(params: ReconcileAvailabilityP
       data: { resolvedAt: now },
     })
 
-    if (canSendWebhook) {
-      sendAlertWebhook(settings.alertWebhookUrl as string, {
-        event: metric === 'device_offline' ? 'device.online' : 'device.disk_ok',
-        tenant: { id: clientId, name: clientName, slug: clientSlug },
-        device: { id: device.id, hostname: device.hostname },
-        metric,
-        message,
-        collectedAt: now.toISOString(),
-      })
+    const eventName: WebhookEvent = metric === 'device_offline' ? 'device.online' : 'device.disk_ok'
+    const payload = {
+      event: eventName,
+      tenant: { id: clientId, name: clientName, slug: clientSlug },
+      device: { id: device.id, hostname: device.hostname },
+      metric,
+      message,
+      collectedAt: now.toISOString(),
     }
+
+    if (canSendWebhook) {
+      sendAlertWebhook(settings.alertWebhookUrl as string, payload)
+    }
+    void dispatchClientWebhookEndpoints(clientId, eventName, payload)
   }
 
   for (const device of devices) {

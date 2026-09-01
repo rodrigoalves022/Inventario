@@ -36,6 +36,7 @@ import {
   BellRing,
   Menu,
   X,
+  Settings,
 } from 'lucide-react'
 
 type TenantShellInfo = {
@@ -265,6 +266,7 @@ export function Sidebar({
           ? [
               { name: 'Relatórios', href: getTenantPath(tenant.slug, 'reports'), icon: BarChart3 },
               { name: 'Alertas', href: getTenantPath(tenant.slug, 'alerts'), icon: BellRing },
+              { name: 'Configurações', href: getTenantPath(tenant.slug, 'settings'), icon: Settings },
             ]
           : []),
         ...(canSeeAccountArea
@@ -422,6 +424,7 @@ function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
     { match: `${basePath}/network`, title: 'Rede' },
     { match: `${basePath}/reports`, title: 'Relatórios' },
     { match: `${basePath}/alerts`, title: 'Alertas' },
+    { match: `${basePath}/settings`, title: 'Configurações' },
     { match: `${basePath}/audit`, title: 'Auditoria' },
     // Listagem unificada (exata) vem antes do detalhe (prefixo `/assets/<id>`)
     // — sem essa ordem, `startsWith` faria a listagem cair no titulo do detalhe.

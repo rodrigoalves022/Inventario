@@ -28,6 +28,7 @@ const baseHealth: DeviceHealth = {
   effectiveStatus: 'online',
   lastCollectedAt: new Date().toISOString(),
   checkinLatencyMinutes: 5,
+  agentVersion: '1.0.0',
 }
 
 const baseMetrics: DeviceMetricSample[] = [

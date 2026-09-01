@@ -268,21 +268,36 @@ describe('createClientAction — resolucao de organizationId por ator (RN015)', 
   })
 })
 
-describe('createClientAction — AuditLog na criacao (gap confirmado, nao presumido)', () => {
-  it('DOCUMENTA que a criacao de cliente NAO grava AuditLog hoje — diferente de rotateEnrollmentKeyAction/revokeAgentAuthAction, que gravam', async () => {
+describe('createClientAction — AuditLog na criacao', () => {
+  // Gap fechado: createClientAction agora grava AuditLog('client.create') dentro
+  // da mesma transacao que cria o Client, no mesmo padrao ja usado por
+  // rotateEnrollmentKeyAction/revokeAgentAuthAction (mesmo arquivo).
+  it('criacao bem-sucedida grava exatamente 1 AuditLog com action client.create e targetId/clientId corretos', async () => {
     const { createClientAction } = await import('@/app/admin/clients/actions')
     sessionRef.user = { id: 'admin', email: 'admin@inventario.local', role: 'PLATFORM_ADMIN', organizationId: null }
 
-    const result = await createClientAction(initialState, buildFormData({ name: 'Cliente Sem Auditoria' }))
+    const result = await createClientAction(initialState, buildFormData({ name: 'Cliente Com Auditoria' }))
 
     expect(result.error).toBeNull()
-    // Leitura do codigo (app/admin/clients/actions.ts) confirma que a transacao
-    // de createClientAction so chama tx.client.create + persistActiveProvisioningKey,
-    // nunca recordAuditLog — ao contrario de rotateEnrollmentKeyAction/
-    // revokeAgentAuthAction no mesmo arquivo. Este teste documenta o comportamento
-    // ATUAL (gap real, ja reportado ao usuario), nao um criterio de aceite desta
-    // sprint — se a gravacao for adicionada depois, este teste deve ser atualizado
-    // junto, nao silenciosamente quebrado.
+    const created = [...clients.values()][0]
+    expect(created).toBeTruthy()
+
+    expect(auditLogs).toHaveLength(1)
+    const log = auditLogs[0]
+    expect(log.action).toBe('client.create')
+    expect(log.targetType).toBe('client')
+    expect(log.targetId).toBe(created?.id)
+    expect(log.clientId).toBe(created?.id)
+  })
+
+  it('tentativa de criacao rejeitada na validacao Zod (nome vazio) nao grava nenhum AuditLog', async () => {
+    const { createClientAction } = await import('@/app/admin/clients/actions')
+    sessionRef.user = { id: 'admin', email: 'admin@inventario.local', role: 'PLATFORM_ADMIN', organizationId: null }
+
+    const result = await createClientAction(initialState, buildFormData({ name: '' }))
+
+    expect(result.error).toBeTruthy()
+    expect(clients.size).toBe(0)
     expect(auditLogs).toHaveLength(0)
   })
 })

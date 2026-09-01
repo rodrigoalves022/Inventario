@@ -50,6 +50,7 @@ export default async function PortalDeviceDetailPage({
     effectiveStatus: getEffectiveDeviceStatus(device.status, deviceIssues) as 'online' | 'warning' | 'offline',
     lastCollectedAt: lastCollectedAt?.toISOString() ?? null,
     checkinLatencyMinutes: computeCheckinLatencyMinutes(lastCollectedAt),
+    agentVersion: device.agentVersion,
   }
 
   return (
