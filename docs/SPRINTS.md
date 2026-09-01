@@ -351,11 +351,34 @@ intencional, e este plano só estende o fluxo (a), não o funde com o (b).
 
 ## Sprint 10 — Cobertura de Teste dos Gaps Estruturais
 
-**Status**: 📋 Planejada — aguardando aprovação explícita do usuário. Nenhum item foi executado nem
-verificado; o `implementation-agent` não foi acionado. Seção desmembrada nesta revisão (2026-08-31) do
-que era o "Bloco B" dentro da antiga Sprint 9 — mesmo conteúdo técnico, reestruturado no padrão de
-seção de sprint deste documento e renumerado (1–16 em vez de B.1–B.16), por decisão explícita do
-usuário de separar as duas frentes de trabalho.
+**Status**: 🟢 Concluída (2026-09-01). Os 16 itens foram divididos em 4 grupos independentes de
+`implementation-agent`, executados em paralelo (mesmo padrão da Sprint 6), e verificados de forma
+independente pela sessão principal depois: `npx tsc --noEmit` limpo, `npm run lint` limpo, `npm run
+build` limpo, `npm run test` com **296/296 passando** (41 arquivos, 18 novos), confirmado estável em
+duas rodadas seguidas. Confirmado por `grep` que nenhum teste mocka `lib/permissions.ts`,
+`lib/tenant-context.ts` ou `lib/portal-context.ts` — os guards centrais são sempre exercitados de
+verdade, conforme exigido explicitamente pelo usuário.
+
+**Achados registrados durante a execução (não são regressão, são gaps/decisões para avaliação
+futura)**:
+- `createClientAction` (`app/admin/clients/actions.ts`) **não grava `AuditLog`** na criação de um
+  cliente — diferente de `rotateEnrollmentKeyAction`/`revokeAgentAuthAction` no mesmo arquivo, que
+  gravam. Documentado por teste que prova o comportamento atual (não um critério de aceite exigindo
+  o log). Candidato a item de sprint futura.
+- Item 13 (RNF002) já estava implementado corretamente no código (`AgentCheckLog` grava motivos
+  distintos para JSON malformado vs. schema inválido) — não era gap real, só faltava o teste.
+- Item 6 (dedupe de `UsbDevice`): não vive no schema Zod nem na rota de checkin — vive no agente Go
+  (`agent-go/internal/collectors/windows/peripherals.go`). Sem teste Go escrito nesta sprint (fora do
+  escopo Vitest desta execução); candidato a item de cobertura Go separado.
+- `lib/auth-credentials.ts` (novo) — `authorizeCredentials` extraída de `auth.ts` para viabilizar
+  teste direto do fluxo de login (item 3); `next-auth` não expõe o `authorize` passado para
+  `CredentialsProvider` de um jeito testável sem contornar problemas de resolução ESM do próprio
+  pacote. Comportamento idêntico, `tsc`/`build` confirmam que o login não quebrou.
+
+Seção desmembrada numa revisão anterior (2026-08-31) do que era o "Bloco B" dentro da antiga
+Sprint 9 — mesmo conteúdo técnico, reestruturado no padrão de seção de sprint deste documento e
+renumerado (1–16 em vez de B.1–B.16), por decisão explícita do usuário de separar as duas frentes de
+trabalho.
 
 **Objetivo**: fechar 17 gaps de cobertura de teste sobre RF/RN já implementados no código, mapeados
 numa Auditoria Geral de Conformidade do `requirements-auditor` nesta mesma sessão (2026-08-31), antes
