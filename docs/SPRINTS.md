@@ -722,3 +722,97 @@ nesta sessão (`requirements-auditor` sozinho); se o usuário quiser uma rodada 
 `security-auditor`/`test-auditor` especificamente sobre o item 1 (o de maior risco, dado que é sobre
 isolamento entre clientes do portal) antes de aprovar, isso é uma decisão a tomar separadamente, não
 incluída por este planner.
+
+---
+
+## Backlog — Achados Pendentes
+
+Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
+achados já confirmados contra o código atual (verificados nesta rodada, 2026-09-01), registrados
+para avaliação/decisão futura. Nenhum é bug bloqueante de produção; cada um depende de uma decisão
+de escopo (adicionar uma gravação, escrever um teste numa linguagem fora do padrão da suíte, ou
+decidir se vale uma migration nova) que este planner não toma sozinho. Entram numa sprint numerada
+quando alguém aprovar explicitamente o escopo.
+
+### 1. `createClientAction` não grava `AuditLog` na criação de cliente
+
+**Origem**: achado durante a execução da Sprint 10 (cobertura de teste dos gaps estruturais,
+concluída no commit `77610fd`), reportado pelo `implementation-agent` do grupo responsável pelo
+item 4 (RF002).
+
+**Achado**: em `app/admin/clients/actions.ts`, `rotateEnrollmentKeyAction` e `revokeAgentAuthAction`
+gravam `AuditLog` via `recordAuditLog` (confirmado nesta rodada, linhas 237 e 325). `createClientAction`
+(linhas 110–184) não grava — a transação cria `Client` e persiste a chave de provisionamento, mas
+nenhuma chamada a `recordAuditLog` acontece no caminho de sucesso. Isso é uma violação de RNF009 (toda
+mutação sensível deve gravar `AuditLog`). `tests/create-client-action.test.ts` já existe e documenta o
+comportamento atual (sem asserção exigindo o log — só prova o estado real, não é um teste que falha por
+causa disso).
+
+**Por que fica pendente**: não é um bug de fluxo (a criação de cliente funciona) — é uma lacuna de
+auditabilidade, pequena e isolada, que o `implementation-agent` que a encontrou deliberadamente não
+corrigiu por estar fora do escopo daquela sessão (que era escrever teste, não mudar comportamento).
+Candidato: adicionar `recordAuditLog` dentro da mesma transação de `createClientAction`, seguindo o
+padrão já estabelecido nas outras duas actions do mesmo arquivo, e atualizar o teste existente para
+exigir o log.
+
+### 2. Dedupe de `UsbDevice` vive só no agente Go, sem cobertura de teste no lado TS/Vitest
+
+**Origem**: achado durante a execução da Sprint 10, reportado pelo `implementation-agent` do grupo
+responsável pelo item 6 (RF005–RF010, RF012 — schemas Zod de coleta).
+
+**Achado**: a lógica real de dedupe de periféricos USB por VID+PID+serial está em
+`agent-go/internal/collectors/windows/peripherals.go`, função `collectUsbDevices` (confirmado nesta
+rodada: `seen := make(map[string]bool, ...)` na linha 217, chave `vendorId + productId + serial` na
+linha 229, filtro de hubs via `usbHubServices` na linha 181). O schema Zod
+(`lib/schemas/agent-checkin.ts`) só valida a forma do array recebido, sem aplicar nem verificar dedupe;
+a rota de checkin persiste o array como veio do agente. Não foi escrito teste Go para
+`collectUsbDevices` durante a Sprint 10 porque a função está fortemente acoplada a uma consulta WMI
+real (`Win32_PnPEntity`), não mockável sem refatoração — decisão de escopo registrada no momento,
+não um esquecimento.
+
+**Por que fica pendente**: é uma decisão de escopo de teste (introduzir Go test + possível
+refatoração para isolar a função de parse/dedupe da consulta WMI, ou aceitar formalmente que a
+cobertura fica só documentada e não testada), não um bug — o comportamento em produção não foi
+questionado por nenhum auditor. Candidato: ou um teste Go dedicado
+(`agent-go/internal/collectors/windows/peripherals_test.go`, isolando `parseUsbDeviceID`/a lógica de
+dedupe da consulta WMI em si), ou uma decisão explícita registrada de que a cobertura fica só no lado
+Go por inspeção manual, fechando o item por documentação em vez de teste.
+
+### 3. `authorizeCredentials` sem teste unitário isolado da função em si
+
+**Origem**: achado durante a execução da Sprint 10, reportado pelo `implementation-agent` do grupo
+responsável pelo item 3 (RF001 — fluxo de login).
+
+**Achado**: `authorizeCredentials` (`lib/auth-credentials.ts`, extraída de `auth.ts` durante a Sprint
+10 porque `next-auth` não expõe o `authorize` do `CredentialsProvider` de um jeito testável sem
+contornar problemas de resolução ESM do próprio pacote) hoje só é exercitada indiretamente, via
+`tests/auth-login.test.ts` (fluxo de login ponta a ponta) e `tests/auth-login-logout-audit-log.test.ts`
+(AuditLog de login/logout — confirmado nesta rodada que ambos os arquivos existem e que nenhum teste
+importa `authorizeCredentials` diretamente). Nenhum teste hoje isola a função em si (assinatura, tipos
+de retorno, casos de borda que os testes de fluxo podem não cobrir por completo).
+
+**Por que fica pendente**: os testes de fluxo existentes já cobrem o caminho principal (credenciais
+válidas/inválidas, hash via `bcrypt.compare`) — não há evidência hoje de uma lacuna real de
+comportamento, só ausência de teste unitário isolado da função. Candidato: teste unitário dedicado, a
+escrever se uma auditoria futura (`test-auditor` ou `requirements-auditor`) confirmar que os testes de
+fluxo existentes têm lacunas reais nos casos de borda dessa função especificamente.
+
+### 4. Campo `agentVersion` no schema `Device` — requer migration Prisma
+
+**Origem**: achado da Sprint 9 (webhook piggyback + métricas de saúde do agente, item A.3, concluída
+no commit `6c768bf`), registrado neste Backlog por pedido direto do usuário nesta conversa
+(2026-09-01).
+
+**Achado**: durante a Sprint 9 (A.3, métricas de saúde do agente com polling), descobriu-se que o
+payload de check-in já carrega `agentVersion`, mas nenhum campo do schema Prisma persiste esse valor
+por dispositivo — hoje ele só é usado transitoriamente para calcular `updateAvailable` na resposta do
+check-in, depois descartado. `components/device-detail-tabs.tsx` (`DeviceHealth`) omite "versão do
+agente" do card de saúde por causa disso, com a decisão documentada em comentário no próprio código
+(confirmado nesta rodada, linhas 90–99: "'Versao do agente' foi deliberadamente OMITIDA aqui... —
+adicionar isso exigiria migration nova, que a sprint pediu para nao decidir sozinho").
+
+**Por que fica pendente**: é uma decisão de produto/schema (vale o custo de uma migration nova só para
+exibir a versão do agente no card de saúde?), não um bug — o sistema funciona sem esse campo, e a
+Sprint 9 já registrou explicitamente que não decidiria isso sozinha. Candidato: avaliar numa sprint
+futura se `Device.agentVersion` (migration nova, campo opcional) vale o custo, e então popular o card
+de saúde a partir do check-in seguinte à migration.
