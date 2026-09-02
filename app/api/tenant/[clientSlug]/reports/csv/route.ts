@@ -17,8 +17,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
   }
 
   const tenantAlertSettings = await getTenantAlertSettingsBySlug(clientSlug)
-  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
-  const rows = await getDeviceReportRows(getTenantDeviceWhere(clientSlug), alertOfflineHours)
+  const effectiveAlertSettings = tenantAlertSettings ?? getDefaultAlertSettings()
+  const rows = await getDeviceReportRows(
+    getTenantDeviceWhere(clientSlug),
+    effectiveAlertSettings.alertOfflineHours,
+    effectiveAlertSettings.alertDiskThresholdGb
+  )
   const csv = renderDeviceReportCsv(rows)
 
   return new NextResponse(csv, {

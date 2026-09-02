@@ -3,7 +3,12 @@ import { auth } from '@/auth'
 import { canAccessTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
-import { buildDeviceReportSummary, getDeviceReportRows, renderDeviceReportPdf } from '@/lib/reports/device-report'
+import {
+  buildDeviceReportSummary,
+  getBlacklistedSoftwareHistory,
+  getDeviceReportRows,
+  renderDeviceReportPdf,
+} from '@/lib/reports/device-report'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ clientSlug: string }> }) {
@@ -17,14 +22,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
   }
 
   const tenantAlertSettings = await getTenantAlertSettingsBySlug(clientSlug)
-  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
-  const rows = await getDeviceReportRows(getTenantDeviceWhere(clientSlug), alertOfflineHours)
+  const effectiveAlertSettings = tenantAlertSettings ?? getDefaultAlertSettings()
+  const rows = await getDeviceReportRows(
+    getTenantDeviceWhere(clientSlug),
+    effectiveAlertSettings.alertOfflineHours,
+    effectiveAlertSettings.alertDiskThresholdGb
+  )
   const summary = buildDeviceReportSummary(rows)
-  const pdf = await renderDeviceReportPdf(rows, summary, {
-    title: 'Relatório de inventário',
-    subtitle: tenant.name,
-    generatedAt: new Date(),
-  })
+  const blacklistedSoftware = await getBlacklistedSoftwareHistory(tenant.id)
+  const pdf = await renderDeviceReportPdf(
+    rows,
+    summary,
+    {
+      title: 'Relatório de inventário',
+      subtitle: tenant.name,
+      generatedAt: new Date(),
+    },
+    { blacklistedSoftware, alertDiskThresholdGb: effectiveAlertSettings.alertDiskThresholdGb }
+  )
 
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,

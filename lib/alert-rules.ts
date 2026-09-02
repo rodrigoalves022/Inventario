@@ -45,7 +45,11 @@ type SecuritySnapshot = {
 
 type DiskSnapshot = { criptografia: string | null }
 
-export type SoftwareSnapshot = { nome: string; versao: string | null }
+/** `editor` opcional (nao obrigatorio no tipo) para nao quebrar chamadores/
+ * fixtures de teste existentes que so passavam nome/versao antes da Sprint 13
+ * — `match.editor ?? null` normaliza pra `string | null` na hora de montar o
+ * metadata do AlertEvent. */
+export type SoftwareSnapshot = { nome: string; versao: string | null; editor?: string | null }
 
 /** Contexto extra que so o metric 'software_blacklisted' usa — os outros 4
  * cases ignoram por completo (assinatura generica, catalogo fechado). */
@@ -105,9 +109,45 @@ export function evaluateAlertMetric(
       return {
         firing: true,
         message: `Software não autorizado detectado: ${match.nome}${match.versao ? ` (versão ${match.versao})` : ''}.`,
-        metadata: { softwareNome: match.nome, softwareVersao: match.versao },
+        // Sprint 13: editor incluido no metadata para exibicao destacada no
+        // card de alerta (app/app/[clientSlug]/alerts/page.tsx) e no
+        // relatorio de softwares nao autorizados (lib/reports/device-report.ts).
+        metadata: { softwareNome: match.nome, softwareVersao: match.versao, softwareEditor: match.editor ?? null },
       }
     }
+  }
+}
+
+export type SoftwareBlacklistMetadata = {
+  softwareNome: string
+  softwareVersao: string | null
+  softwareEditor: string | null
+}
+
+/**
+ * Parse defensivo de AlertEvent.metadataJson para o metric
+ * 'software_blacklisted' — mesmo principio de parseMetadata em
+ * lib/audit-log.ts (nunca confia cegamente no conteudo armazenado, mesmo
+ * sendo gravado pelo proprio sistema). Usado pela pagina de alertas
+ * (Sprint 13, exibicao destacada) e por lib/reports/device-report.ts
+ * (historico de softwares nao autorizados no relatorio PDF).
+ */
+export function parseSoftwareBlacklistMetadata(
+  metadataJson: string | null | undefined
+): SoftwareBlacklistMetadata | null {
+  if (!metadataJson) return null
+
+  try {
+    const parsed = JSON.parse(metadataJson)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const record = parsed as Record<string, unknown>
+    const softwareNome = typeof record.softwareNome === 'string' ? record.softwareNome : null
+    if (!softwareNome) return null
+    const softwareVersao = typeof record.softwareVersao === 'string' ? record.softwareVersao : null
+    const softwareEditor = typeof record.softwareEditor === 'string' ? record.softwareEditor : null
+    return { softwareNome, softwareVersao, softwareEditor }
+  } catch {
+    return null
   }
 }
 

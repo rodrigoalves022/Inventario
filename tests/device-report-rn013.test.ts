@@ -33,6 +33,11 @@ function makeRow(overrides: Partial<DeviceReportRow>): DeviceReportRow {
     etiquetaPatrimonio: null,
     localizacao: null,
     responsavel: null,
+    // Sprint 13
+    deviceType: 'computador',
+    antivirusAtualizado: null,
+    bitlockerAtivo: null,
+    criticalDisks: [],
     ...overrides,
   }
 }

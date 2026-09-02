@@ -10,8 +10,12 @@ export async function GET() {
   }
 
   const tenantAlertSettings = await getTenantAlertSettingsByClientId(context.clientId)
-  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
-  const rows = await getDeviceReportRows({ clientId: context.clientId }, alertOfflineHours)
+  const effectiveAlertSettings = tenantAlertSettings ?? getDefaultAlertSettings()
+  const rows = await getDeviceReportRows(
+    { clientId: context.clientId },
+    effectiveAlertSettings.alertOfflineHours,
+    effectiveAlertSettings.alertDiskThresholdGb
+  )
   const csv = renderDeviceReportCsv(rows)
 
   return new NextResponse(csv, {

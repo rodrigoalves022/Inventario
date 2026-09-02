@@ -229,8 +229,13 @@ export async function POST(req: NextRequest) {
             }
           : null,
         disks: (body.discos ?? []).map((disk) => ({ criptografia: disk.criptografia ?? null })),
-        // Sprint 12: alimenta a regra 'software_blacklisted'.
-        software: (body.software ?? []).map((software) => ({ nome: software.nome, versao: software.versao ?? null })),
+        // Sprint 12: alimenta a regra 'software_blacklisted'. Sprint 13:
+        // editor tambem repassado, pra exibicao destacada no alerta/relatorio.
+        software: (body.software ?? []).map((software) => ({
+          nome: software.nome,
+          versao: software.versao ?? null,
+          editor: software.editor ?? null,
+        })),
       }).catch((error) => {
         console.error('[agent/checkin] Falha ao reconciliar alertas:', error)
         return []

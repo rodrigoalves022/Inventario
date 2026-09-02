@@ -61,6 +61,12 @@ const { clients, devices, sessionRef, fakePrisma } = vi.hoisted(() => {
         })
       }),
     },
+    // Sprint 13: as rotas PDF passaram a chamar getBlacklistedSoftwareHistory
+    // (lib/reports/device-report.ts), que consulta prisma.alertEvent.findMany
+    // — sem historico de software proibido nestes testes, so content-type/status.
+    alertEvent: {
+      findMany: vi.fn(async () => []),
+    },
   }
 
   return { clients, devices, sessionRef, fakePrisma }

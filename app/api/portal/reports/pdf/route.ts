@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getPortalContext } from '@/lib/portal-context'
-import { buildDeviceReportSummary, getDeviceReportRows, renderDeviceReportPdf } from '@/lib/reports/device-report'
+import {
+  buildDeviceReportSummary,
+  getBlacklistedSoftwareHistory,
+  getDeviceReportRows,
+  renderDeviceReportPdf,
+} from '@/lib/reports/device-report'
 import { getDefaultAlertSettings, getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 
 export async function GET() {
@@ -10,14 +15,24 @@ export async function GET() {
   }
 
   const tenantAlertSettings = await getTenantAlertSettingsByClientId(context.clientId)
-  const alertOfflineHours = (tenantAlertSettings ?? getDefaultAlertSettings()).alertOfflineHours
-  const rows = await getDeviceReportRows({ clientId: context.clientId }, alertOfflineHours)
+  const effectiveAlertSettings = tenantAlertSettings ?? getDefaultAlertSettings()
+  const rows = await getDeviceReportRows(
+    { clientId: context.clientId },
+    effectiveAlertSettings.alertOfflineHours,
+    effectiveAlertSettings.alertDiskThresholdGb
+  )
   const summary = buildDeviceReportSummary(rows)
-  const pdf = await renderDeviceReportPdf(rows, summary, {
-    title: 'Relatório de inventário',
-    subtitle: context.clientName,
-    generatedAt: new Date(),
-  })
+  const blacklistedSoftware = await getBlacklistedSoftwareHistory(context.clientId)
+  const pdf = await renderDeviceReportPdf(
+    rows,
+    summary,
+    {
+      title: 'Relatório de inventário',
+      subtitle: context.clientName,
+      generatedAt: new Date(),
+    },
+    { blacklistedSoftware, alertDiskThresholdGb: effectiveAlertSettings.alertDiskThresholdGb }
+  )
 
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,

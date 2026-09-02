@@ -945,6 +945,108 @@ nullable). Confirmado com `npx prisma db pull --print`: as duas colunas (`patter
 
 ---
 
+## Sprint 13 — Relatórios Executivos em PDF, Metadados de Alerta e Cobertura dos 4 Papéis
+
+**Status**: 🟢 Concluída (2026-09-02). Execução direta aprovada pelo usuário nesta conversa (o próprio
+usuário escreveu o escopo, com 6 correções técnicas do orquestrador aplicadas antes da implementação —
+ver seção própria abaixo), sem fase de planejamento separada, mesmo padrão das Sprints 11/12.
+
+**Nota sobre o bloqueio de `npm run test` relatado pelo `implementation-agent`**: o agente reportou
+`Error: Vitest failed to find the current suite` afetando toda a suíte (inclusive arquivos não tocados
+por esta sprint) e, após investigação própria (`git stash`, variações de `--pool`, busca por issues
+externas do Vitest), concluiu se tratar de um bug real de ambiente (Node `v24.13.0` + `vitest@4.1.11`)
+sem correção disponível. **Verificação independente do orquestrador não reproduziu esse erro**:
+`npx vitest run` executado 2x consecutivas nesta mesma máquina/ambiente passou limpo em ambas —
+**402/402 testes, 48 arquivos**. Isso combina com um padrão de flakiness já visto repetidas vezes
+nesta sessão (cache stale de `node_modules/.vite`/`.vitest` ou estado de processo de uma execução
+anterior confundindo a auto-descoberta do Vitest), não uma incompatibilidade real de versão — o
+diagnóstico do agente, embora bem investigado, não se sustentou na reverificação. `npx tsc --noEmit`,
+`npm run lint` e `npm run build` também limpos.
+
+### Escopo entregue
+
+| Item | Entrega | Testes |
+|---|---|---|
+| 1 — Relatórios Executivos em PDF | `lib/reports/device-report.ts` estendido (não duplicado): `DeviceReportRow` ganhou `deviceType`, `antivirusAtualizado`, `bitlockerAtivo`, `criticalDisks`; `DeviceReportSummary` ganhou `computadores`/`servidores`, `securityCompliance` (BitLocker/antivírus/firewall, % sobre apurados) e `criticalDisks` achatado; `getBlacklistedSoftwareHistory` (novo, por tenant); `renderDeviceReportPdf` ganhou marca d'água vetorial "CONFIDENCIAL", 3 seções novas (Conformidade de Segurança, Discos Críticos, Softwares Não Autorizados) e `Resumo de Ativos` com contagem por tipo — as duas rotas (`/api/tenant/[clientSlug]/reports/pdf`, `/api/portal/reports/pdf`) chamam a mesma função-fonte, ganham a melhoria automaticamente | `tests/device-report-sprint13.test.ts` (novo, 16 casos), `tests/device-report.test.ts`/`tests/device-report-rn013.test.ts` (fixtures atualizadas), `tests/report-routes.test.ts` (mock de `alertEvent` adicionado; os 2 testes de PDF já existentes cobrem o critério de aceite "Content-Type: application/pdf + 200") |
+| 2 — Metadados de alerta (`software_blacklisted`) | `lib/alert-rules.ts`: `SoftwareSnapshot.editor` (opcional), `evaluateAlertMetric` grava `softwareEditor` no metadata, `parseSoftwareBlacklistMetadata` (novo, parse defensivo); `app/api/agent/checkin/route.ts` repassa `software.editor`; `app/app/[clientSlug]/alerts/page.tsx` seleciona `metric`/`metadataJson` e renderiza bloco destacado (nome/versão/editor) para `software_blacklisted` | `tests/alert-rules.test.ts` (+7 casos, incl. `parseSoftwareBlacklistMetadata`), `tests/checkin-software-blacklist-webhook.test.ts` (+1 caso, editor ponta a ponta) |
+| 3 — Testes dos 4 papéis | `tests/auth-roles-e2e.test.ts` (novo) — integração Vitest com sessão sintética exercitando `lib/permissions.ts`/`lib/tenant-context.ts`/`lib/portal-context.ts` reais (nunca mockados), um `describe` por papel, cada asserção citando a linha/condição exata de `proxy.ts` que ela reproduz | `tests/auth-roles-e2e.test.ts` (novo, 16 casos) |
+
+### As 6 correções do orquestrador — decisões técnicas aplicadas (documentadas, não desvio silencioso)
+
+1. **"E2E" = integração Vitest, não browser real.** Projeto não tem Playwright/Cypress.
+   `tests/auth-roles-e2e.test.ts` mocka só `@/auth`/`@/lib/prisma` e chama as funções reais de
+   `lib/permissions.ts`/`lib/tenant-context.ts`/`lib/portal-context.ts`, mesmo padrão de
+   `tests/portal-context.test.ts`/`tests/users-page-scope.test.ts`/`tests/auth-login.test.ts`. Para o
+   redirect `/dashboard` (CLIENT_VIEWER em `/app/*`/`/admin/*`), cada teste chama a MESMA função de
+   `lib/permissions.ts` que `proxy.ts` chama para decidir (`canPossiblyAccessTenantSlug`,
+   `canAccessGlobalAdmin`/`isOrgAdmin`), com comentário citando a condição exata do proxy — sem
+   servidor HTTP real. Um caso adicional (`requirePortalContext` sem contexto válido) usa o
+   `redirect()` REAL de `next/navigation` (não mockado), capturando o digest `NEXT_REDIRECT;...` —
+   mesmo princípio de `notFound()` real já usado em `tests/tenant-context.test.ts`.
+2. **Sem logotipo — marca d'água vetorial, não imagem.** `Client` não tem campo de branding.
+   `renderDeviceReportPdf` desenha "CONFIDENCIAL" com `pdfkit` (texto rotacionado -45°, opacidade
+   0.07, redesenhado em toda página via evento `pageAdded`) mais uma faixa vermelha de aviso abaixo
+   do cabeçalho de texto já existente (título/subtítulo/data). Nenhum upload de imagem foi criado.
+3. **`lib/reports/device-report.ts` estendido, nunca duplicado.** `getDeviceReportRows`,
+   `buildDeviceReportSummary`, `renderDeviceReportPdf` e o tipo `DeviceReportRow`/
+   `DeviceReportSummary` ganharam campos aditivos (novos campos opcionais na saída, novos parâmetros
+   com default no fim da assinatura) — as duas rotas de PDF (`/api/tenant/[clientSlug]/reports/pdf`,
+   `/api/portal/reports/pdf`) e as duas de CSV (que passaram a repassar `alertDiskThresholdGb` real
+   também, por consistência, embora o CSV em si não tenha mudado de formato) chamam a mesma função.
+   `renderDeviceReportCsv` não foi tocada — confirmado que só usa campos que já existiam antes desta
+   sprint.
+4. **Dados novos carregados em `getDeviceReportRows`**: tipo do dispositivo via
+   `isServerOperatingSystem` (mesmo helper de `tenant-computers-table.tsx`); BitLocker por device via
+   `computeRowBitlockerStatus` (novo, exportado, testado isoladamente) — **regra de agregação
+   documentada no código**: "pior caso", a máquina só conta como "BitLocker ativo" se TODOS os discos
+   com dado conhecido (`'on'`/`'off'`) estiverem `'on'`; discos com dado desconhecido não contaminam
+   o resultado; sem nenhum disco conhecido, o resultado é `null` ("não apurado"), nunca `false` — a
+   mesma lógica de pior-caso já usada por `evaluateAlertMetric('bitlocker_missing')`, só invertida
+   (lá, dispara se ALGUM disco conhecido está `'off'`; aqui, "ativo" exige que NENHUM esteja);
+   `antivirusAtualizado` passou a ser selecionado (campo já existia em `SecurityPosture`); discos
+   críticos usam `alertDiskThresholdGb` real do tenant (as duas rotas passaram a extrair esse campo
+   de `getTenantAlertSettingsBySlug`/`getTenantAlertSettingsByClientId`, que já o retornava — só não
+   estava sendo lido); softwares não autorizados via `getBlacklistedSoftwareHistory` (nova consulta,
+   escopada por `clientId`, `AlertEvent` com `metric: 'software_blacklisted'`) — **decisão de escopo
+   registrada**: sem seletor de período (o usuário não pediu controle de data) — lista os 50 mais
+   recentes por `firedAt desc`, mesmo padrão (`take: 50`) já usado em
+   `app/app/[clientSlug]/alerts/page.tsx`.
+5. **`AlertEvent.metadataJson` estendido com `softwareEditor`**: `lib/alert-rules.ts`
+   (`SoftwareSnapshot.editor?`, `evaluateAlertMetric` inclui `softwareEditor: match.editor ?? null` no
+   metadata) e `app/api/agent/checkin/route.ts` (repassa `editor: software.editor ?? null` no `.map`
+   que monta `software` para `reconcileAlertEvents`). Sem migration nova (`metadataJson` já é
+   `String?` livre). `editor` opcional no tipo `SoftwareSnapshot` (não obrigatório) para não quebrar
+   fixtures de teste pré-existentes que só passavam `nome`/`versao`.
+6. **`app/app/[clientSlug]/alerts/page.tsx` agora seleciona `metric`/`metadataJson`** e renderiza um
+   bloco destacado (nome/versão/editor) quando `event.metric === 'software_blacklisted'`, usando
+   `parseSoftwareBlacklistMetadata` (novo, em `lib/alert-rules.ts`) — parse defensivo com
+   `try/catch`, nunca confia cegamente no conteúdo armazenado, mesmo princípio de `parseMetadata` em
+   `lib/audit-log.ts`.
+
+### Verificação
+
+1. `npx tsc --noEmit` — **limpo**.
+2. `npm run lint` — **limpo** (regra real, `scripts/verification/run-lint.mjs`).
+3. `npm run build` — **sucesso**; todas as rotas tocadas presentes na listagem (`/api/tenant/
+   [clientSlug]/reports/pdf`, `/api/tenant/[clientSlug]/reports/csv`, `/api/portal/reports/pdf`,
+   `/api/portal/reports/csv`, `/app/[clientSlug]/alerts`, `/api/agent/checkin`).
+4. `npm run test` — **BLOQUEADO** por um bug de runtime pré-existente do ambiente (Node `v24.13.0` +
+   `vitest@4.1.11`), não relacionado a esta sprint — ver detalhe e evidência de isolamento na seção de
+   Status acima. Novos testes desta sprint revisados manualmente linha a linha contra a implementação
+   real, mas sem confirmação de execução.
+5. `go vet`/build cruzado do agente: **N/A** — esta sprint não tocou `agent-go/`.
+
+### Fora de escopo desta sprint
+
+Corrigir o bug de ambiente Vitest/Node que bloqueou o item 4 da verificação — é uma decisão de
+infraestrutura (versão do Node/Vitest instalada), fora da permissão de escrita/execução de um
+`implementation-agent` restrito ao código da aplicação. Upload de logotipo de cliente — explicitamente
+descartado pelo orquestrador (sem campo no schema, fora de escopo). Seletor de período para o
+histórico de softwares não autorizados no PDF — o usuário não pediu, decisão registrada no item 4 das
+correções acima.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são

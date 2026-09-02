@@ -189,7 +189,14 @@ describe('POST /api/agent/checkin — software_blacklisted dispara webhook SO na
 
     expect(response.status).toBe(200)
     expect(alertEvents).toHaveLength(1)
-    expect(JSON.parse(alertEvents[0].metadataJson!)).toEqual({ softwareNome: 'AnyDesk', softwareVersao: '7.1.0' })
+    // Sprint 13: softwareEditor entrou no metadata (null aqui, pois o payload
+    // de teste nao informou editor) — ver caso dedicado logo abaixo para o
+    // editor sendo repassado quando presente.
+    expect(JSON.parse(alertEvents[0].metadataJson!)).toEqual({
+      softwareNome: 'AnyDesk',
+      softwareVersao: '7.1.0',
+      softwareEditor: null,
+    })
 
     expect(dispatchMock).toHaveBeenCalledTimes(1)
     const [clientId, event, payload] = dispatchMock.mock.calls[0]
@@ -200,6 +207,27 @@ describe('POST /api/agent/checkin — software_blacklisted dispara webhook SO na
       tenant: { id: 'client-a', slug: 'cliente-a' },
       device: { hostname: 'PC-SW-01' },
       alert: { metric: 'software_blacklisted', message: expect.stringContaining('AnyDesk') },
+    })
+  })
+
+  it('Sprint 13: editor do software (body.software[].editor) e repassado ate o metadataJson gravado', async () => {
+    setAuthOk({ id: 'agent-sw-editor', clientId: 'client-a', clientSlug: 'cliente-a' })
+    seedRule({ id: 'rule-sw', clientId: 'client-a', pattern: 'AnyDesk' })
+
+    const { POST } = await import('@/app/api/agent/checkin/route')
+    const response = await POST(
+      buildRequest({
+        hostname: 'PC-SW-EDITOR',
+        agentVersion: '1.0.0',
+        software: [{ nome: 'AnyDesk', versao: '7.1.0', editor: 'AnyDesk Software GmbH' }],
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(alertEvents[0].metadataJson!)).toEqual({
+      softwareNome: 'AnyDesk',
+      softwareVersao: '7.1.0',
+      softwareEditor: 'AnyDesk Software GmbH',
     })
   })
 

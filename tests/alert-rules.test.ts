@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { reconcileAlertEvents, evaluateAlertMetric, ALERT_METRICS } from '@/lib/alert-rules'
+import { reconcileAlertEvents, evaluateAlertMetric, ALERT_METRICS, parseSoftwareBlacklistMetadata } from '@/lib/alert-rules'
 
 // Sprint 10, item 8. RF015/RF016 — catalogo de 4 metricas de seguranca
 // (antivirus/firewall/UAC/BitLocker), reconcileAlertEvents (lib/alert-rules.ts).
@@ -270,7 +270,27 @@ describe('evaluateAlertMetric — software_blacklisted (Sprint 12)', () => {
     })
     expect(result?.firing).toBe(true)
     expect(result?.message).toContain('uTorrent 3.6.0 (build 46691)')
-    expect(result?.metadata).toEqual({ softwareNome: 'uTorrent 3.6.0 (build 46691)', softwareVersao: '3.6.0' })
+    // Sprint 13: metadata ganhou softwareEditor (null aqui, pois a fixture
+    // nao informou editor) — toEqual exige o objeto completo, entao o campo
+    // novo precisa aparecer explicitamente, nao so nos casos que o preenchem.
+    expect(result?.metadata).toEqual({
+      softwareNome: 'uTorrent 3.6.0 (build 46691)',
+      softwareVersao: '3.6.0',
+      softwareEditor: null,
+    })
+  })
+
+  it('Sprint 13: editor do software coletado aparece em metadata.softwareEditor quando presente', () => {
+    const result = evaluateAlertMetric('software_blacklisted', null, [], {
+      software: [{ nome: 'AnyDesk', versao: '7.1.0', editor: 'AnyDesk Software GmbH' }],
+      pattern: 'AnyDesk',
+    })
+    expect(result?.firing).toBe(true)
+    expect(result?.metadata).toEqual({
+      softwareNome: 'AnyDesk',
+      softwareVersao: '7.1.0',
+      softwareEditor: 'AnyDesk Software GmbH',
+    })
   })
 
   it('nenhum software da lista bate no pattern: firing false, sem lancar', () => {
@@ -296,7 +316,11 @@ describe('reconcileAlertEvents — software_blacklisted, ciclo de vida ok<->prob
 
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({ ruleId: 'rule-sw', metric: 'software_blacklisted', resolvedAt: null })
-    expect(JSON.parse(events[0].metadataJson!)).toEqual({ softwareNome: 'AnyDesk', softwareVersao: '7.1.0' })
+    expect(JSON.parse(events[0].metadataJson!)).toEqual({
+      softwareNome: 'AnyDesk',
+      softwareVersao: '7.1.0',
+      softwareEditor: null,
+    })
   })
 
   it('check-ins repetidos com o MESMO software ainda instalado nao duplicam o AlertEvent', async () => {
@@ -404,5 +428,44 @@ describe('reconcileAlertEvents — software_blacklisted, ciclo de vida ok<->prob
 
     expect(opened).toHaveLength(1)
     expect(opened[0].metric).toBe('antivirus_inactive')
+  })
+})
+
+// Sprint 13, item 5/6. Parse defensivo do metadataJson gravado acima — usado
+// pela pagina de alertas e pelo relatorio de softwares nao autorizados.
+// Mesmo principio de parseMetadata em lib/audit-log.ts: nunca confia
+// cegamente no conteudo armazenado, mesmo sendo gravado pelo proprio sistema.
+describe('parseSoftwareBlacklistMetadata — parse defensivo de AlertEvent.metadataJson', () => {
+  it('null/undefined/string vazia retornam null, sem lancar', () => {
+    expect(parseSoftwareBlacklistMetadata(null)).toBeNull()
+    expect(parseSoftwareBlacklistMetadata(undefined)).toBeNull()
+    expect(parseSoftwareBlacklistMetadata('')).toBeNull()
+  })
+
+  it('JSON malformado retorna null, sem lancar', () => {
+    expect(parseSoftwareBlacklistMetadata('{nao e json valido')).toBeNull()
+  })
+
+  it('JSON valido mas nao e um objeto (array, numero, string) retorna null', () => {
+    expect(parseSoftwareBlacklistMetadata('[1,2,3]')).toBeNull()
+    expect(parseSoftwareBlacklistMetadata('42')).toBeNull()
+    expect(parseSoftwareBlacklistMetadata('"texto"')).toBeNull()
+  })
+
+  it('objeto sem softwareNome (ou com tipo errado) retorna null — campo obrigatorio', () => {
+    expect(parseSoftwareBlacklistMetadata('{}')).toBeNull()
+    expect(parseSoftwareBlacklistMetadata('{"softwareNome": 123}')).toBeNull()
+  })
+
+  it('objeto completo e valido e devolvido com os 3 campos normalizados', () => {
+    const result = parseSoftwareBlacklistMetadata(
+      JSON.stringify({ softwareNome: 'AnyDesk', softwareVersao: '7.1.0', softwareEditor: 'AnyDesk Software GmbH' })
+    )
+    expect(result).toEqual({ softwareNome: 'AnyDesk', softwareVersao: '7.1.0', softwareEditor: 'AnyDesk Software GmbH' })
+  })
+
+  it('softwareVersao/softwareEditor ausentes ou com tipo errado viram null, sem lancar (dado legado da Sprint 12, sem editor)', () => {
+    const result = parseSoftwareBlacklistMetadata(JSON.stringify({ softwareNome: 'uTorrent', softwareVersao: null }))
+    expect(result).toEqual({ softwareNome: 'uTorrent', softwareVersao: null, softwareEditor: null })
   })
 })
