@@ -1250,6 +1250,161 @@ IEEE.
 
 ---
 
+## Sprint 15 — Grid de KPI em /processors e /storage (cards como o próprio filtro)
+
+**Status**: 🟢 Concluída (2026-09-03). Execução direta aprovada pelo usuário nesta conversa (o próprio
+usuário escreveu o escopo, com 8 correções técnicas do orquestrador aplicadas antes da implementação
+— ver seção própria abaixo), sem fase de planejamento separada, mesmo padrão das Sprints 11–14.
+
+**Verificação independente do orquestrador** (não só o autorrelato do `implementation-agent`):
+`npx tsc --noEmit`, `npm run lint` e `npm run build` limpos (`/app/[clientSlug]/processors` e
+`/storage` presentes na listagem de rotas); `npx vitest run` **451/451 em 51 arquivos, estável em 2
+execuções consecutivas**. Revisão manual de `lib/processor-vendor.ts` (colapso do rótulo fantasma
+`'Intel Xeon'`, com `getVendorGroup` garantindo que qualquer rótulo fora dos 3 caia em "Não
+identificado" em vez de sumir da contagem — é o que torna `Total = Intel + AMD + Outros` verdadeiro
+por construção, não por confiança no chamador), de `components/ui/summary-card.tsx` (tons `success` e
+`info` sobre os tokens `--success`/`--info` que já existem em `app/globals.css`, definidos nos blocos
+claro **e** escuro) e dos dois `useMemo` de contagem. Confirmada também a cobertura das duas
+invariantes exigidas: soma da coluna "Dispositivos" das linhas visíveis após clicar em Intel ==
+número do card Intel, e `total === ok + warning + critical` no storage.
+
+**Auditoria de segurança: N/A confirmado pelo orquestrador.** A sprint é UI client-side derivada em
+memória de dados que as páginas já buscavam via `getTenantDeviceWhere` — nenhuma rota, guard, query,
+segredo ou superfície de RBAC foi tocada, e por isso também não se aplica o teste de login real com
+os 4 papéis.
+
+**Objetivo**: padronizar `/app/[clientSlug]/processors` e `/app/[clientSlug]/storage` com o mesmo
+grid de cards de KPI que Computadores e Servidores já têm — e, ao fazer isso, eliminar a duplicação
+de controles que o grid criaria. Não é só cosmética: o card passa a ser o próprio botão de filtro
+("o número que o usuário já olha é o botão que ele aperta"), o que obriga cada número exibido a
+corresponder exatamente à lista que ele filtra. Duas incoerências antigas caíram nesse teste e foram
+corrigidas: a mistura de unidades em Processadores (modelos vs. dispositivos) e o fabricante fantasma
+`'Intel Xeon'`. Refinamento de UI de **RF019** (listagens filtráveis) sob a disciplina de **RN013**
+(conta máquina por faixa, nunca soma) — nenhum RF/RN novo foi criado.
+
+### Escopo entregue
+
+| Item | Entrega | Testes |
+|---|---|---|
+| 1 — Tons novos no componente base | `components/ui/summary-card.tsx`: `SUMMARY_TONE` ganhou `success` e `info`, no mesmo formato das entradas existentes (`{ icon, value, ring }`) e sobre os tokens de tema que o app já tem (`--color-success`, `--color-info` em `app/globals.css`). Também ganhou `testId?: string` (aplicado no card e, como `${testId}-value`, no `<p>` do número) — os cards agora são controles clicáveis e os testes precisam alcançá-los. Nenhum estilo inline, nenhum card paralelo | Exercitado indiretamente pelos 24 testes dos dois grids |
+| 2 — Vocabulário único de fabricante | `lib/processor-vendor.ts` (novo): `inferVendor` (movido de `processors/page.tsx`, colapsado para 3 valores) + `getVendorGroup` + `PROCESSOR_VENDORS`. Ficou em `lib/` porque agora é usado pelo Server Component (rotular cada modelo, normalizar `?fabricante=`) **e** pelo Client Component (contar cards, filtrar linhas) — card, filtro e badge da linha precisam falar a mesma língua | `tests/tenant-processors-table.test.tsx`, describe "inferVendor — colapso do fabricante fantasma" (3 casos) |
+| 3 — Cards KPI em Processadores | `components/tenant-processors-table.tsx`: grid `md:grid-cols-2 xl:grid-cols-4` com **Total de Máquinas** (`primary`, limpa o filtro), **Intel** (`info`), **AMD** (`destructive`), **Outros / Não Identificados** (`warning`). Os 3 de fabricante aplicam `?fabricante=` via o `applyVendorFilter` que já existia. A fileira de badges de fabricante (incluindo "Todos os fabricantes") **saiu** — o card Total assumiu o papel de limpar, exatamente como `TenantComputersTable` | Mesmo arquivo, describes "cards de KPI por fabricante" (4 casos) e "filtro por fabricante refletido na URL" (5 casos) |
+| 4 — Cards KPI em Armazenamento | `components/tenant-storage-table.tsx`: grid de 4 com **Total de Dispositivos** (`primary`, limpa a faixa), **Normal** (`success`), **Em Alerta** (`warning`), **Crítico** (`destructive`). Rótulos montados a partir do `USAGE_RANGE_LABEL` já existente (`Normal (Até 60% usado)`, …) para não duplicar limiar. Chamam o `applyUsageFilter`/`syncUrl` que já existiam — nenhuma lógica de faixa nova. A fileira de badges de **faixa** saiu; as de **tipo de disco** (`?tipo=`) ficaram | `tests/tenant-storage-table.test.tsx`, describes "cards de KPI por faixa de uso" (5 casos) e "badge de presenca e filtros" (7 casos) |
+| 5 — Normalização de URL legada | `app/app/[clientSlug]/processors/page.tsx`: `?fabricante=` passa por `getVendorGroup` antes de virar `initialVendor`, então um bookmark antigo com `?fabricante=Intel%20Xeon` cai no grupo Intel em vez de renderizar lista vazia | Coberto pelo describe de `getVendorGroup` |
+
+Nenhuma mudança de schema, de rota de API, de permissão ou de `agent-go/` nesta sprint.
+
+### As 8 correções do orquestrador — decisões técnicas aplicadas
+
+1. **`npm run check:all` não existe.** Verificação real: `npx tsc --noEmit`, `npm run lint`,
+   `npm run build`, `npx vitest run` (2x).
+2. **`SUMMARY_TONE` estendido no componente base**, não contornado. O escopo pedia `info` (Intel) e
+   `success` (storage "Normal"), tons que o `SummaryCard` não tinha. Adicionados lá, uma vez só —
+   foi exatamente por isso que o componente foi extraído para `components/ui/` na sprint anterior.
+3. **O filtro de faixa do storage já existia e foi reusado, não reescrito.** `usageFilter`,
+   `applyUsageFilter`, `syncUrl(?faixa=)`, `worstUsagePercent` (pior disco) e `USAGE_RANGE_LABEL`
+   permaneceram intactos; os cards só passaram a ser mais um gatilho dos mesmos handlers.
+4. **Controles duplicados removidos junto com a entrada dos cards.** Sem isso ficariam duas UIs para
+   o mesmo filtro, o oposto do que o `SummaryCard` documenta. Saíram: a fileira de badges de faixa em
+   `/storage` e a fileira inteira de badges de fabricante em `/processors` (inclusive "Todos os
+   fabricantes"). Ficaram: as badges de **tipo de disco**, que são outra dimensão e não têm card.
+5. **Unidade de contagem coerente em Processadores: os 4 cards contam DISPOSITIVOS.** O escopo
+   original misturava "Total de **Modelos**" com três cards de **dispositivos** — num grid de 4
+   números lado a lado, isso convida a uma soma que não fecha. O card 1 virou **"Total de Máquinas"**
+   e é exatamente `Intel + AMD + Outros`. A contagem de modelos não se perdeu: continua no subtítulo
+   da página, logo acima do grid (`N modelos encontrados…`), onde não se confunde com as outras.
+   Invariante provada por teste: a soma da coluna "Dispositivos" das linhas exibidas após clicar em
+   "Intel" é exatamente o número do card Intel.
+6. **`inferVendor` colapsado para 3 valores — o fabricante fantasma `'Intel Xeon'` acabou.** A ordem
+   dos `if` checava `'intel'` **antes** de `'xeon'`, então `"Intel Xeon E5-2680"` caía em `'Intel'` e
+   só uma string com "xeon" **sem** "intel" (`"Xeon E5-2680"`, formato que algumas máquinas reportam
+   via WMI) produzia `'Intel Xeon'`: o mesmo silício ganhava dois rótulos conforme a formatação da
+   string, e o card "Intel" mentiria. Agora `'Intel'` (qualquer "intel" **ou** "xeon"), `'AMD'`,
+   `'Nao identificado'`. A chave `'Intel Xeon'` saiu de `VENDOR_BADGE_CLASS`; a badge de fabricante
+   **na linha** continua existindo (só a fileira de badges-filtro do topo saiu).
+7. **Invariante de soma do storage provada por teste.** `getDiskUsageTier` classifica cada device em
+   exatamente um tier (`ok` ≤60, `warning` >60 e ≤80, `critical` >80), pelo **pior disco** — critério
+   não alterado. `tests/tenant-storage-table.test.tsx` afirma `total === ok + warning + critical`.
+8. **Contagens no client, com `useMemo` sobre os dados que a table já recebe por prop.** Nenhuma
+   query nova nos Server Components: o escopo de tenant continua garantido pela consulta existente
+   (`getTenantDeviceWhere`), e não há segunda ida ao banco. As páginas seguem Server Components; os
+   cards vivem dentro das tables, que já eram `'use client'`.
+
+### Decisões técnicas adicionais (não especificadas no escopo nem nas correções)
+
+- **Onde `inferVendor` foi morar.** A função saiu de `processors/page.tsx` para
+  `lib/processor-vendor.ts` em vez de ser exportada da própria página. Motivo: o Client Component
+  precisa da mesma regra para agrupar os cards, e um `export` extra de um `page.tsx` é exatamente o
+  tipo de acoplamento que o App Router não deveria ter. O arquivo novo é a única adição de superfície
+  da sprint, e existe para que **uma** definição de fabricante sirva página, tabela e teste.
+- **Como ficou o agrupamento depois do colapso do `'Intel Xeon'`.** O filtro da tabela deixou de
+  comparar a string crua (`processor.vendor === vendorFilter`) e passou a comparar **grupo**
+  (`getVendorGroup(processor.vendor) === vendorFilter`). Consequência deliberada: qualquer rótulo
+  fora dos três — legado (`'Intel Xeon'`), ou vindo de dado montado fora do Server Component — cai em
+  "Outros / Não Identificados" e **nunca some da contagem**, o que é o que mantém
+  `Total = Intel + AMD + Outros` verdadeiro por construção, e não por confiança no chamador.
+  Complementarmente, a badge da linha passou a exibir `getVendorGroup(processor.vendor)`, não a
+  string crua: seria confuso uma linha rotulada "Intel Xeon" aparecer dentro do filtro "Intel". Para
+  dado real produzido hoje os dois valores são idênticos — a diferença só existe para dado legado.
+- **Os cards de faixa do storage recontam dentro do filtro de tipo ativo** (a base do `useMemo` é
+  `rows` já restrito por `typeFilter`), diferente do `summary` de `TenantComputersTable`, que é
+  global. A razão é a invariante que o próprio escopo exige: com `?tipo=SSD` ligado, um card
+  "Crítico" com contagem global prometeria linhas que a lista não mostraria ao ser clicado. Assim as
+  duas propriedades valem juntas: os 3 tiers somam o total, **e** cada número é exatamente a
+  população que aparece ao clicar. Em `/processors` a questão não existe (dimensão única).
+- **Ícone `Cpu` nos quatro cards de processadores e `HardDrive` nos quatro de storage.** O escopo
+  especificava o ícone dos três primeiros de cada grid e omitia o quarto; manter o mesmo ícone em
+  toda a fileira deixa claro que os quatro números são a mesma unidade (é o rótulo que os distingue),
+  ao contrário de `TenantComputersTable`, onde cada card mede uma coisa diferente.
+- **Testes reapontados, não apagados.** Em `tenant-storage-table.test.tsx`, os dois testes que
+  clicavam em `usage-filter-critical`/`usage-filter-ok` continuam cobrindo o mesmo comportamento
+  (filtrar por faixa, classificação pelo pior disco, reflexo na URL) — só mudou o alvo do clique para
+  `usage-card-critical`/`usage-card-ok`. Em `tenant-processors-table.test.tsx`, o teste de
+  "Todos os fabricantes" virou o teste do card `vendor-card-all` e o de `vendor-filter-AMD` virou
+  `vendor-card-AMD`. Foram acrescentados, nos dois arquivos, testes de que as fileiras de badges
+  removidas **não existem mais** — a regressão que se quer impedir aqui é o reaparecimento da UI
+  duplicada. Fixtures ganharam casos que antes não existiam: um processador com rótulo legado
+  `'Intel Xeon'`, um com fabricante desconhecido, e um device de storage na faixa `warning` (que a
+  fixture antiga não cobria).
+
+### Resultado da verificação
+
+| Comando | Resultado |
+|---|---|
+| `npx tsc --noEmit` | limpo, sem saída |
+| `npm run lint` | limpo |
+| `npm run build` | sucesso; `/app/[clientSlug]/processors` e `/app/[clientSlug]/storage` presentes na listagem de rotas |
+| `npx vitest run` (1ª) | **451/451 em 51 arquivos** |
+| `npx vitest run` (2ª) | **451/451 em 51 arquivos** — estável, sem flakiness nesta rodada |
+
+Baseline anterior: 438 testes. Os 13 a mais são o saldo líquido de +12 testes novos nos dois arquivos
+de grid contra os 4+7 reescritos (12 no de processadores, 12 no de storage, contra 4 e 7 antes).
+`agent-go/` não foi tocado — `go vet`/build cruzado não se aplicam a esta sprint.
+
+### Definition of Done — conferência item a item
+
+| Item | Situação |
+|---|---|
+| Requisito atende `PRODUTO.md`/`PRODUCT.md` | ✅ Refinamento de UI de RF019 sob RN013; nenhum documento precisou mudar |
+| RF e RN mapeados | ✅ RF019 (listagens filtráveis) e RN013 (conta por faixa, nunca soma) — IDs já existentes, nenhum novo criado (últimos em uso seguem RF028/RN017) |
+| Caso de uso documentado | **N/A** — nenhum fluxo novo; o filtro por fabricante e por faixa já existia, mudou o controle que o dispara |
+| Código implementado | ✅ 5 arquivos alterados + 1 novo (`lib/processor-vendor.ts`) |
+| Validação Zod e isolamento de tenant | ✅ **por não mudar nada disso**: nenhuma entrada externa nova (os cards só alteram estado de client component e a query string), e as contagens são derivadas em memória dos dados que as páginas já buscam com `getTenantDeviceWhere` — nenhuma query nova, nenhuma chance de vazar escopo |
+| Banco e migrations | **N/A** — nenhuma mudança de schema |
+| Testes implementados e passando | ✅ 24 testes nos dois arquivos de grid (12 + 12), suíte total 451/451 verde em 2 execuções |
+| Auditoria de segurança | **N/A/parcial** — sprint puramente de UI client-side, sem rota, guard, segredo ou query nova; não foi acionado o `security-auditor`. Fica a critério do orquestrador na verificação independente |
+| Nenhuma regressão no build | ✅ `tsc`, `lint` e `build` limpos; `agent-go/` intocado |
+| Critérios de aceite aprovados pelo usuário | ⏳ **Pendente** — é exatamente o que falta para virar 🟢 Concluída |
+
+### Fora de escopo desta sprint
+
+Cards de KPI em `/network` e `/alerts` (mesmo padrão, mas não pedido). Tornar as badges de tipo de
+disco também cards (não têm KPI natural — a quantidade de tipos é variável por tenant). Persistir o
+filtro de tipo/fabricante em preferência de usuário. Backfill de `Hardware.processador` para
+normalizar strings de WMI no banco (o colapso do fabricante é feito na leitura, não no dado gravado).
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são

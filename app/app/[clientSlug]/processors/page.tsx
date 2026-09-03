@@ -2,15 +2,8 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
+import { inferVendor, getVendorGroup } from '@/lib/processor-vendor'
 import { TenantProcessorsTable } from '@/components/tenant-processors-table'
-
-function inferVendor(processorName: string) {
-  const normalized = processorName.toLowerCase()
-  if (normalized.includes('intel')) return 'Intel'
-  if (normalized.includes('amd')) return 'AMD'
-  if (normalized.includes('xeon')) return 'Intel Xeon'
-  return 'Nao identificado'
-}
 
 export default async function TenantProcessorsPage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
@@ -19,7 +12,11 @@ export default async function TenantProcessorsPage({ params, searchParams }: Pag
 
   const resolvedSearchParams = (await searchParams) ?? {}
   const vendorParam = resolvedSearchParams.fabricante
-  const initialVendor = typeof vendorParam === 'string' ? vendorParam : (vendorParam?.[0] ?? 'all')
+  const rawVendor = typeof vendorParam === 'string' ? vendorParam : (vendorParam?.[0] ?? 'all')
+  // Normaliza pro vocabulario de 3 grupos: um link/bookmark antigo com
+  // `?fabricante=Intel%20Xeon` continua caindo no grupo Intel em vez de virar
+  // uma lista vazia (ver lib/processor-vendor.ts, Sprint 15).
+  const initialVendor = rawVendor === 'all' ? 'all' : getVendorGroup(rawVendor)
 
   const devices = await prisma.device.findMany({
     where: {

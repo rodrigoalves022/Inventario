@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { HardDrive, Search, Wifi, WifiOff, Clock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { SummaryCard } from '@/components/ui/summary-card'
 import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
 import { computeDiskUsagePercent, getDiskUsageTier, DISK_USAGE_TIER_BAR_CLASS, DISK_USAGE_TIER_TEXT_CLASS } from '@/lib/disk-usage'
@@ -104,6 +105,25 @@ export function TenantStorageTable({
     })
   }, [rows, typeFilter, usageFilter])
 
+  /**
+   * Contagens dos cards de KPI. Duas propriedades que o grid precisa ter para
+   * nao mentir:
+   *
+   * 1. `total === ok + warning + critical` — `getDiskUsageTier` classifica todo
+   *    device em exatamente um tier (<=60 / 60–80 / >80), pelo PIOR disco, e
+   *    nenhum device com disco fica de fora.
+   * 2. o numero do card e' exatamente a populacao que aparece ao clica-lo — por
+   *    isso a base e' `rows` ja restrito pelo filtro de TIPO ativo (a outra
+   *    dimensao, que continua nas badges). Com `?tipo=SSD` ligado, "Critico"
+   *    conta os criticos entre os SSD, que e' o que a lista vai mostrar.
+   */
+  const usageSummary = useMemo(() => {
+    const scoped = rows.filter((row) => typeFilter === 'all' || row.types.includes(typeFilter))
+    const counts = { total: scoped.length, ok: 0, warning: 0, critical: 0 }
+    for (const row of scoped) counts[getDiskUsageTier(row.worstUsagePercent)] += 1
+    return counts
+  }, [rows, typeFilter])
+
   function syncUrl(nextType: string, nextUsage: 'all' | 'ok' | 'warning' | 'critical') {
     const params = new URLSearchParams()
     if (nextType !== 'all') params.set('tipo', nextType)
@@ -124,9 +144,60 @@ export function TenantStorageTable({
     syncUrl(typeFilter, next)
   }
 
+  /** Card "Total de Dispositivos" — limpa a faixa, mantendo o filtro de tipo
+   * (mesmo papel do card "Total Máquinas" em TenantComputersTable). */
+  function clearUsageFilter() {
+    setUsageFilter('all')
+    syncUrl(typeFilter, 'all')
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Filtros — clicaveis, refletidos na URL (?tipo=, ?faixa=) */}
+    <div className="space-y-6">
+      {/* Cards de KPI — os 3 de faixa dobram como filtro (?faixa=) e o card
+          "Total" limpa a faixa. A antiga fileira de badges de faixa saiu: com
+          os cards, seriam duas UIs mostrando o mesmo numero e aplicando o mesmo
+          filtro (ver doc de SummaryCard). As badges de TIPO abaixo ficam — sao
+          outra dimensao, sem card correspondente. */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          testId="usage-card-all"
+          icon={<HardDrive className="h-4 w-4" />}
+          label="Total de Dispositivos"
+          value={usageSummary.total}
+          tone="primary"
+          active={usageFilter === 'all'}
+          onClick={clearUsageFilter}
+        />
+        <SummaryCard
+          testId="usage-card-ok"
+          icon={<HardDrive className="h-4 w-4" />}
+          label={`Normal (${USAGE_RANGE_LABEL.ok})`}
+          value={usageSummary.ok}
+          tone="success"
+          active={usageFilter === 'ok'}
+          onClick={() => applyUsageFilter('ok')}
+        />
+        <SummaryCard
+          testId="usage-card-warning"
+          icon={<HardDrive className="h-4 w-4" />}
+          label={`Em Alerta (${USAGE_RANGE_LABEL.warning})`}
+          value={usageSummary.warning}
+          tone="warning"
+          active={usageFilter === 'warning'}
+          onClick={() => applyUsageFilter('warning')}
+        />
+        <SummaryCard
+          testId="usage-card-critical"
+          icon={<HardDrive className="h-4 w-4" />}
+          label={`Crítico (${USAGE_RANGE_LABEL.critical})`}
+          value={usageSummary.critical}
+          tone="destructive"
+          active={usageFilter === 'critical'}
+          onClick={() => applyUsageFilter('critical')}
+        />
+      </div>
+
+      {/* Filtro por tipo de disco — clicavel, refletido na URL (?tipo=) */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap gap-2">
           <Badge
@@ -155,28 +226,6 @@ export function TenantStorageTable({
               )}
             >
               {type}
-            </Badge>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {(['ok', 'warning', 'critical'] as const).map((tier) => (
-            <Badge
-              key={tier}
-              data-testid={`usage-filter-${tier}`}
-              variant="outline"
-              role="button"
-              tabIndex={0}
-              onClick={() => applyUsageFilter(tier)}
-              className={cn(
-                'cursor-pointer px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors',
-                usageFilter === tier ? 'ring-2 ring-offset-1' : '',
-                tier === 'ok' && 'border-success/40 bg-success/5 text-success hover:bg-success/10',
-                tier === 'warning' && 'border-warning/40 bg-warning/5 text-warning hover:bg-warning/10',
-                tier === 'critical' && 'border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10'
-              )}
-            >
-              {USAGE_RANGE_LABEL[tier]}
             </Badge>
           ))}
         </div>
