@@ -15,7 +15,14 @@ import {
 const { auth } = NextAuth(authConfig)
 
 // List of public routes that don't need authentication
-const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/metrics", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/agent/download-exe", "/api/agent/commands", "/api/collect/windows"]
+// "Publico" aqui significa apenas "nao exige SESSAO DE USUARIO" — as rotas do
+// agente continuam autenticadas por `X-Api-Key` (`validateAgentApiKey`) dentro
+// do proprio handler. Toda rota nova sob /api/agent PRECISA entrar nesta lista,
+// senao o proxy responde 307 para /login antes de o handler existir para o
+// agente (foi exatamente o que aconteceu com /api/agent/discovery na Sprint 14,
+// pego so no teste com servidor real — chamar POST() direto no Vitest nunca
+// passa pelo proxy).
+const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/metrics", "/api/agent/discovery", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/agent/download-exe", "/api/agent/commands", "/api/collect/windows"]
 
 export default auth((req) => {
   const { nextUrl } = req

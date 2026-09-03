@@ -2,7 +2,7 @@
 
 import { useState, useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
-import { ChevronDown, Save, Settings2, Webhook } from 'lucide-react'
+import { ChevronDown, Radar, Save, Settings2, Webhook } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,9 +29,15 @@ function SubmitButton() {
 export function TenantAlertSettingsForm({
   tenantSlug,
   settings,
+  discoveryEnabled = false,
 }: {
   tenantSlug: string
   settings: InventoryAlertSettings
+  /** Sprint 14 (RN017). Prop separada de `settings` porque a varredura de rede
+   * nao e' uma configuracao de alerta — ver a nota em
+   * `TenantAlertSettingsRecord` (lib/tenant-alert-settings.ts). Default `false`
+   * repete a postura fail-closed do banco: na duvida, desligado. */
+  discoveryEnabled?: boolean
 }) {
   const [state, formAction] = useActionState(saveTenantAlertSettingsAction, initialAlertSettingsState)
   const [isOpen, setIsOpen] = useState(false)
@@ -118,6 +124,33 @@ export function TenantAlertSettingsForm({
                 />
                 <p className="text-xs text-muted-foreground">
                   Amostras de CPU/RAM/disco mais antigas que isso são expurgadas automaticamente.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-md border border-warning/30 bg-warning/5 p-4">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Radar className="h-3 w-3" /> Descoberta de Rede
+            </h3>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="discoveryEnabled"
+                name="discoveryEnabled"
+                defaultChecked={discoveryEnabled}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="discoveryEnabled" className="cursor-pointer text-sm font-normal">
+                  Habilitar varredura de dispositivos na rede local
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Desligado por padrão. Quando habilitado, os agentes deste tenant varrem a própria sub-rede /24 a cada
+                  6 horas (portas TCP comuns e SNMP) para catalogar impressoras, switches, roteadores e NAS em
+                  <strong> Rede → Dispositivos Descobertos</strong>. Habilite apenas em redes que pertencem a este
+                  cliente: uma máquina conectada a uma rede de terceiros (Wi-Fi de hotel, residência, coworking) passa a
+                  catalogar dispositivos que não são dele, e varredura de portas não solicitada costuma ser sinalizada
+                  como atividade maliciosa por EDR/IDS.
                 </p>
               </div>
             </div>

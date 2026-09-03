@@ -1047,6 +1047,209 @@ correções acima.
 
 ---
 
+## Sprint 14 — Descoberta de Dispositivos na Rede (opt-in, com gate server-side)
+
+**Status**: 🟢 Concluída (2026-09-03). Execução direta aprovada pelo usuário nesta conversa (o próprio
+usuário escreveu o escopo, com 9 correções técnicas do orquestrador aplicadas antes da implementação
+— ver seção própria abaixo), sem fase de planejamento separada, mesmo padrão das Sprints 11/12/13.
+
+**Verificação independente do orquestrador** (não só o autorrelato do `implementation-agent`):
+`npx tsc --noEmit`, `npm run lint` e `npm run build` limpos (com `/api/agent/discovery` presente na
+listagem de rotas); `npx vitest run` **438/438 em 51 arquivos, estável em 2 execuções consecutivas**;
+no `agent-go/`, `go build ./...`, `go vet ./...` e `go test ./...` limpos (pacote `discovery` com
+testes passando). Revisão manual linha a linha de `proxy.ts` (a correção de `publicRoutes` — o
+casamento é `pathname === route || startsWith(route + '/')`, então a entrada nova cobre exatamente a
+rota pretendida, sem abrir prefixo indevido), `app/api/agent/discovery/route.ts` (os dois gates
+fail-closed antes de qualquer escrita; `clientId` sempre derivado de `agentAuth`, nunca do payload),
+`lib/schemas/agent-discovery.ts` (IPv4 validado com faixa por octeto, enum estrito, `.max()` em todo
+array e string) e `agent-go/internal/collectors/discovery/scan.go` (`recover()` no `Scan` **e** por
+worker — um panic em goroutine não é capturado pelo defer de quem a lançou, detalhe correto e sutil).
+
+**Limpeza pós-sprint feita pelo orquestrador**: os dois servidores `next start` de teste (PIDs nas
+portas 3100/3101) que o `implementation-agent` não conseguiu encerrar foram identificados por linha
+de comando e finalizados (o `next dev` do usuário na porta 3000 foi deliberadamente preservado); os
+16 arquivos `query_engine-windows.dll.node.tmp*` órfãos em `node_modules/.prisma/client/` (294 MB,
+acumulados por falhas de `EPERM` de `prisma generate` com o dev server segurando a DLL) foram
+removidos, e o carregamento do `PrismaClient` foi reconfirmado depois da limpeza.
+
+**Objetivo**: dar visibilidade sobre o que existe na rede do cliente **além das máquinas com agente
+instalado** — impressoras, switches, roteadores, NAS e access points. O inventário até aqui só
+enxergava o que tinha agente; um parque real tem dezenas de equipamentos que nunca vão ter um. A
+varredura é do próprio agente (não há appliance de rede no produto), o que traz junto uma questão de
+privacidade que o escopo original não tratava e que virou a decisão estruturante da sprint: a
+varredura é **opt-in por tenant e desligada por padrão** (ver correção 8).
+
+### Escopo entregue
+
+| Item | Entrega | Testes |
+|---|---|---|
+| 1 — Schema | `DiscoveredDevice` (novo model, `@@map("discovered_devices")`): `clientId` **NOT NULL** com FK `Cascade` para `Client`, `ip`, `mac?`, `hostname?`, `vendor?`, `deviceType` (default `"UNKNOWN"`), `snmpSysDescr?`, `openPorts?`, `firstSeenAt`, `lastSeenAt`; `@@unique([clientId, ip])`, `@@index([clientId, lastSeenAt])`, `@@index([clientId, deviceType])`. `Client.discoveryEnabled Boolean @default(false)` (aditivo). Backup `pg_dump` → `prisma db push` → `prisma db pull --print` confirmando as duas mudanças no banco real | Constraints de banco não são cobertas por Vitest (mesma nota da Sprint 10); a semântica do `upsert` por `(clientId, ip)` é coberta em `tests/agent-discovery-route.test.ts` |
+| 2 — Varredura no agente Go | Pacote novo `agent-go/internal/collectors/discovery/` (plataforma-neutro): `subnet.go` (interface primária, `/24`, hosts varreveis), `classify.go` (catálogo fechado de 6 tipos, precedência de sinais, `FormatOpenPorts`), `vendor.go` (sysDescr + tabela OUI mínima de 21 prefixos), `snmp.go` (GET SNMPv2c real via `github.com/gosnmp/gosnmp` v1.44.0), `scan.go` (worker pool de 20, `recover()` geral **e** por worker), `arp.go` (parser neutro) + `arp_windows.go`/`arp_stub.go` (build tags, padrão já usado em `factory_windows.go`/`factory_stub.go`) | `agent-go/internal/collectors/discovery/discovery_test.go` (novo, 13 funções de teste / 40+ casos) |
+| 3 — Ciclo e agendamento do agente | `checkin.SendDiscoveryOnce(cfg)` (espelha `SendMetricsOnce`), `httpapi.Client.SendDiscovery` (espelha `SendMetrics`, **sem retry**), `httpapi.SetDiscoveryEnabled`/`DiscoveryEnabled` (estado em memória, default `false`), `discoveryTicker` de **6h** em `service_windows.go` com `defer recoverAndLog("runNetworkDiscovery")`, subcomando `discovery` em `main.go` + `printUsage()` | Cobertura Go das funções puras (item 2); o ciclo de I/O em si não é testado por design (exigiria dispositivo de rede real) |
+| 4 — Rota de ingestão | `POST /api/agent/discovery` modelada linha a linha sobre `app/api/agent/metrics/route.ts`: `validateAgentApiKey` → `rateLimit('discovery:<agentAuthId>', 5/hora)` → parse JSON → Zod → gate `clientId` nulo → gate `discoveryEnabled` → `upsert` por `(clientId, ip)`. `lib/schemas/agent-discovery.ts` (novo) com `.max()` em todo array e string, IPv4 validado por regex **e** faixa de octeto, `deviceType` em enum estrito | `tests/agent-discovery-route.test.ts` (novo, 16 casos) |
+| 5 — Toggle e auditoria | `Client.discoveryEnabled` exposto em `lib/tenant-alert-settings.ts` (leitura raw + `updateTenantAlertSettings`), checkbox com aviso de privacidade em `components/tenant-alert-settings-form.tsx`, campo em `saveTenantAlertSettingsAction` (guard `canManageTenantAlerts`, inalterado) e `AuditLog` `tenant.discovery_enabled`/`tenant.discovery_disabled` **só na transição** | `tests/tenant-discovery-toggle-action.test.ts` (novo, 6 casos — guards reais, nunca mockados) |
+| 6 — Resposta do check-in | `POST /api/agent/checkin` passa a devolver `discoveryEnabled: boolean` (de `getTenantAlertSettingsByClientId`, `?? false`) | Suíte de check-in existente segue verde; o campo é aditivo |
+| 7 — UI | `components/discovered-devices-table.tsx` (novo Client Component: 4 abas de tipo + busca por IP/hostname/MAC, badges por família de equipamento, tokens de `lib/table-styles.ts`) e seção **nova** "Dispositivos Descobertos na Rede" em `app/app/[clientSlug]/network/page.tsx` — a seção de segmentos existente foi **mantida**, não substituída | `tests/discovered-devices-table.test.tsx` (novo, 14 casos) |
+| 8 — `proxy.ts` | `/api/agent/discovery` adicionado a `publicRoutes` (ver "Bug encontrado no teste com servidor real", abaixo) | Nenhum teste automatizado cobre a lista do proxy — lacuna registrada no Backlog |
+
+### Modelos de banco alterados (2, ambos aditivos — `prisma db push`, sem `migrate dev`)
+
+1. `DiscoveredDevice` — tabela nova, `discovered_devices`.
+2. `Client.discoveryEnabled Boolean @default(false)` — coluna nova com default, segura para linhas existentes.
+
+Backup: `prisma/backups/pre-sprint14-20260903082907.sql` (`docker exec inventario-db pg_dump`), tirado
+**antes** do push. Verificação pós-push com `npx prisma db pull --print`: `model DiscoveredDevice`
+presente com o `@@unique`/`@@index` esperados, e `discoveryEnabled Boolean @default(false)` presente
+em `Client`.
+
+### As 9 correções do orquestrador — decisões técnicas aplicadas (documentadas, não desvio silencioso)
+
+1. **`npm run check:all` não existe.** Verificação real: `npx tsc --noEmit`, `npm run lint`,
+   `npm run build`, `npx vitest run`; no Go, `go build ./...`, `go vet ./...`, `go test ./...`.
+2. **SNMP é UDP, não TCP — o escopo original tornaria a detecção não-funcional.** O pedido mandava
+   "TCP Probe" na porta 161; `net.Dial("udp", ...)` "conecta" sempre localmente, sem emitir pacote,
+   então nunca serve de sinal. Implementado: probe TCP só em portas realmente TCP
+   (**22, 80, 443, 445, 515, 631, 9100** — 515/LPD e 631/IPP incluídos por serem, com 9100, o sinal
+   forte de impressora) e, separadamente, um **GET SNMPv2c real em UDP/161** (community `public`,
+   somente leitura). `161` só entra em `openPorts` quando uma resposta SNMP válida chegou dentro do
+   timeout.
+3. **Sem ICMP/ping.** Go stdlib não tem ICMP e `golang.org/x/net/icmp` exige raw socket. "Host vivo"
+   = respondeu a algum probe TCP ou ao GET SNMP. **Limitação aceita e documentada** (no código, em
+   `PRODUCT.md` RF028 e no glossário): dispositivo com todas as portas sondadas fechadas e sem SNMP
+   fica invisível — é o preço de não exigir privilégio de raw socket.
+4. **MAC lido da tabela ARP.** `arp -a` no Windows (`arp_windows.go`, com `HideWindow` — o agente
+   roda como serviço), stub que devolve mapa vazio e **erro nil** nas demais plataformas (MAC ausente
+   não invalida a descoberta). O parser (`ParseARPOutput`) vive em arquivo **neutro** de plataforma
+   justamente para ser testável fora do Windows, e é agnóstico a idioma do SO: casa qualquer linha
+   cujo 1º campo seja IPv4 e o 2º um MAC de 6 octetos, descartando broadcast/multicast. MAC ausente →
+   `null`, nunca inventado.
+5. **Sem base OUI da IEEE embutida.** `vendor` vem prioritariamente do `sysDescr`/`sysName` do SNMP;
+   como fallback, uma tabela de **21 prefixos** OUI dos fabricantes mais comuns. Sem SNMP e sem match
+   → `null`.
+6. **`github.com/gosnmp/gosnmp` v1.44.0, sem parser ASN.1 artesanal.** A resposta vem de um
+   dispositivo não confiável da rede. Mesmo com a lib, a varredura roda sob `recover()` — e não só um:
+   um `recover()` geral em `Scan` **mais um por worker**, porque um pânico dentro de goroutine não é
+   capturado pelo `defer` de quem a lançou (sem isso, derrubaria o processo do serviço). `go mod tidy`
+   rodado; `go mod verify` → "all modules verified".
+7. **Localização e agendamento conforme especificado.** Pacote próprio `internal/collectors/discovery`
+   (não dentro de `collectors/windows`), split por build tag só na leitura de ARP;
+   `SendDiscoveryOnce`/`SendDiscovery` espelhando os equivalentes de métricas, sem retry;
+   `discoveryTicker` de 6h no loop de tickers existente, com `defer recoverAndLog(...)`; subcomando
+   `discovery` no `main.go` e em `printUsage()`.
+8. **Varredura opt-in, default desligado (decisão de segurança/privacidade do orquestrador, ausente
+   do escopo original).** Um agente que varre portas de qualquer LAN em que a máquina se conecte
+   (Wi-Fi de hotel, casa do funcionário, coworking) cataloga dispositivos de terceiros, e port scan
+   não solicitado é comportamento que EDR/IDS classificam como malicioso. Entregue: coluna
+   `Client.discoveryEnabled @default(false)`; **gate server-side fail-closed** na rota (202
+   `discovery_disabled`, sem gravar); `discoveryEnabled` na resposta do check-in **só como
+   otimização**; toggle na UI sob `canManageTenantAlerts` com texto explicando o risco; `AuditLog` na
+   transição do flag (RNF009).
+9. **Isolamento multi-tenant fail-closed.** `auth.agentAuth.clientId` é nulável (agentes legados):
+   a rota rejeita com 202 `agent_without_client` **sem gravar**, e `DiscoveredDevice.clientId` é
+   `NOT NULL` para que linha órfã seja impossível por construção. Na leitura, escopo sempre por
+   `tenant.id` de `requireTenantContext`, com `select` explícito.
+
+### Decisões técnicas adicionais (não especificadas no escopo nem nas correções)
+
+- **Como o flag chega ao agente**: em **memória de processo** (`internal/transport/httpapi/discovery_flag.go`,
+  `sync.RWMutex`), não no config em disco. Persistir criaria uma segunda fonte de verdade capaz de
+  ficar defasada (tenant desliga, agente fica offline uma semana, volta varrendo pelo valor antigo).
+  Em memória, o pior caso é o lado seguro: **default `false` a todo início de processo** (reinício de
+  serviço, reboot, auto-update → não varre até um check-in autorizar), e todo check-in (1h) reafirma
+  o valor. Além disso, um 202 `discovery_disabled`/`agent_without_client` na resposta da própria rota
+  de descoberta **também** zera o flag local, para o agente parar de gastar o ciclo caro.
+- **Precedência de classificação, para sinais conflitantes** (o caso `9100` **e** `445` abertos):
+  (1) `sysDescr`/`sysName` do SNMP vence tudo — é a autodescrição do dispositivo; (2) porta de
+  impressão (9100/515/631) — portas altamente específicas, então **9100+445 ⇒ `PRINTER`**; (3) porta
+  445 sozinha ⇒ `NAS`, o sinal mais fraco, com **falso positivo conhecido e aceito** (estação/servidor
+  Windows com compartilhamento também escuta em 445; mantido porque era o pedido explícito do escopo,
+  e a máquina com agente já aparece no inventário de verdade); (4) qualquer outro caso ⇒ `UNKNOWN` —
+  em especial, **SNMP que responde mas cujo `sysDescr` não casa palavra-chave nenhuma NÃO vira
+  `SWITCH`**: no-break, câmera IP e controladora de ar-condicionado também falam SNMP, e "não
+  identificado" é melhor que categoria inventada (mesmo princípio do "não apurado ≠ desativado").
+- **`deviceType` em enum Zod estrito, não `.catch('UNKNOWN')`**: agente de versão futura que invente
+  um tipo tem o payload rejeitado com 400 (falha visível) em vez de ter o valor silenciosamente
+  reescrito. Custo aceito: acopla versão de agente e servidor, exatamente como o catálogo de comandos
+  já faz (RNF003).
+- **`discoveryEnabled` fora de `InventoryAlertSettings`**: apesar de compartilhar formulário e Server
+  Action com `alertsEnabled`/`alertWebhookEnabled`, o flag vive em `TenantAlertSettingsRecord`
+  (lib/tenant-alert-settings.ts), não no tipo de `lib/inventory-alerts.ts` — este último alimenta
+  `deriveInventoryIssues`/`reconcileAvailabilityEvents`/`getDevicePresence`, que são lógica de
+  **alerta**. Varredura de rede não é alerta; incluí-lo ali arrastaria um campo irrelevante para todo
+  o caminho de decisão de alerta e para toda fixture de teste desse tipo.
+- **`AuditLog` só na transição do flag**, não a cada submit do formulário: ajustar um threshold de
+  disco não é mutação sensível; ligar a varredura de rede é. Gravar em todo save encheria a tabela de
+  linhas sem transição e esconderia justamente o evento que importa.
+- **A rota consulta `prisma.client.findUnique({ select: { discoveryEnabled: true } })`** em vez de
+  `getTenantAlertSettingsBySlug` (que usa `$queryRaw`): é o mesmo padrão que
+  `app/api/agent/metrics/route.ts` já usa para ler `metricsRetentionDays`, e mantém a rota testável
+  com o mock de Prisma tipado.
+- **Upserts sequenciais, sem transação única**: no máximo ~254 linhas a cada 6h por agente; uma
+  transação de centenas de statements custaria mais (lock) do que resolve, e o `upsert` por
+  `(clientId, ip)` já é idempotente.
+- **Hostname do dispositivo descoberto** vem de PTR reverso best-effort (`net.LookupAddr`); sem PTR,
+  fica `null` — nunca o próprio IP fazendo as vezes de nome.
+- **Teto de 500 linhas** na leitura da página de rede (uma /24 rende ~254 por sub-rede).
+
+### Bug encontrado no teste com servidor real (que nenhum teste automatizado pegaria)
+
+`proxy.ts` mantém uma lista `publicRoutes` — "público" no sentido de "não exige **sessão de
+usuário**"; as rotas do agente continuam autenticadas por `X-Api-Key` dentro do próprio handler.
+`/api/agent/discovery` não estava nessa lista, então o proxy respondia **307 → `/login`** antes de a
+requisição chegar ao handler: a rota estava **completamente inacessível ao agente**, apesar de
+`tsc`, `lint`, `build` e os 16 testes da rota passarem.
+
+Nenhum teste automatizado pegaria isso, e vale registrar por quê: os testes de rota importam e
+chamam `POST()` diretamente (`await import('@/app/api/agent/discovery/route')`), o que **nunca
+passa pelo proxy**. O bug só apareceu no primeiro `curl` real contra o servidor. Correção: a rota
+entrou em `publicRoutes`, com um comentário no próprio `proxy.ts` avisando que toda rota nova sob
+`/api/agent` precisa entrar ali.
+
+### Verificação
+
+1. `npx tsc --noEmit` — **limpo**.
+2. `npm run lint` — **limpo** (regra real, `scripts/verification/run-lint.mjs`).
+3. `npm run build` — **sucesso**, com `/api/agent/discovery` presente na listagem de rotas.
+4. `npx vitest run` — **438/438 testes, 51 arquivos**, verde em **duas execuções consecutivas**
+   (402 anteriores intactos + 36 novos: 16 em `tests/agent-discovery-route.test.ts`, 14 em
+   `tests/discovered-devices-table.test.tsx`, 6 em `tests/tenant-discovery-toggle-action.test.ts`).
+   A flakiness conhecida do Vitest neste ambiente ("failed to find the current suite") **não
+   apareceu** em nenhuma das execuções.
+5. Agente Go: `go build ./...`, `go vet ./...` e `go test ./...` **limpos**; build cruzado
+   `GOOS=windows` e `GOOS=linux` (amd64) **ambos com sucesso**, e `go vet` também limpo sob
+   `GOOS=linux` (cobre o caminho de `arp_stub.go`). `go mod verify` → "all modules verified".
+6. **Teste com servidor real e login real nos 4 papéis** (`node scripts/seed-rbac.ts` + login via
+   `POST /api/auth/callback/credentials` com CSRF, cookies preservados). Servidor `next start`
+   subido numa porta separada porque o `next dev` de longa duração da máquina segurava um Prisma
+   Client anterior ao `prisma generate` desta sprint e devolvia 500 nas consultas às colunas novas —
+   artefato de ambiente, não do código (o mesmo cenário passa limpo no processo novo).
+   - `/app/[clientSlug]/network`: `200` para `PLATFORM_ADMIN`, `ORG_ADMIN` e `ORG_OPERATOR`; `307 →
+     /dashboard` para `CLIENT_VIEWER`; `307 → /login` sem sessão; `404` (nunca `403`) em slug
+     inexistente.
+   - Bloco "Configurações de Alerta" (que hospeda o toggle de descoberta) presente no HTML para
+     `PLATFORM_ADMIN`/`ORG_ADMIN` e **ausente** para `ORG_OPERATOR` — `canManageTenantAlerts`
+     funcionando na tela, não só no teste.
+   - `POST /api/agent/discovery` contra Postgres real, com `AgentAuth` temporário: 12 asserções,
+     todas PASS — `401` sem chave e com chave inválida; `202 agent_without_client` para agente sem
+     tenant; `202 discovery_disabled` com o flag desligado **e zero linhas gravadas**; `200
+     upserted=2` com o flag ligado; segunda varredura do mesmo IP **não duplicou** a linha,
+     **preservou `firstSeenAt`** e avançou `lastSeenAt`; campos atualizados corretamente.
+   - Seção "Dispositivos Descobertos na Rede" renderizada com os dados reais (hostname, IP, vendor),
+     **junto** da tabela de segmentos preexistente, que continua na página.
+   - Dados de teste removidos ao final: 2 `DiscoveredDevice`, 2 `AgentAuth` temporários,
+     `discoveryEnabled` restaurado para `false` (confirmado por contagem pós-limpeza).
+
+### Fora de escopo desta sprint
+
+Leitura de tabela ARP em Linux (`arp -n`/`ip neigh` têm formato diferente — o stub devolve mapa vazio
+sem erro, e o dispositivo continua sendo catalogado sem MAC). Varredura de máscara diferente de /24
+(simplificação deliberada: cobre a maioria das LANs de escritório e mantém o custo do ciclo
+previsível). Detecção de host por ICMP. Community SNMP configurável por tenant. Promover um
+`DiscoveredDevice` a `Device` (as duas tabelas não se relacionam por design). Base OUI completa da
+IEEE.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -1192,3 +1395,21 @@ payload cifrado; decifrado somente no disparo e na leitura mascarada da página 
 Tabela `webhook_endpoints` conferida vazia no banco de dev nesta sessão — sem dado em texto plano pra
 migrar. Prova: `tests/webhook-endpoints.test.ts` (secret persistido cifrado, decifra corretamente,
 paridade de HMAC contra o secret original).
+
+### 8. `proxy.ts#publicRoutes` não tem cobertura de teste — MÉDIO (achado da Sprint 14)
+
+**Origem**: `implementation-agent`, durante a verificação com servidor real da Sprint 14.
+
+**Achado**: `/api/agent/discovery` foi implementada, typechecada, lintada, buildada e coberta por 16
+testes verdes — e mesmo assim ficava **completamente inacessível ao agente**, porque não estava em
+`proxy.ts#publicRoutes` e o proxy respondia `307 → /login` antes de a requisição alcançar o handler.
+O bug só apareceu no primeiro `curl` real. A causa estrutural é que os testes de rota importam e
+chamam `POST()` diretamente, o que **nunca passa pelo proxy** — nenhum teste da suíte hoje exercita
+`proxy.ts`, então a lista pode ficar defasada a cada rota nova sem nada acusar.
+
+**Correção aplicada na Sprint 14**: a rota entrou na lista, com comentário no `proxy.ts` avisando do
+requisito. **Não corrigido**: a ausência de teste. Duas opções para uma sprint futura — (a) um teste
+que importe `publicRoutes` e afirme que toda rota sob `app/api/agent/**/route.ts` encontrada por glob
+está na lista (barato, pega exatamente esta classe de erro); (b) teste de integração HTTP contra um
+servidor real, que é decisão de infraestrutura de teste bem maior. A opção (a) parece a proporcional,
+mas é escopo novo — fora do que foi aprovado para a Sprint 14.

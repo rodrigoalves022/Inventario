@@ -245,6 +245,57 @@ func (c *Client) SendMetrics(payload *inventory.MetricsPayload) error {
 	return nil
 }
 
+// SendDiscovery envia o resultado da varredura de descoberta de rede (ciclo de
+// 6h). Sem retry, mesma justificativa de SendMetrics: se um ciclo se perder, o
+// proximo chega — e acumular backoff no ciclo MAIS CARO do agente seria o pior
+// lugar possivel para insistir.
+//
+// A rota responde 202 (nao erro) quando a varredura esta desabilitada para o
+// tenant ou o agente nao tem cliente vinculado. Isso NAO e' falha e nao vira
+// erro aqui — so log informativo.
+func (c *Client) SendDiscovery(payload *inventory.DiscoveryPayload) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("serializacao JSON: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", c.ServerURL+"/api/agent/discovery", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", c.APIKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTP: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return &authError{code: resp.StatusCode}
+	}
+	if resp.StatusCode == http.StatusAccepted {
+		var result struct {
+			Reason string `json:"reason"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&result)
+		log.Printf("[INFO] Servidor descartou a varredura de descoberta (motivo: %s).", result.Reason)
+		// O servidor e' a autoridade: se ele diz que a descoberta esta
+		// desligada, o agente para de varrer ate o proximo check-in dizer o
+		// contrario, em vez de repetir o ciclo caro a cada 6h a toa.
+		if result.Reason == "discovery_disabled" || result.Reason == "agent_without_client" {
+			SetDiscoveryEnabled(false)
+		}
+		return nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("servidor retornou %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 func (c *Client) doRequest(body []byte) error {
 	req, err := http.NewRequest("POST", c.ServerURL+"/api/agent/checkin", bytes.NewReader(body))
 	if err != nil {
@@ -276,9 +327,15 @@ func (c *Client) doRequest(body []byte) error {
 			URL     string `json:"url"`
 			SHA256  string `json:"sha256"`
 		} `json:"updateMetadata"`
+		// Sprint 14: o servidor diz, a cada check-in, se este tenant autoriza a
+		// varredura de descoberta. Ausente na resposta (servidor antigo) =>
+		// false, fail-closed pelo zero value de Go.
+		DiscoveryEnabled bool `json:"discoveryEnabled"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+		SetDiscoveryEnabled(result.DiscoveryEnabled)
+
 		if result.UpdateAvailable && result.UpdateMetadata != nil {
 			if result.UpdateMetadata.SHA256 == "" {
 				log.Printf("[WARN] Atualizacao (v%s) sem hash SHA-256 no payload do servidor - update abortado por seguranca.", result.UpdateMetadata.Version)

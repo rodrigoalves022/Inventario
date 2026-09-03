@@ -44,7 +44,14 @@ export default async function TenantComputersPage({ params, searchParams }: Page
     getTenantAlertSettingsBySlug(tenantSlug),
   ])
 
-  const settings = tenantAlertSettings ?? { clientId: tenant.id, ...getDefaultAlertSettings() }
+  // Sprint 14: o fallback repete o default fail-closed do banco
+  // (`Client.discoveryEnabled @default(false)`) — tenant sem linha lida nunca
+  // aparece com a varredura ligada no formulario.
+  const settings = tenantAlertSettings ?? {
+    clientId: tenant.id,
+    discoveryEnabled: false,
+    ...getDefaultAlertSettings(),
+  }
   const devices = allDevices
     .filter((device) => !isServerOperatingSystem(device.hardware?.sistema))
     .map((device) => buildTenantDeviceRow(device, settings, tenantSlug))
@@ -67,7 +74,13 @@ export default async function TenantComputersPage({ params, searchParams }: Page
         </Link>
       </div>
 
-      {canManageAlerts ? <TenantAlertSettingsForm tenantSlug={tenantSlug} settings={settings} /> : null}
+      {canManageAlerts ? (
+        <TenantAlertSettingsForm
+          tenantSlug={tenantSlug}
+          settings={settings}
+          discoveryEnabled={settings.discoveryEnabled}
+        />
+      ) : null}
 
       <TenantComputersTable
         devices={devices}

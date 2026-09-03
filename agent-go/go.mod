@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/billgraziano/dpapi v0.5.0
+	github.com/gosnmp/gosnmp v1.44.0
 	github.com/yusufpapurcu/wmi v1.2.4
 	golang.org/x/sys v0.43.0
 )

@@ -163,6 +163,8 @@ func main() {
 		handleCheckin()
 	case "metrics":
 		handleMetrics()
+	case "discovery":
+		handleDiscovery()
 	case "version", "--version", "-v":
 		fmt.Printf("inventario-agent v%s\n", version)
 	default:
@@ -274,6 +276,39 @@ func handleMetrics() {
 	fmt.Printf("[+] Metricas enviadas com sucesso. Hostname: %s\n", payload.Hostname)
 }
 
+// handleDiscovery roda a varredura de descoberta AGORA, sob comando explicito
+// de um operador na maquina — util para testar a feature sem esperar o ciclo
+// de 6h do servico.
+//
+// NAO consulta httpapi.DiscoveryEnabled() (que seria sempre false num processo
+// recem-iniciado, tornando o subcomando inutil): quem manda continua sendo o
+// servidor, que responde 202 'discovery_disabled' e nao grava nada se o tenant
+// nao tiver autorizado. Rodar isto e' uma acao deliberada de quem esta no
+// console da propria maquina, nao um comportamento automatico.
+func handleDiscovery() {
+	fs := flag.NewFlagSet("discovery", flag.ExitOnError)
+	configPath := fs.String("config", config.DefaultPath(), "Caminho do arquivo de configuracao")
+	fs.Parse(os.Args[2:])
+
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("[!] Falha ao carregar config: %v\n", err)
+	}
+
+	fmt.Println("[...] Varrendo a sub-rede /24 da interface primaria (pode levar alguns minutos)...")
+
+	payload, err := checkin.SendDiscoveryOnce(cfg)
+	if err != nil {
+		log.Fatalf("[!] Varredura de descoberta falhou: %v\n", err)
+	}
+
+	fmt.Printf("[+] Varredura concluida. Subnet: %s, dispositivos encontrados: %d\n", payload.Subnet, len(payload.Devices))
+	for _, device := range payload.Devices {
+		fmt.Printf("    %-15s %-18s %-14s %s\n", device.IP, device.Mac, device.DeviceType, device.OpenPorts)
+	}
+	fmt.Println("[i] O servidor descarta o envio se a varredura estiver desabilitada para este tenant.")
+}
+
 func printUsage() {
 	fmt.Printf(`inventario-agent v%s - Agente de Inventario Enterprise
 
@@ -286,6 +321,7 @@ Uso:
   inventario-agent.exe collect
   inventario-agent.exe checkin [-config CAMINHO]
   inventario-agent.exe metrics [-config CAMINHO]
+  inventario-agent.exe discovery [-config CAMINHO]
   inventario-agent.exe version
 
 Exemplos:

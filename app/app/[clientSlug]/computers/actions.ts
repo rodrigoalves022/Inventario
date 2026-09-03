@@ -30,6 +30,11 @@ const alertSettingsSchema = z.object({
   // Maximo de 730 (2 anos): a tabela mais cresce do sistema, nao ha motivo
   // para reter alem disso sem um caso de uso concreto.
   metricsRetentionDays: z.coerce.number().int().min(7).max(730),
+  // Sprint 14 (RN017). Default false, como todo checkbox HTML nao marcado —
+  // e' o mesmo padrao de alertsEnabled/alertWebhookEnabled, com a diferenca
+  // de que aqui o default desligado tambem e' a postura de seguranca
+  // pretendida, nao so uma consequencia do formulario.
+  discoveryEnabled: z.boolean().default(false),
 }).superRefine((value, context) => {
   if (value.alertWebhookEnabled && !value.alertWebhookUrl) {
     context.addIssue({
@@ -58,6 +63,7 @@ export async function saveTenantAlertSettingsAction(
     alertRamThresholdGb: formData.get('alertRamThresholdGb'),
     alertOfflineHours: formData.get('alertOfflineHours'),
     metricsRetentionDays: formData.get('metricsRetentionDays'),
+    discoveryEnabled: formData.get('discoveryEnabled') === 'on',
   })
 
   if (!parsed.success) {
@@ -87,8 +93,33 @@ export async function saveTenantAlertSettingsAction(
     metricsRetentionDays: parsed.data.metricsRetentionDays,
   })
 
-  await updateTenantAlertSettings(record.clientId, normalized)
+  const discoveryEnabled = parsed.data.discoveryEnabled
+
+  await updateTenantAlertSettings(record.clientId, { ...normalized, discoveryEnabled })
+
+  // Sprint 14 (RNF009). AuditLog SO na TRANSICAO do flag de varredura, nunca a
+  // cada save do formulario: ligar/desligar a varredura de rede de um tenant e'
+  // a mutacao sensivel aqui (o agente passa a catalogar dispositivos de
+  // terceiros na LAN em que a maquina estiver); reajustar um threshold de disco
+  // no mesmo formulario nao e'. Gravar em todo submit encheria a tabela de
+  // linhas sem transicao nenhuma e esconderia justamente o evento que importa.
+  if (record.discoveryEnabled !== discoveryEnabled) {
+    await recordAuditLog({
+      action: discoveryEnabled ? 'tenant.discovery_enabled' : 'tenant.discovery_disabled',
+      targetType: 'client',
+      targetId: record.clientId,
+      clientId: record.clientId,
+      actor: getSessionAuditActor(getSessionPermissionUser(session)),
+      metadata: {
+        tenantSlug: parsed.data.tenantSlug,
+        previous: record.discoveryEnabled,
+        current: discoveryEnabled,
+      },
+    })
+  }
+
   revalidatePath(getTenantPath(parsed.data.tenantSlug, 'computers'))
+  revalidatePath(getTenantPath(parsed.data.tenantSlug, 'network'))
   revalidatePath(getTenantBasePath(parsed.data.tenantSlug))
 
   return { status: 'success', message: 'Configurações de alerta salvas.' }

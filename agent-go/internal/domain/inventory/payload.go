@@ -58,6 +58,33 @@ type MetricsPayload struct {
 	UptimeSegundos *int64   `json:"uptimeSegundos,omitempty"`
 }
 
+// DiscoveryPayload e' o resultado da varredura de descoberta de rede (ciclo de
+// 6h, o mais espacado e mais caro do agente). Nao tem nada a ver com Payload/
+// MetricsPayload: aqueles descrevem a PROPRIA maquina; este descreve
+// dispositivos de terceiros na LAN, que nao tem agente instalado.
+//
+// `Devices` com omitempty: slice nil vira campo ausente no JSON, e o schema Zod
+// do servidor aplica o default []. Enviar `null` seria rejeitado com 400.
+type DiscoveryPayload struct {
+	Hostname     string             `json:"hostname"`
+	AgentVersion string             `json:"agentVersion,omitempty"`
+	Subnet       string             `json:"subnet,omitempty"`
+	Devices      []DiscoveredDevice `json:"devices,omitempty"`
+}
+
+// DiscoveredDevice e' UM dispositivo achado na varredura. Todo campo textual
+// usa omitempty: string vazia significa "nao apurado" e vira NULL no servidor,
+// nunca "" gravado como se fosse um valor.
+type DiscoveredDevice struct {
+	IP           string `json:"ip"`
+	Mac          string `json:"mac,omitempty"`
+	Hostname     string `json:"hostname,omitempty"`
+	Vendor       string `json:"vendor,omitempty"`
+	DeviceType   string `json:"deviceType"`
+	SnmpSysDescr string `json:"snmpSysDescr,omitempty"`
+	OpenPorts    string `json:"openPorts,omitempty"`
+}
+
 type LocalAccountInfo struct {
 	Usuario          string `json:"usuario"`
 	IsAdmin          bool   `json:"isAdmin"`

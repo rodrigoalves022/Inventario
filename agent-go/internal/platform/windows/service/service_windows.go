@@ -23,6 +23,12 @@ import (
 const commandPollInterval = 90 * time.Second
 const metricsPollInterval = 10 * time.Minute
 
+// Sprint 14. Ciclo de descoberta de rede: 6h, DE LONGE o mais espacado.
+// Topologia de rede nao muda de hora em hora, e a varredura e' o ciclo mais
+// caro do agente (centenas de conexoes TCP + SNMP na LAN). Rodar mais vezes so
+// aumentaria o risco de chamar atencao de EDR/IDS sem trazer dado novo.
+const discoveryPollInterval = 6 * time.Hour
+
 const ServiceName = "InventarioAgent"
 const ServiceDisplayName = "Inventario Enterprise Agent"
 const ServiceDescription = "Coleta dados de hardware e software e envia ao servidor de inventario."
@@ -61,6 +67,9 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 	metricsTicker := time.NewTicker(metricsPollInterval)
 	defer metricsTicker.Stop()
 
+	discoveryTicker := time.NewTicker(discoveryPollInterval)
+	defer discoveryTicker.Stop()
+
 	// Reporta Running pro SCM ANTES de qualquer coleta/rede: o SCM tem um
 	// timeout curto (~30s por padrao) entre StartPending e Running, e a
 	// primeira coleta (WMI + HTTP, ate 30s so no timeout do client) sozinha
@@ -88,6 +97,8 @@ func (s *inventarioService) Execute(args []string, requests <-chan svc.ChangeReq
 			}
 		case <-metricsTicker.C:
 			runMetricsCollection(cfg)
+		case <-discoveryTicker.C:
+			runNetworkDiscovery(cfg)
 		case change := <-requests:
 			switch change.Cmd {
 			case svc.Stop, svc.Shutdown:
@@ -133,6 +144,35 @@ func runMetricsCollection(cfg *config.Config) {
 	}
 
 	log.Printf("[INFO] Metricas enviadas. Hostname: %s", payload.Hostname)
+}
+
+// runNetworkDiscovery roda o ciclo de descoberta de rede (6h).
+//
+// SO roda se o ultimo check-in tiver dito que este tenant autorizou
+// (httpapi.DiscoveryEnabled(), default false ate o primeiro check-in
+// responder). Isso e' otimizacao — evita varrer uma LAN a toa para ter o
+// payload descartado —, NUNCA a barreira de seguranca: essa e' server-side,
+// fail-closed, em POST /api/agent/discovery.
+//
+// Mesmo padrao defer recoverAndLog(...) dos demais ciclos: a varredura toca
+// rede hostil e nunca pode derrubar o check-in principal nem o servico.
+func runNetworkDiscovery(cfg *config.Config) {
+	defer recoverAndLog("runNetworkDiscovery")
+
+	if !httpapi.DiscoveryEnabled() {
+		log.Println("[INFO] Varredura de descoberta desabilitada para este tenant - ciclo ignorado.")
+		return
+	}
+
+	log.Println("[INFO] Iniciando varredura de descoberta de rede...")
+
+	payload, err := checkin.SendDiscoveryOnce(cfg)
+	if err != nil {
+		log.Printf("[ERROR] Varredura de descoberta falhou: %v", err)
+		return
+	}
+
+	log.Printf("[INFO] Descoberta enviada. Subnet: %s, dispositivos: %d", payload.Subnet, len(payload.Devices))
 }
 
 func pollAndExecuteCommands(client *httpapi.Client, cfg *config.Config) {

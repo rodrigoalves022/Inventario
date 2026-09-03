@@ -417,6 +417,14 @@ export async function POST(req: NextRequest) {
               slug: auth.agentAuth.clientSlug,
             }
           : null,
+        // Sprint 14 (RN017). Diz ao agente se ele deve rodar a varredura de
+        // descoberta no proximo ciclo de 6h. E' OTIMIZACAO, nao autorizacao:
+        // evita que um agente gaste centenas de conexoes TCP numa LAN para
+        // enviar um payload que a rota `POST /api/agent/discovery` vai
+        // descartar de qualquer forma. O gate real e' server-side e fail-closed
+        // naquela rota. `alertSettings` nulo (agente legado sem tenant, ou
+        // cliente nao encontrado) => false, mesma postura.
+        discoveryEnabled: alertSettings?.discoveryEnabled ?? false,
       },
       { status: 200 }
     )

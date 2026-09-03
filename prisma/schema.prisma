@@ -44,6 +44,17 @@ model Client {
   /// ingestao de metrica (nao ha job separado): a tabela cresce ~4.300
   /// amostras/maquina/mes e nao pode ficar sem expurgo entre deploys.
   metricsRetentionDays      Int         @default(90)
+  /// Sprint 14. Varredura de descoberta de rede pelo agente (DiscoveredDevice)
+  /// e' OPT-IN, default DESLIGADO — decisao deliberada de privacidade/seguranca:
+  /// um agente que varre portas de qualquer LAN em que a maquina se conecte
+  /// (Wi-Fi de hotel, casa do funcionario, coworking) cataloga dispositivos de
+  /// terceiros que nao pertencem ao tenant, e port scan nao solicitado e'
+  /// comportamento que EDR/IDS classificam como malicioso. O gate que importa e'
+  /// server-side e fail-closed (POST /api/agent/discovery responde 202
+  /// 'discovery_disabled' sem gravar nada quando este flag e' false); o valor
+  /// tambem viaja na resposta do check-in so para o agente nao gastar um ciclo
+  /// de varredura inutil — nunca como a unica barreira.
+  discoveryEnabled          Boolean     @default(false)
   isActive                  Boolean     @default(true)
   createdAt                 DateTime    @default(now())
   updatedAt                 DateTime    @updatedAt
@@ -52,6 +63,7 @@ model Client {
   users                     User[]
   alertRules                AlertRule[]
   webhookEndpoints          WebhookEndpoint[]
+  discoveredDevices         DiscoveredDevice[]
 
   @@index([name])
   @@index([organizationId])
@@ -501,6 +513,61 @@ model WebhookEndpoint {
 
   @@index([clientId])
   @@map("webhook_endpoints")
+}
+
+/// Sprint 14. Dispositivo de rede DESCOBERTO pela varredura do agente
+/// (agent-go/internal/collectors/discovery) — impressora, switch, roteador,
+/// NAS, access point. NAO e' um `Device`: nao tem agente instalado, nao faz
+/// check-in, nao tem inventario de hardware/software. As duas tabelas nunca
+/// se cruzam; um mesmo IP pode aparecer aqui e em `Network` sem qualquer
+/// vinculo modelado — a descoberta e' um censo de rede, nao um inventario.
+///
+/// Escopado por `clientId` obrigatorio (nao nulavel, diferente de
+/// `Device.clientId`): um agente legado sem tenant e' rejeitado na rota de
+/// ingestao antes de qualquer escrita, justamente para nunca existir linha
+/// orfa aqui. `onDelete: Cascade` — descoberta so faz sentido no contexto do
+/// cliente que a produziu.
+///
+/// `@@unique([clientId, ip])` e' a chave do upsert por ciclo: a mesma
+/// impressora reaparece a cada varredura (6h) e deve atualizar `lastSeenAt`,
+/// nunca acumular uma linha por ciclo. `firstSeenAt` fica intocado no update —
+/// e' a data em que aquele IP apareceu na rede daquele cliente pela primeira
+/// vez.
+model DiscoveredDevice {
+  id           String   @id @default(cuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  ip           String
+  /// Lido da tabela ARP do SO apos a varredura (os proprios probes TCP
+  /// populam o cache ARP). Nulo quando o IP nao esta no cache ARP ou a
+  /// plataforma nao implementa a leitura — nunca inventado.
+  mac          String?
+  hostname     String?
+  /// Derivado prioritariamente do sysDescr/sysName do SNMP; como fallback,
+  /// uma tabela minuscula de prefixos OUI embutida no agente (nao a base
+  /// completa da IEEE, que sao ~35k prefixos e varios MB). Nulo quando
+  /// nenhum dos dois resolve.
+  vendor       String?
+  /// Catalogo fechado espelhado em lib/schemas/agent-discovery.ts e no
+  /// classificador do agente (mesmo principio de defesa em profundidade do
+  /// catalogo de comandos, RNF003): PRINTER | SWITCH | ROUTER | NAS |
+  /// ACCESS_POINT | UNKNOWN. `String` livre no banco por consistencia com o
+  /// resto do schema (RNF012 — nenhum enum existe aqui).
+  deviceType   String   @default("UNKNOWN")
+  snmpSysDescr String?
+  /// Portas que responderam, separadas por virgula (ex: "80,161,9100").
+  /// 161 so entra quando um SNMP GET real por UDP respondeu — nao existe
+  /// "porta 161 aberta" detectavel por TCP.
+  openPorts    String?
+
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+
+  @@unique([clientId, ip])
+  @@index([clientId, lastSeenAt])
+  @@index([clientId, deviceType])
+  @@map("discovered_devices")
 }
 
 model AgentCommand {

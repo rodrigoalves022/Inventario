@@ -43,6 +43,7 @@
 | RF025 | Coleta multiplataforma | Coletor Windows (WMI) e coletor Linux (`/proc`, `/sys`, `/etc/os-release`, `dpkg` para software, systemd para o serviço) — mesmos três ciclos nas duas plataformas. macOS tem apenas um stub que responde "não implementado". |
 | RF026 | Webhook Endpoints por Tenant | `WebhookEndpoint` (1:N a partir de `Client`, `onDelete: Cascade`): um tenant pode cadastrar múltiplos endpoints, cada um com sua própria lista de `events` (catálogo fechado de 6 eventos — `device.offline`/`device.online`/`device.low_disk`/`device.disk_ok`/`device.warning`/`device.recovered`, `lib/webhook-endpoints.ts`) e um `secret` próprio (256 bits, gerado no servidor, nunca aceito de formulário). Cada disparo é assinado com HMAC-SHA256 do corpo (header `X-Webhook-Signature`), fire-and-forget (timeout 4s), nunca bloqueia o check-in nem a reconciliação de alertas. Coexiste sem alteração com o mecanismo RF016 (`Client.alertWebhookUrl`, único URL sem assinatura) — são dois mecanismos paralelos, não uma substituição. Guardado por `canManageTenantAlerts` (`app/app/[clientSlug]/settings`). |
 | RF027 | Persistência da versão do agente | `Device.agentVersion` (`String?`), populado a partir de `body.agentVersion` no check-in (`app/api/agent/checkin/route.ts`) — o mesmo campo que já alimentava a decisão de `updateAvailable` (RF024), agora também persistido por dispositivo. Exibido no card de saúde do dispositivo (`DeviceHealth.agentVersion`, `components/device-detail-tabs.tsx`). Nulo para dispositivos que nunca fizeram check-in depois da migration que introduziu o campo. |
+| RF028 | Descoberta de dispositivos na rede | Varredura **opt-in** (`Client.discoveryEnabled`, default `false`) da sub-rede /24 da interface primária de cada agente, a cada 6h (`agent-go/internal/collectors/discovery`): probe TCP em 22/80/443/445/515/631/9100 **mais** um GET SNMPv2c real em UDP/161 (`sysDescr` `.1.3.6.1.2.1.1.1.0`, `sysName` `.1.3.6.1.2.1.1.5.0`), MAC lido da tabela ARP do SO, classificação em catálogo fechado (`PRINTER`, `SWITCH`, `ROUTER`, `NAS`, `ACCESS_POINT`, `UNKNOWN`) espelhado em `lib/schemas/agent-discovery.ts`. Ingestão em `POST /api/agent/discovery` (`X-Api-Key`, `agentDiscoverySchema`), `upsert` em `DiscoveredDevice` por `(clientId, ip)` preservando `firstSeenAt`. Exibição filtrável por tipo e busca por IP/hostname/MAC em `/app/[clientSlug]/network`, seção "Dispositivos Descobertos na Rede". São dispositivos **sem** agente instalado: `DiscoveredDevice` não tem relação alguma com `Device` — é um censo de rede, não inventário. Sem ICMP/ping (exigiria raw socket): host com todas as portas sondadas fechadas e sem SNMP fica invisível, limitação aceita. |
 
 ### 1.2 Requisitos Não Funcionais (RNF)
 
@@ -83,6 +84,8 @@
 | RN014 | Editar `AssetRecord` usa `canManageAssetRecord`, que delega a `canOperateTenant` — mais permissivo que `canManageTenant`: `ORG_OPERATOR` também pode editar patrimônio, por ser dado operacional e não credencial. |
 | RN015 | Criar `Client` usa um guard próprio (`hasClientsAdminAccess` = `isPlatformAdmin \|\| isOrgAdmin`), independente de `canManageTenant` — decisão de conta (quem pode existir), não de operação sobre um tenant já existente. **Exceção**: rotacionar a `enrollmentKey` de um `Client` já existente (`rotateEnrollmentKeyAction`) não é criação/edição de conta — é emissão de credencial para um tenant já existente, mesma natureza de `GET /api/clients/[id]/credentials` — por isso usa `canManageTenant(user, client)` (exige `organizationId` igual ao do ator), não `hasClientsAdminAccess`. |
 | RN016 | Toda operação sobre `WebhookEndpoint` (criar, editar, ativar/desativar, e a consulta interna que decide para quem disparar um evento) é sempre escopada por `clientId` derivado do contexto de tenant da sessão (`getTenantContext`/`requireTenantContext`) — nunca de um `clientId` recebido como input de formulário. `secret` é gerado no servidor (`crypto.randomBytes(32)`), nunca aceito de input do usuário, e nunca devolvido em texto pleno fora do instante de criação (mascarado nas demais exibições). Guardado por `canManageTenantAlerts`, o mesmo guard de RF014(a) — ver nota de auditoria de segurança da Sprint 11 em `docs/SPRINTS.md` sobre a adequação desse guard para uma superfície que envolve enviar dados de dispositivos a uma URL externa escolhida pelo usuário. |
+
+| RN017 | A varredura de descoberta de rede (RF028) é **opt-in por tenant e desligada por padrão** (`Client.discoveryEnabled @default(false)`). O gate que vale é **server-side e fail-closed**: `POST /api/agent/discovery` responde `202 { ok: false, reason: 'discovery_disabled' }` **sem gravar nada** quando o flag está desligado, quando o `Client` não é encontrado, e `202 { reason: 'agent_without_client' }` quando o `AgentAuth` não tem `clientId` (agente legado) — `DiscoveredDevice.clientId` é `NOT NULL`, nunca existe linha órfã. O flag também viaja na resposta do check-in (`discoveryEnabled: boolean`) para o agente não gastar um ciclo de varredura inútil, mas isso é **otimização, nunca autorização**: o agente mantém o valor só em memória de processo, com default `false` a cada início, e um agente adulterado que varra mesmo assim não consegue persistir nada. Ligar/desligar o flag exige `canManageTenantAlerts` e grava `AuditLog` (`tenant.discovery_enabled`/`tenant.discovery_disabled`) **apenas na transição**, não a cada submit do formulário. |
 
 ---
 
@@ -242,13 +245,33 @@ Dois fluxos distintos, com guards diferentes:
 - **Pós-condição**: sessão JWT válida com `role`, `organizationId`, `clientId`, `clientSlug`, usada por toda checagem de permissão subsequente.
 - **Exceções**: e-mail inexistente, senha incorreta, usuário inativo ou papel desconhecido produzem a mesma mensagem genérica ("Credenciais inválidas") — nenhuma causa é diferenciada na resposta, para não permitir enumeração de contas por tentativa e erro.
 
+### 3.11 Descoberta de dispositivos na rede
+
+- **Ator**: `PLATFORM_ADMIN` ou `ORG_ADMIN` (habilitação); agente instalado (execução).
+- **Pré-condição**: tenant com ao menos um agente ativo; ator com `canManageTenantAlerts` sobre o tenant.
+- **Fluxo principal**:
+  1. Ator abre `/app/[clientSlug]/computers` → "Configurações de Alerta" → marca **Descoberta de Rede → Habilitar varredura de dispositivos na rede local** e salva.
+  2. `saveTenantAlertSettingsAction` valida o formulário (Zod), reconfirma `canManageTenantAlerts`, persiste `Client.discoveryEnabled = true` e grava `AuditLog` (`tenant.discovery_enabled`) por ser uma transição do flag.
+  3. No próximo check-in (até 1h), a resposta de `POST /api/agent/checkin` inclui `discoveryEnabled: true`; o agente guarda o valor em memória de processo.
+  4. No tique de 6h do serviço (`discoveryTicker`), o agente calcula a /24 da interface primária, varre os hosts com 20 goroutines (probe TCP, timeout 500ms/porta) e faz um GET SNMPv2c em cada IP; lê a tabela ARP em seguida para resolver os MACs.
+  5. O agente classifica cada host encontrado e envia o lote em `POST /api/agent/discovery`.
+  6. A rota autentica por `X-Api-Key`, aplica rate limit (5/hora por `agentAuthId`), valida por `agentDiscoverySchema`, checa os dois gates fail-closed (RN017) e faz `upsert` por `(clientId, ip)`, preservando `firstSeenAt` e atualizando `lastSeenAt`.
+  7. Ator consulta os dispositivos em `/app/[clientSlug]/network`, seção "Dispositivos Descobertos na Rede", com filtro por tipo (Todos/Impressoras/Roteadores-Switches/NAS) e busca por IP, hostname ou MAC.
+- **Fluxos alternativos**: com o flag desligado (o padrão), o agente sequer varre — e se varrer (versão desatualizada, binário adulterado), a rota descarta o payload com `202` sem gravar. Host que não responde a nenhuma porta nem a SNMP não entra no inventário (não há ping). MAC ausente do cache ARP fica `null`, nunca inventado.
+- **Pós-condição**: uma linha de `DiscoveredDevice` por `(clientId, ip)` com `lastSeenAt` atualizado; nenhuma alteração em `Device` ou em qualquer tabela de inventário.
+- **Exceções**: payload fora do schema (IP não-IPv4, `deviceType` fora do catálogo fechado, array acima de 512, `snmpSysDescr` acima de 1024) recebe `400` e nada é gravado; pânico durante a varredura é contido por `recover()` no agente (geral e por worker) e nunca derruba o serviço nem o ciclo de check-in.
+
 ---
 
 ## 4. Modelagem de Dados
 
 ### 4.1 Inventário de entidades
 
-22 modelos em `prisma/schema.prisma`: `Organization`, `Client`, `AgentAuth`, `Device`, `Hardware`, `Network`, `Disk`, `Software`, `CollectionLog`, `AgentCheckLog`, `AuditLog`, `SecurityPosture`, `LocalAccount`, `MetricSample`, `Monitor`, `Printer`, `UsbDevice`, `AssetRecord`, `AlertRule`, `AlertEvent`, `AgentCommand`, `User`.
+24 modelos em `prisma/schema.prisma`: `Organization`, `Client`, `AgentAuth`, `Device`, `Hardware`, `Network`, `Disk`, `Software`, `CollectionLog`, `AgentCheckLog`, `AuditLog`, `SecurityPosture`, `LocalAccount`, `MetricSample`, `Monitor`, `Printer`, `UsbDevice`, `AssetRecord`, `AlertRule`, `AlertEvent`, `WebhookEndpoint`, `AgentCommand`, `DiscoveredDevice`, `User`.
+
+(A contagem anterior deste parágrafo dizia "22 modelos" e omitia `WebhookEndpoint`, introduzido na Sprint 11 — corrigido junto com a entrada de `DiscoveredDevice` na Sprint 14.)
+
+`DiscoveredDevice` é o único modelo de inventário que **não** descende de `Device`: descreve equipamento de terceiros na LAN, sem agente instalado (RF028).
 
 ### 4.2 Relacionamentos, cardinalidade e cascade
 
@@ -265,6 +288,7 @@ Dois fluxos distintos, com guards diferentes:
 | `Device → Network / Disk / Software / LocalAccount / MetricSample / Monitor / Printer / UsbDevice / CollectionLog / AlertEvent` | 1:N cada | `Cascade` | Inventário detalhado apagado junto com o dispositivo. |
 | `Device → AgentCheckLog` | 1:N (opcional) | `SetNull` | Log de tentativa de check-in pode preceder a existência do `Device` (primeira tentativa antes do primeiro upsert bem-sucedido). |
 | `AlertRule → AlertEvent` | 1:N (opcional, `ruleId` `String?`) | `SetNull` | Se a regra for excluída depois do disparo, o histórico do evento permanece — só perde o vínculo com a regra viva. |
+| `Client → DiscoveredDevice` | 1:N (`clientId` **obrigatório**) | `Cascade` | Censo de rede só faz sentido no contexto do cliente que o produziu. `clientId` é `NOT NULL` de propósito (diferente de `AgentAuth.clientId`/`Device.clientId`): a rota de ingestão rejeita agente sem tenant antes de qualquer escrita, justamente para nunca existir descoberta órfã, que não teria como ser escopada nem exibida. |
 
 `AuditLog`, `MetricSample.clientId`, `AlertEvent.clientId`, `AgentCommand.clientId` e `AssetRecord.updatedByUserId` **não têm foreign key declarada no Prisma** — são colunas `String`/`String?` soltas. O isolamento nessas colunas é aplicado por convenção de consulta (sempre filtrar por elas), não por constraint de banco.
 
@@ -286,10 +310,10 @@ Não há relacionamento N:M no schema: um `User` pertence a no máximo uma `Orga
 
 ### 5.1 Constraints reais
 
-- `@unique`: `Organization.slug`, `Client.slug`, `Client.enrollmentKeyHash`, `AgentAuth.apiKeyHash`, `Device.agentAuthId`, `Hardware.deviceId`, `SecurityPosture.deviceId`, `AssetRecord.deviceId`, `User.email`.
+- `@unique`: `Organization.slug`, `Client.slug`, `Client.enrollmentKeyHash`, `AgentAuth.apiKeyHash`, `Device.agentAuthId`, `Hardware.deviceId`, `SecurityPosture.deviceId`, `AssetRecord.deviceId`, `User.email`; composto: `DiscoveredDevice @@unique([clientId, ip])` — chave do `upsert` do ciclo de descoberta, garante uma linha por IP por tenant em vez de uma linha por varredura.
 - Campos obrigatórios (`NOT NULL` sem default): `Device.hostname`, `Device.agentAuthId`, `AgentAuth.apiKeyHash`, `User.email`, `User.passwordHash`, `User.role`, `AssetRecord.deviceId`, `AlertRule.clientId`, `AgentCommand.expiresAt` (sem default — calculado em toda emissão de comando).
 - Campos opcionais e por quê: `Device.clientId` (agentes legados sem cliente), `Device.dominio`/`usuario` (nem toda máquina está em domínio ou tem usuário logado no momento da coleta), `AgentAuth.clientId` (mesmo motivo do `Device`), `Monitor.serial`/`Disk.criptografia` (nem todo hardware reporta EDID ou tem BitLocker aplicável), todos os campos de `SecurityPosture` exceto `deviceId` (padrão "não apurado ≠ desativado", ver RN012).
-- Defaults notáveis: `Organization.type = "DIRECT"`, `Organization.isActive = true`, `Client.metricsRetentionDays = 90`, `Client.alertDiskThresholdGb = 10`, `Client.alertRamThresholdGb = 4`, `Client.alertOfflineHours = 24`, `Device.status = "online"`, `AgentCommand.status = "pending"`, `User.role = "ORG_ADMIN"`.
+- Defaults notáveis: `Organization.type = "DIRECT"`, `Organization.isActive = true`, `Client.metricsRetentionDays = 90`, `Client.alertDiskThresholdGb = 10`, `Client.alertRamThresholdGb = 4`, `Client.alertOfflineHours = 24`, `Client.discoveryEnabled = false` (o único default deliberadamente **restritivo** do schema — ver RN017), `Device.status = "online"`, `AgentCommand.status = "pending"`, `DiscoveredDevice.deviceType = "UNKNOWN"`, `User.role = "ORG_ADMIN"`.
 - **Não há `enum` no schema inteiro.** Todo campo de estado fechado (`Organization.type`, `User.role`, `Device.status`, `AlertRule.severity`, `AgentCommand.status`/`type`, `Disk.criptografia`) é `String` livre, com o conjunto de valores válidos documentado só em comentário — não há `CHECK` constraint nem enum do Postgres (ver RN004 para a inconsistência real que isso já permitiu).
 
 ### 5.2 Índices e justificativa de performance
@@ -308,6 +332,7 @@ Não há relacionamento N:M no schema: um `User` pertence a no máximo uma `Orga
 | `AlertRule` | `[clientId]` | Listagem de regras por tenant. |
 | `AlertEvent` | `[clientId, firedAt]`, `[deviceId, ruleId]` | Histórico de disparos por tenant/tempo; busca por dispositivo e regra. |
 | `AgentCommand` | `[agentAuthId, status]`, `[clientId, createdAt]` | Consulta de comando pendente por agente (usada no polling a cada 90s); histórico por tenant. |
+| `DiscoveredDevice` | `[clientId, lastSeenAt]`, `[clientId, deviceType]`, único composto `[clientId, ip]` | Listagem da página de rede (ordenada por `lastSeenAt desc` dentro do tenant); filtro por tipo na mesma página; chave do `upsert` de cada ciclo de varredura. |
 | `User` | `[clientId]`, `[organizationId]` | Escopo de usuário por cliente/organização. |
 
 `AssetRecord` **não tem nenhum índice declarado** além do índice implícito de unicidade em `deviceId`.
@@ -439,7 +464,9 @@ Validada linha a linha contra `lib/permissions.ts` e `proxy.ts`. **4 papéis con
 
 ## 8. APIs (Endpoints)
 
-Inventário completo dos 19 arquivos `route.ts` sob `app/api/`. A maior parte da aplicação **não** usa uma camada de API REST para o frontend — páginas são Server Components que consultam o Prisma diretamente, e mutações usam Server Actions (`'use server'`). As rotas HTTP existem para três finalidades: **agente** (ingestão/comandos), **fluxos que exigem handler HTTP explícito** (relatórios, download de binário, status de provisionamento) e **NextAuth**.
+Inventário completo dos 22 arquivos `route.ts` sob `app/api/` (a contagem dizia "19" e a tabela omitia
+`/api/tenant/[clientSlug]/devices/[deviceId]/metrics` — defasagem acumulada desde a Sprint 9, corrigida
+junto com a entrada de `/api/agent/discovery` na Sprint 14). A maior parte da aplicação **não** usa uma camada de API REST para o frontend — páginas são Server Components que consultam o Prisma diretamente, e mutações usam Server Actions (`'use server'`). As rotas HTTP existem para três finalidades: **agente** (ingestão/comandos), **fluxos que exigem handler HTTP explícito** (relatórios, download de binário, status de provisionamento) e **NextAuth**.
 
 ### 8.1 Tabela resumo
 
@@ -455,10 +482,12 @@ Inventário completo dos 19 arquivos `route.ts` sob `app/api/`. A maior parte da
 | GET | `/api/clients/[id]/credentials` | Sessão + `canManageTenant` | — | Reexibe pacote de credenciais/provisionamento ativo |
 | POST | `/api/tenant/[clientSlug]/devices/[deviceId]/commands` | Sessão + `canOperateTenant` | — | Enfileira comando remoto |
 | GET | `/api/tenant/[clientSlug]/devices/[deviceId]/commands` | Sessão + `canAccessTenant` | — | Histórico dos últimos 50 comandos |
+| GET | `/api/tenant/[clientSlug]/devices/[deviceId]/metrics` | Sessão + `canAccessTenant` | — | Série temporal de `MetricSample` do dispositivo (polling do card de saúde) |
 | GET | `/api/tenant/[clientSlug]/reports/csv` \| `/pdf` | Sessão + `canAccessTenant` | — | Exporta inventário do tenant |
 | GET | `/api/portal/reports/csv` \| `/pdf` | `getPortalContext()` | — | Exporta inventário do próprio cliente (portal) |
 | POST | `/api/agent/checkin` | `X-Api-Key` | 10/5min por `agentAuthId` | Ingestão completa de inventário |
 | POST | `/api/agent/metrics` | `X-Api-Key` | 20/5min por `agentAuthId` | Ingestão de amostra de métricas |
+| POST | `/api/agent/discovery` | `X-Api-Key` + `Client.discoveryEnabled` | 5/hora por `agentAuthId` | Ingestão da varredura de descoberta de rede (RF028) |
 | GET | `/api/agent/commands/pending` | `X-Api-Key` | 60/5min por `agentAuthId` | Polling + claim atômico de comando pendente |
 | POST | `/api/agent/commands/[id]/result` | `X-Api-Key` | 30/5min por `agentAuthId` | Agente reporta resultado do comando |
 | POST | `/api/agent/register` | `enrollmentKey` **ou** `X-Admin-Secret` | 15/5min por IP | Troca `enrollmentKey` por `apiKey` |
@@ -496,6 +525,8 @@ Contratos completos de request/response (incluindo os schemas Zod por campo) já
 
 **`GET /api/agent/download`** — sem parâmetros; serve o mesmo `public/inventario-agent.exe`, **sem** config embutida — consumido pelo auto-updater do próprio agente, não pela instalação inicial. `503` se o arquivo não existir (mensagem instrui rodar `make windows`).
 
+**`POST /api/agent/discovery`** (Sprint 14, RF028) — request `{ hostname, agentVersion?, subnet?, devices: [{ ip, mac?, hostname?, vendor?, deviceType?, snmpSysDescr?, openPorts? }] }`, validado por `agentDiscoverySchema` (`ip` obrigatoriamente IPv4 em notação decimal pontuada com octetos 0–255; `deviceType` num enum estrito de 6 valores, default `UNKNOWN`; array de no máximo 512; `snmpSysDescr` de no máximo 1024). `200` → `{ ok: true, upserted: number }`. `202` → `{ ok: false, reason: 'agent_without_client' | 'discovery_disabled' }`, **sem gravar nada** (não é erro: é uma condição esperada do ciclo, e devolver 4xx faria o agente logar falha e insistir). `400` payload inválido ou JSON malformado; `401` API Key inválida; `429` acima de 5 requisições/hora por `agentAuthId`; `500` genérico. A persistência é um `upsert` por `(clientId, ip)`; `firstSeenAt` **nunca** aparece no bloco de `update`.
+
 **Achado de simetria a registrar**: `bootstrap` e `download-exe` compartilham o mesmo desenho — nenhuma das duas rotas confere `client`/`key` contra o banco; a credencial só é validada quando o artefato gerado (script ou binário) é de fato executado na máquina alvo e chama `register`. É uma escolha deliberada documentada em comentário no código (rate limit por IP como única defesa contra varredura), não uma omissão.
 
 ---
@@ -509,6 +540,7 @@ erDiagram
     Client ||--o{ User : "portal (CLIENT_VIEWER)"
     Client ||--o{ AgentAuth : credenciais
     Client ||--o{ AlertRule : "regras de alerta"
+    Client ||--o{ DiscoveredDevice : "descoberta de rede (sem agente)"
     AgentAuth ||--o| Device : identifica
     AgentAuth ||--o{ AgentCommand : "fila de comandos"
     AgentAuth ||--o{ AgentCheckLog : "log de tentativas"
@@ -547,6 +579,20 @@ erDiagram
         int alertDiskThresholdGb
         int alertRamThresholdGb
         int alertOfflineHours
+        boolean discoveryEnabled "opt-in, default false"
+    }
+    DiscoveredDevice {
+        string id PK
+        string clientId "FK, NOT NULL"
+        string ip "UK com clientId"
+        string mac "nulo se fora do cache ARP"
+        string hostname
+        string vendor
+        string deviceType "PRINTER|SWITCH|ROUTER|NAS|ACCESS_POINT|UNKNOWN"
+        string snmpSysDescr
+        string openPorts "ex: 80,161,9100"
+        datetime firstSeenAt
+        datetime lastSeenAt
     }
     AgentAuth {
         string id PK
@@ -637,6 +683,10 @@ erDiagram
 **AssetRecord** — Dado de patrimônio/financeiro, 1:1 obrigatório com `Device`, preenchido manualmente no painel. Nunca escrito pelo check-in — a rota não referencia essa tabela.
 
 **AgentCommand** — Um comando remoto enfileirado para um `AgentAuth`, de um catálogo fechado de 5 tipos. Estados: `pending → running → done | failed | expired` (TTL de 15 minutos).
+
+**DiscoveredDevice vs. Device** — `Device` é um endpoint COM agente instalado, que faz check-in e tem inventário completo. `DiscoveredDevice` é um equipamento de rede SEM agente (impressora, switch, NAS), visto de fora pela varredura de descoberta (RF028): só IP, MAC, portas abertas e o que o SNMP contar sobre si. As duas tabelas **não se relacionam** — um mesmo IP pode aparecer em `Network` (de um `Device`) e em `DiscoveredDevice` sem qualquer vínculo modelado. *Evitar*: chamar de "dispositivo descoberto" uma máquina com agente; *evitar*: tentar "promover" um `DiscoveredDevice` a `Device`.
+
+**Varredura de descoberta (network discovery)** — O ciclo de 6h, opt-in por tenant (RN017), em que o agente sonda a própria /24. Não usa ping/ICMP (exigiria raw socket): "vivo" é definido por responder a um probe TCP ou a um GET SNMP. *Evitar*: chamar de "scan de rede" sem qualificar — o termo sugere varredura ativa irrestrita, e esta é limitada à /24 local, a 7 portas TCP e a um GET SNMP somente leitura.
 
 **Bucket (nunca soma)** — Ao agregar hardware/disco de um parque heterogêneo, sempre contar quantas máquinas caem em cada faixa/valor exato — nunca somar valores absolutos de máquinas diferentes. *Evitar*: `sum(ramTotalGb)` ou equivalente em qualquer tela que agregue hardware por tenant.
 
