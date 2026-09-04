@@ -18,8 +18,6 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AgentInstallPackage } from '@/components/agent-install-package'
 import { getTenantBasePath } from '@/lib/tenant-links'
-import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 
 type ClientRow = {
   id: string
@@ -337,22 +335,22 @@ export function ClientsPanel({
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className={TABLE_HEAD_ROW_CLASS}>
-                    <th className={TABLE_HEAD_CLASS}>Cliente</th>
-                    <th className={TABLE_HEAD_CLASS}>Agentes</th>
-                    <th className={TABLE_HEAD_CLASS}>Status</th>
-                    <th className={TABLE_HEAD_CLASS}>Painel</th>
-                    <th className={TABLE_HEAD_CLASS}>Criado em</th>
-                    <th className={TABLE_HEAD_CLASS}>Instalação</th>
+                <thead className="border-b">
+                  <tr className="text-muted-foreground">
+                    <th className="px-4 py-3 text-left font-medium">Cliente</th>
+                    <th className="px-4 py-3 text-left font-medium">Agentes</th>
+                    <th className="px-4 py-3 text-left font-medium">Status</th>
+                    <th className="px-4 py-3 text-left font-medium">Painel</th>
+                    <th className="px-4 py-3 text-left font-medium">Criado em</th>
+                    <th className="px-4 py-3 text-left font-medium">Instalação</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedClients.map((client) => (
-                    <tr key={client.id} className={cn('border-b last:border-0', STATIC_ROW_HOVER_CLASS)}>
-                      <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>{client.name}</td>
-                      <td className={TABLE_CELL_CLASS}>{client.agentCount}</td>
-                      <td className={TABLE_CELL_CLASS}>
+                    <tr key={client.id} className="border-b last:border-0">
+                      <td className="px-4 py-3 font-medium text-foreground">{client.name}</td>
+                      <td className="px-4 py-3">{client.agentCount}</td>
+                      <td className="px-4 py-3">
                         <Badge
                           variant="outline"
                           className={
@@ -364,7 +362,7 @@ export function ClientsPanel({
                           {client.isActive ? 'ativo' : 'inativo'}
                         </Badge>
                       </td>
-                      <td className={TABLE_CELL_CLASS}>
+                      <td className="px-4 py-3">
                         <Button asChild size="sm" variant="secondary">
                           <Link href={getTenantBasePath(client.slug)}>
                             <ArrowUpRight className="h-4 w-4" />
@@ -372,13 +370,13 @@ export function ClientsPanel({
                           </Link>
                         </Button>
                       </td>
-                      <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
+                      <td className="px-4 py-3 text-muted-foreground">
                         {new Intl.DateTimeFormat('pt-BR', {
                           dateStyle: 'short',
                           timeStyle: 'short',
                         }).format(new Date(client.createdAt))}
                       </td>
-                      <td className={TABLE_CELL_CLASS}>
+                      <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
                           <Button type="button" size="sm" variant="outline" onClick={() => handleViewCredentials(client)}>
                             <Eye className="h-4 w-4" />
