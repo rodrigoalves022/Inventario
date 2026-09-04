@@ -3,7 +3,14 @@ import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantNetworkWhere } from '@/lib/tenant-scope'
 import { getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  STATIC_ROW_HOVER_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_DATA_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
 import { DiscoveredDevicesTable, type DiscoveredDeviceRow } from '@/components/discovered-devices-table'
 import { DISCOVERED_DEVICE_TYPES, type DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
 
@@ -122,7 +129,7 @@ export default async function TenantNetworkPage({ params }: PageProps<'/app/[cli
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
         <table className="w-full text-sm">
           <thead>
             <tr className={TABLE_HEAD_ROW_CLASS}>
@@ -146,10 +153,10 @@ export default async function TenantNetworkPage({ params }: PageProps<'/app/[cli
                 const utilization = segment.devices > 0 ? (segment.active / segment.devices) * 100 : 0
                 return (
                   <tr key={segment.subnet} className={STATIC_ROW_HOVER_CLASS}>
-                    <td className={cn(TABLE_CELL_CLASS, 'font-medium')}>{segment.subnet}</td>
-                    <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{segment.subnet}</td>
-                    <td className={cn(TABLE_CELL_CLASS, 'font-mono text-muted-foreground')}>{segment.gateway}</td>
-                    <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{segment.devices}</td>
+                    <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>{segment.subnet}</td>
+                    <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{segment.subnet}</td>
+                    <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{segment.gateway}</td>
+                    <td className={cn(TABLE_CELL_CLASS, 'tabular-nums text-muted-foreground')}>{segment.devices}</td>
                     <td className={TABLE_CELL_CLASS}>
                       <span className="inline-flex items-center gap-2">
                         <span className="h-2 w-2 rounded-full bg-success" />

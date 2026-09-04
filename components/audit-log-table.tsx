@@ -3,7 +3,13 @@ import { Badge } from '@/components/ui/badge'
 import type { AuditLogListItem } from '@/lib/audit-log'
 import { getTenantPath } from '@/lib/tenant-links'
 import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  STATIC_ROW_HOVER_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
 
 type AuditLogTableProps = {
   logs: AuditLogListItem[]
@@ -70,7 +76,7 @@ function renderMetadata(log: AuditLogListItem) {
 
 export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBasePath = null }: AuditLogTableProps) {
   return (
-    <div className="rounded-lg border bg-card">
+    <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -144,7 +150,7 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
                             Abrir ativo
                           </Link>
                         ) : log.targetId ? (
-                          <p className="text-xs text-muted-foreground font-mono">{log.targetId}</p>
+                          <p className="data-mono text-xs text-muted-foreground">{log.targetId}</p>
                         ) : (
                           <p className="text-xs text-muted-foreground">—</p>
                         )}

@@ -3,14 +3,27 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { HardDrive, Search, Wifi, WifiOff, Clock } from 'lucide-react'
+import { HardDrive, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { SummaryCard } from '@/components/ui/summary-card'
 import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
-import { computeDiskUsagePercent, getDiskUsageTier, DISK_USAGE_TIER_BAR_CLASS, DISK_USAGE_TIER_TEXT_CLASS } from '@/lib/disk-usage'
-import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  computeDiskUsagePercent,
+  getDiskUsageTier,
+  DISK_USAGE_SCALE_CLASS,
+  DISK_USAGE_THRESHOLDS,
+  DISK_USAGE_TIER_TEXT_CLASS,
+} from '@/lib/disk-usage'
+import {
+  STATIC_ROW_HOVER_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_DATA_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
 
 export type TenantStorageDisk = {
   unidade: string | null
@@ -43,21 +56,8 @@ const PRESENCE_TONE: Record<DevicePresence, StatusPillTone> = {
   offline: 'neutral',
 }
 
-const PRESENCE_ICON: Record<DevicePresence, typeof Wifi> = {
-  online: Wifi,
-  ausente: Clock,
-  offline: WifiOff,
-}
-
 function PresenceBadge({ presence }: { presence: DevicePresence }) {
-  const Icon = PRESENCE_ICON[presence]
-  return (
-    <StatusPill
-      tone={PRESENCE_TONE[presence]}
-      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
-      label={presence}
-    />
-  )
+  return <StatusPill tone={PRESENCE_TONE[presence]} label={presence} />
 }
 
 const USAGE_RANGE_LABEL = {
@@ -244,7 +244,7 @@ export function TenantStorageTable({
             : 'Nenhum dispositivo encontrado para os filtros selecionados.'}
         </div>
       ) : (
-        <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+        <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -261,8 +261,8 @@ export function TenantStorageTable({
                   const diskCount = device.diskUsages.length
                   return (
                     <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
-                      <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
-                        <Link href={device.detailsPath} className="text-foreground hover:text-primary transition-colors">
+                      <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>
+                        <Link href={device.detailsPath} className="text-foreground transition-colors hover:text-primary">
                           {device.hostname}
                         </Link>
                       </td>
@@ -286,11 +286,25 @@ export function TenantStorageTable({
                                   </span>
                                   <span className={cn('font-semibold', DISK_USAGE_TIER_TEXT_CLASS[tier])}>{disk.usagePercent}%</span>
                                 </div>
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                                {/* Medidor de uso. O gradiente pinta a escala INTEIRA
+                                    (0–100%) e a barra e' um recorte dela no percentual do
+                                    disco — por isso `clipPath` em vez de `width`: a cor
+                                    numa posicao significa sempre a mesma coisa, entre
+                                    discos e entre linhas. As duas marcas verticais ficam
+                                    exatamente em DISK_USAGE_THRESHOLDS (60% / 80%), a
+                                    mesma fonte de verdade de `getDiskUsageTier`, para que
+                                    marca e cor nunca possam divergir do tier calculado. */}
+                                <div
+                                  className="relative h-2 w-full overflow-hidden rounded-full bg-secondary"
+                                  role="img"
+                                  aria-label={`${label}: ${disk.usagePercent}% usado`}
+                                >
                                   <div
-                                    className={cn('h-full rounded-full', DISK_USAGE_TIER_BAR_CLASS[tier])}
-                                    style={{ width: `${Math.min(disk.usagePercent, 100)}%` }}
+                                    className={cn('absolute inset-0', DISK_USAGE_SCALE_CLASS)}
+                                    style={{ clipPath: `inset(0 ${100 - Math.min(disk.usagePercent, 100)}% 0 0)` }}
                                   />
+                                  <span className="disk-usage-mark" style={{ left: `${DISK_USAGE_THRESHOLDS.warning}%` }} />
+                                  <span className="disk-usage-mark" style={{ left: `${DISK_USAGE_THRESHOLDS.critical}%` }} />
                                 </div>
                               </div>
                             )

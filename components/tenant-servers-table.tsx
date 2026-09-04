@@ -3,12 +3,18 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { TriangleAlert, Wifi, WifiOff } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
-import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { cn } from '@/lib/utils'
-import { CLICKABLE_ROW_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  CLICKABLE_ROW_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_DATA_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
 
 export type TenantServerRow = {
   id: string
@@ -32,14 +38,7 @@ const STATUS_TONE: Record<TenantServerRow['effectiveStatus'], StatusPillTone> = 
 }
 
 function DeviceStatusPill({ status }: { status: TenantServerRow['effectiveStatus'] }) {
-  const Icon = status === 'offline' ? WifiOff : status === 'warning' ? TriangleAlert : Wifi
-  return (
-    <StatusPill
-      tone={STATUS_TONE[status]}
-      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
-      label={status === 'offline' ? 'Desconectado' : status}
-    />
-  )
+  return <StatusPill tone={STATUS_TONE[status]} label={status === 'offline' ? 'Desconectado' : status} />
 }
 
 /**
@@ -74,7 +73,7 @@ export function TenantServersTable({
 
   if (servers.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-card">
+      <div className={TABLE_SHELL_CLASS}>
         <div className="px-4 py-8 text-center text-muted-foreground">
           Nenhum servidor registrado para o cliente atual.
         </div>
@@ -83,7 +82,7 @@ export function TenantServersTable({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -137,7 +136,7 @@ export function TenantServersTable({
                     />
                   </td>
                 )}
-                <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
+                <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>
                   <Link
                     href={server.detailsPath}
                     onClick={(event) => event.stopPropagation()}
@@ -146,7 +145,7 @@ export function TenantServersTable({
                     {server.hostname}
                   </Link>
                 </td>
-                <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{server.ip ?? '-'}</td>
+                <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{server.ip ?? '-'}</td>
                 <td className={TABLE_CELL_CLASS}>{server.sistema ?? '-'}</td>
                 <td className={cn(TABLE_CELL_CLASS, 'max-w-[240px] truncate text-muted-foreground')}>
                   {server.processador ?? '-'}

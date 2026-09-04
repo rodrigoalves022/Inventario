@@ -2,11 +2,17 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Wifi, WifiOff, Clock, Inbox } from 'lucide-react'
-import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
+import { Inbox } from 'lucide-react'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
-import { CLICKABLE_ROW_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  CLICKABLE_ROW_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_DATA_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+} from '@/lib/table-styles'
 
 export type RecentDeviceRow = {
   id: string
@@ -31,12 +37,6 @@ const PRESENCE_TONE: Record<DevicePresence, StatusPillTone> = {
   offline: 'neutral',
 }
 
-const PRESENCE_ICON: Record<DevicePresence, typeof Wifi> = {
-  online: Wifi,
-  ausente: Clock,
-  offline: WifiOff,
-}
-
 const PRESENCE_LABEL: Record<DevicePresence, string> = {
   online: 'online',
   ausente: 'ausente',
@@ -50,14 +50,7 @@ const PRESENCE_DATE_CLASS: Record<DevicePresence, string> = {
 }
 
 function PresenceBadge({ presence }: { presence: DevicePresence }) {
-  const Icon = PRESENCE_ICON[presence]
-  return (
-    <StatusPill
-      tone={PRESENCE_TONE[presence]}
-      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
-      label={PRESENCE_LABEL[presence]}
-    />
-  )
+  return <StatusPill tone={PRESENCE_TONE[presence]} label={PRESENCE_LABEL[presence]} />
 }
 
 /**
@@ -105,7 +98,7 @@ export function TenantRecentDevicesTable({ devices }: { devices: RecentDeviceRow
             }}
             className={CLICKABLE_ROW_CLASS}
           >
-            <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
+            <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>
               <Link
                 href={device.detailsPath}
                 onClick={(event) => event.stopPropagation()}

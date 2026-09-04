@@ -10,8 +10,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        // `--destructive-solid` e' um degrau de luminosidade abaixo do
+        // `--destructive` de sinal (#EF4444). Branco sobre #EF4444 da 3.4:1 e
+        // reprovaria em contraste; sobre o solido da 5.0:1. Ver DESIGN.md.
         destructive:
-          'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+          'bg-destructive-solid text-white hover:bg-destructive-solid/90 focus-visible:ring-destructive/30',
         outline:
           'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
         secondary:

@@ -7,8 +7,6 @@ import {
   HardDrive,
   Search,
   TriangleAlert,
-  Wifi,
-  WifiOff,
   Monitor,
   Activity,
   History
@@ -16,12 +14,19 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { SummaryCard } from '@/components/ui/summary-card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { cn } from '@/lib/utils'
-import { CLICKABLE_ROW_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  CLICKABLE_ROW_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_DATA_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
 
@@ -51,11 +56,9 @@ const STATUS_TONE: Record<TenantComputerRow['effectiveStatus'], StatusPillTone> 
 }
 
 function DeviceStatusPill({ status }: { status: TenantComputerRow['effectiveStatus'] }) {
-  const Icon = status === 'offline' ? WifiOff : status === 'warning' ? TriangleAlert : Wifi
   return (
     <StatusPill
       tone={STATUS_TONE[status]}
-      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
       label={status === 'offline' ? 'Desconectado' : status}
     />
   )
@@ -246,7 +249,7 @@ export function TenantComputersTable({
       </div>
 
       {/* Table — telas md+; abaixo disso vira lista de cards (ver bloco seguinte) */}
-      <div className="hidden rounded-xl border bg-card overflow-hidden shadow-sm md:block">
+      <div className={cn(TABLE_SHELL_CLASS, 'hidden overflow-hidden md:block')}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -320,7 +323,7 @@ export function TenantComputersTable({
                         />
                       </td>
                     )}
-                    <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
+                    <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>
                       <Link
                         href={device.detailsPath}
                         onClick={(event) => event.stopPropagation()}
@@ -380,7 +383,7 @@ export function TenantComputersTable({
       {/* Cards — telas abaixo de md, no lugar da tabela. Mesma linha vira um
           alvo de toque unico (a linha inteira e' um Link), em vez de so o
           hostname como na versao desktop. */}
-      <div className="rounded-xl border bg-card md:hidden">
+      <div className={cn(TABLE_SHELL_CLASS, 'md:hidden')}>
         {filteredDevices.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-5 py-12 text-center text-muted-foreground">
             <Search className="h-8 w-8 opacity-20" />
@@ -399,7 +402,7 @@ export function TenantComputersTable({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate font-mono font-medium text-foreground">{device.hostname}</p>
+                    <p className="data-mono truncate font-medium text-foreground">{device.hostname}</p>
                     <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide mt-1">
                       {device.sistema ?? 'N/A'}
                     </p>

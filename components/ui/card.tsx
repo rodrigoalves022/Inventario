@@ -7,7 +7,10 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="card"
       className={cn(
-        'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
+        // Elevacao declarada UMA vez: a borda de 1px (`--surface-line`,
+        // white/8%) carrega a superficie. Saiu o `shadow-sm` — borda fina sob
+        // sombra e' o "card fantasma" que o sistema evita. Ver DESIGN.md.
+        'bg-card text-card-foreground border-surface-line flex flex-col gap-6 rounded-xl border py-6',
         className,
       )}
       {...props}

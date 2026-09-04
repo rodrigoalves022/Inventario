@@ -16,7 +16,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background text-foreground relative overflow-hidden">
       <div className="absolute inset-0 z-0">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-[128px]" />
+        {/* `--accent` deixou de ser cor de marca no Overhaul visual (virou a
+            superficie de hover do sistema); o halo decorativo passa a usar
+            `--info`, o Neon Teal, que e' a cor que ele pintava antes. */}
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-info/10 rounded-full blur-[128px]" />
       </div>
 
       <div className="z-10 w-full max-w-md p-8">

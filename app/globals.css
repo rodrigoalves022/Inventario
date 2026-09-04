@@ -3,92 +3,153 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================================
+   PALETA — Overhaul visual, Fase 1 (2026-09-04). Ver DESIGN.md na raiz.
+
+   Regra dura do sistema: cor entra por TOKEN, nunca por hex solto em
+   componente. Este arquivo e' o unico lugar do repositorio onde um valor de
+   cor literal e' legitimo — e' por isso que repintar 15 telas custou um
+   arquivo, nao quinze.
+
+   Os valores hex ao lado de cada token sao a cor de ORIGEM pedida no escopo;
+   o OKLCH e' a conversao exata dela (sRGB -> OKLab -> OKLCH), nao uma
+   aproximacao a olho.
+   ============================================================================ */
+
 :root {
   /* App e' dark-only (:root e .dark tem os mesmos valores) — sem isso, controles
      nativos do navegador (spinner de <input type="number">, popup de <select>,
      date picker) renderizam com chrome claro do SO, quebrando a coerencia visual
      mesmo com toda a UI custom já em tema escuro. */
   color-scheme: dark;
-  --background: oklch(0.12 0.01 260);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.16 0.01 260);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.18 0.01 260);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.64 0.17 274);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.22 0.01 260);
-  --secondary-foreground: oklch(0.85 0 0);
-  --muted: oklch(0.25 0.01 260);
-  --muted-foreground: oklch(0.72 0.01 260);
-  --accent: oklch(0.55 0.18 200);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.28 0.01 260);
-  --input: oklch(0.22 0.01 260);
-  --ring: oklch(0.64 0.17 274);
-  --chart-1: oklch(0.65 0.2 280);
-  --chart-2: oklch(0.65 0.18 160);
-  --chart-3: oklch(0.7 0.18 50);
-  --chart-4: oklch(0.6 0.22 25);
-  --chart-5: oklch(0.55 0.18 200);
+
+  /* --- Chao e superficies (familia "Void Obsidian", hue ~266) ------------- */
+  --background: oklch(0.16 0.02 266); /* #090D16 */
+  --foreground: oklch(0.965 0.005 260); /* #F1F3F7 — branco levemente frio, nao cinza puro */
+  --card: oklch(0.18 0.026 270); /* #0D111D */
+  --card-foreground: oklch(0.965 0.005 260);
+  --popover: oklch(0.205 0.026 268); /* #121723 — sobe um degrau porque flutua sobre o card */
+  --popover-foreground: oklch(0.965 0.005 260);
+  --secondary: oklch(0.235 0.024 266); /* #191E2A — trilhos de barra, botao secundario */
+  --secondary-foreground: oklch(0.87 0.01 260);
+  --muted: oklch(0.255 0.022 266); /* #1E232E */
+  --muted-foreground: oklch(0.735 0.018 258); /* #A2AAB5 — 8.0:1 no card, 8.3:1 no fundo */
+
+  /* --accent NAO e' uma cor de marca: no vocabulario shadcn e' a SUPERFICIE de
+     hover (`hover:bg-accent`, `data-[state=open]:bg-accent`, range do
+     calendario). Antes daqui carregava ciano saturado, o que fazia todo hover
+     de linha e de botao fantasma brigar com badge e barra colorida na mesma
+     linha. Agora e' um degrau de elevacao com um leve puxao pro ciano — a cor
+     de marca vive em --primary e --info. */
+  --accent: oklch(0.255 0.035 240); /* #122532 */
+  --accent-foreground: oklch(0.965 0.005 260);
+
+  /* --- Acentos e semantica ----------------------------------------------- */
+  --primary: oklch(0.685 0.148 237); /* #0EA5E9 — Cyan Eletrico: acao primaria e foco */
+  /* Tinta ESCURA sobre ciano: branco sobre #0EA5E9 da 2.6:1 e reprova em
+     qualquer criterio. Botao ciano com tinta escura e' o padrao da categoria
+     (Vercel, Linear) e chega a 6.9:1. */
+  --primary-foreground: oklch(0.17 0.03 250); /* #04111C */
+
+  --success: oklch(0.696 0.149 163); /* #10B981 — Emerald Cyber: saude / online */
+  --success-foreground: oklch(0.17 0.03 250);
+  --warning: oklch(0.769 0.165 70); /* #F59E0B — Amber: atencao / disco > 60% */
+  --warning-foreground: oklch(0.17 0.03 250);
+  --info: oklch(0.715 0.126 215); /* #06B6D4 — Neon Teal: informativo */
+  --info-foreground: oklch(0.17 0.03 250);
+
+  /* Crimson tem DOIS papeis, com dois valores, de proposito:
+     - --destructive (#EF4444, o hex pedido) e' SINAL sobre fundo escuro:
+       texto, icone, borda, ponto, barra. Da 5.0:1 no card e 5.2:1 no fundo.
+     - --destructive-solid e' o PREENCHIMENTO de controle solido. Branco sobre
+       #EF4444 da 3.4:1 e seria regressao de contraste (o vermelho anterior
+       dava 5.4:1); um degrau de luminosidade abaixo devolve 5.0:1 sem sair do
+       mesmo vermelho. */
+  --destructive: oklch(0.637 0.208 25); /* #EF4444 */
+  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-solid: oklch(0.565 0.195 25); /* #D03135 */
+
+  /* --- Linhas, campos e foco --------------------------------------------- */
+  --border: oklch(0.27 0.02 266); /* #222630 — equivalente opaco de white/8% sobre o card */
+  --input: oklch(0.29 0.022 266); /* #262B37 — controle de formulario pede aresta mais visivel */
+  --ring: oklch(0.685 0.148 237); /* foco = ciano primario */
+
+  /* Linhas translucidas: compoem certo sobre QUALQUER fundo (card, popover,
+     sidebar), que e' o que um valor opaco nao faz. Sao os valores literais do
+     escopo (white/8% e white/3%) promovidos a token. */
+  --surface-line: rgb(255 255 255 / 0.08);
+  --surface-line-strong: rgb(255 255 255 / 0.16);
+  --surface-hover: rgb(255 255 255 / 0.03);
+  --surface-raise: rgb(255 255 255 / 0.025);
+
+  /* --- Series de dados ----------------------------------------------------
+     Hues espacados de proposito (237 / 163 / 70 / 25 / 310): as quatro
+     primeiras sao as semanticas do sistema, e a quinta ocupa o unico buraco
+     grande que sobra na roda. Magenta aqui e' hue de DADO, nunca de chrome —
+     nenhum botao, borda ou estado do app usa 310. */
+  --chart-1: oklch(0.685 0.148 237);
+  --chart-2: oklch(0.696 0.149 163);
+  --chart-3: oklch(0.769 0.165 70);
+  --chart-4: oklch(0.637 0.208 25);
+  --chart-5: oklch(0.72 0.15 310);
+
   --radius: 0.5rem;
-  --sidebar: oklch(0.1 0.01 260);
-  --sidebar-foreground: oklch(0.85 0 0);
-  --sidebar-primary: oklch(0.64 0.17 274);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.2 0.01 260);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.25 0.01 260);
-  --sidebar-ring: oklch(0.65 0.2 280);
-  --success: oklch(0.65 0.18 160);
-  --success-foreground: oklch(0.98 0 0);
-  --warning: oklch(0.7 0.18 50);
-  --warning-foreground: oklch(0.15 0 0);
-  --info: oklch(0.55 0.18 200);
-  --info-foreground: oklch(0.98 0 0);
+
+  /* --- Sidebar (segunda camada neutra, um degrau ABAIXO do conteudo) ------ */
+  --sidebar: oklch(0.14 0.02 266); /* #060911 */
+  --sidebar-foreground: oklch(0.87 0.01 260);
+  --sidebar-primary: oklch(0.685 0.148 237);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-accent: oklch(0.215 0.024 266);
+  --sidebar-accent-foreground: oklch(0.965 0.005 260);
+  --sidebar-border: oklch(0.25 0.02 266);
+  --sidebar-ring: oklch(0.685 0.148 237);
 }
 
 .dark {
-  --background: oklch(0.12 0.01 260);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.16 0.01 260);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.18 0.01 260);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.64 0.17 274);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.22 0.01 260);
-  --secondary-foreground: oklch(0.85 0 0);
-  --muted: oklch(0.25 0.01 260);
-  --muted-foreground: oklch(0.72 0.01 260);
-  --accent: oklch(0.55 0.18 200);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.28 0.01 260);
-  --input: oklch(0.22 0.01 260);
-  --ring: oklch(0.64 0.17 274);
-  --chart-1: oklch(0.65 0.2 280);
-  --chart-2: oklch(0.65 0.18 160);
-  --chart-3: oklch(0.7 0.18 50);
-  --chart-4: oklch(0.6 0.22 25);
-  --chart-5: oklch(0.55 0.18 200);
-  --sidebar: oklch(0.1 0.01 260);
-  --sidebar-foreground: oklch(0.85 0 0);
-  --sidebar-primary: oklch(0.64 0.17 274);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.2 0.01 260);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.25 0.01 260);
-  --sidebar-ring: oklch(0.65 0.2 280);
-  --success: oklch(0.65 0.18 160);
-  --success-foreground: oklch(0.98 0 0);
-  --warning: oklch(0.7 0.18 50);
-  --warning-foreground: oklch(0.15 0 0);
-  --info: oklch(0.55 0.18 200);
-  --info-foreground: oklch(0.98 0 0);
+  --background: oklch(0.16 0.02 266);
+  --foreground: oklch(0.965 0.005 260);
+  --card: oklch(0.18 0.026 270);
+  --card-foreground: oklch(0.965 0.005 260);
+  --popover: oklch(0.205 0.026 268);
+  --popover-foreground: oklch(0.965 0.005 260);
+  --secondary: oklch(0.235 0.024 266);
+  --secondary-foreground: oklch(0.87 0.01 260);
+  --muted: oklch(0.255 0.022 266);
+  --muted-foreground: oklch(0.735 0.018 258);
+  --accent: oklch(0.255 0.035 240);
+  --accent-foreground: oklch(0.965 0.005 260);
+  --primary: oklch(0.685 0.148 237);
+  --primary-foreground: oklch(0.17 0.03 250);
+  --success: oklch(0.696 0.149 163);
+  --success-foreground: oklch(0.17 0.03 250);
+  --warning: oklch(0.769 0.165 70);
+  --warning-foreground: oklch(0.17 0.03 250);
+  --info: oklch(0.715 0.126 215);
+  --info-foreground: oklch(0.17 0.03 250);
+  --destructive: oklch(0.637 0.208 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-solid: oklch(0.565 0.195 25);
+  --border: oklch(0.27 0.02 266);
+  --input: oklch(0.29 0.022 266);
+  --ring: oklch(0.685 0.148 237);
+  --surface-line: rgb(255 255 255 / 0.08);
+  --surface-line-strong: rgb(255 255 255 / 0.16);
+  --surface-hover: rgb(255 255 255 / 0.03);
+  --surface-raise: rgb(255 255 255 / 0.025);
+  --chart-1: oklch(0.685 0.148 237);
+  --chart-2: oklch(0.696 0.149 163);
+  --chart-3: oklch(0.769 0.165 70);
+  --chart-4: oklch(0.637 0.208 25);
+  --chart-5: oklch(0.72 0.15 310);
+  --sidebar: oklch(0.14 0.02 266);
+  --sidebar-foreground: oklch(0.87 0.01 260);
+  --sidebar-primary: oklch(0.685 0.148 237);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-accent: oklch(0.215 0.024 266);
+  --sidebar-accent-foreground: oklch(0.965 0.005 260);
+  --sidebar-border: oklch(0.25 0.02 266);
+  --sidebar-ring: oklch(0.685 0.148 237);
 }
 
 @theme inline {
@@ -110,9 +171,17 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-solid: var(--destructive-solid);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* Linhas e superficies translucidas expostas como utilitario Tailwind:
+     `border-surface-line`, `bg-surface-hover`. E' o que permite a regra "zero
+     hex literal em componente" sem perder os valores white/8% e white/3%. */
+  --color-surface-line: var(--surface-line);
+  --color-surface-line-strong: var(--surface-line-strong);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-raise: var(--surface-raise);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -175,29 +244,226 @@
   }
 }
 
-/* Custom scrollbar for dark theme */
+/* ============================================================================
+   UTILITARIOS DO SISTEMA
+
+   Ficam em @layer components (perdem para utilitarios Tailwind escritos na
+   mesma tag, que e' o comportamento desejado: o componente ainda consegue
+   sobrescrever um caso pontual).
+   ============================================================================ */
+
+@layer components {
+  /* Dado tecnico: IP, hostname, MAC, serial, porta, versao, id, CPU.
+     `tracking-tight` no monoespacado e' o que impede a coluna de parecer
+     "espacada demais" ao lado da Inter. Numero tabular para a coluna nao
+     dancar entre linhas, e ligadura desligada porque "->" num hostname nao e'
+     uma seta. */
+  .data-mono {
+    font-family: var(--font-mono);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    font-variant-ligatures: none;
+  }
+
+  /* Titulo de secao / cabecalho de coluna / rotulo de KPI. Uma regra so para
+     os tres, porque no sistema eles sao a mesma coisa: o nome do bloco que
+     vem abaixo. 11px/700/0.1em e' o valor pedido no escopo. */
+  .section-label {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-foreground);
+  }
+
+  /* Ponto de estado. ESTATICO de proposito: uma listagem de 142 maquinas
+     renderizaria 142 `animate-ping` simultaneos — custo de render real e
+     ruido visual numa tabela densa. O halo e' box-shadow (nao um segundo
+     elemento animado) e herda a cor do tom via currentColor. */
+  .status-dot {
+    display: inline-block;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    flex: none;
+    border-radius: 9999px;
+    background-color: currentColor;
+    box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 20%, transparent);
+  }
+
+  /* Superficie interativa: card de KPI, tile clicavel.
+     Tres decisoes registradas aqui:
+     1. SEM backdrop-blur. Blur num card opaco sobre fundo chapado nao produz
+        efeito nenhum e custa GPU; vidro so em superficie que se sobrepoe a
+        conteudo (ver bloco .glass-* no fim do arquivo).
+     2. Elevacao declarada UMA vez. Em repouso, quem carrega a superficie e' a
+        borda de 1px — sem shadow. A sombra aparece no hover, como FEEDBACK de
+        estado, e carrega offset + blur reais; o halo colorido e' acento por
+        cima da profundidade, nunca a profundidade inteira.
+     3. O tom vem de --surface-glow, que o componente define apontando para um
+        token (--color-success, --color-warning, ...). Nenhum rgba literal. */
+  .surface-interactive {
+    --surface-glow: var(--primary);
+    transition-property: color, background-color, border-color, box-shadow, transform;
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .surface-interactive:hover {
+    border-color: color-mix(in oklab, var(--surface-glow) 40%, transparent);
+    box-shadow:
+      0 10px 24px -14px rgb(0 0 0 / 0.75),
+      0 0 20px -4px color-mix(in oklab, var(--surface-glow) 30%, transparent);
+    transform: translateY(-2px);
+  }
+
+  .surface-interactive:focus-visible {
+    border-color: color-mix(in oklab, var(--surface-glow) 55%, transparent);
+  }
+
+  /* Linha de tabela clicavel: alem do lavado branco de 3%, um gradiente curto
+     partindo da esquerda na cor primaria. E' o que separa, sem legenda, a
+     linha que NAVEGA da linha que so tem um link interno. */
+  .row-interactive:hover {
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--primary) 12%, transparent) 0%,
+      transparent 45%
+    );
+  }
+
+  /* Barra de uso de disco.
+     O gradiente e' de ESCALA, nao de estado: as paradas de cor ficam ancoradas
+     nos mesmos limiares de `getDiskUsageTier` (60% e 80%), e a barra e' um
+     recorte dessa escala. Consequencia: a cor na posicao X significa sempre a
+     mesma coisa, entre discos e entre linhas — e' um medidor, nao um badge
+     esticado. */
+  .disk-usage-scale {
+    background-image: linear-gradient(
+      90deg,
+      var(--success) 0%,
+      var(--success) 56%,
+      var(--warning) 64%,
+      var(--warning) 76%,
+      var(--destructive) 84%,
+      var(--destructive) 100%
+    );
+  }
+
+  /* Marcacao de limiar (60% / 80%) desenhada DENTRO do trilho. Branco
+     translucido porque precisa aparecer tanto sobre o trilho escuro quanto
+     sobre a parte preenchida saturada. */
+  .disk-usage-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--surface-line-strong);
+  }
+}
+
+/* ============================================================================
+   SUPERFICIES DE VIDRO
+
+   Fora de @layer de proposito: precisa vencer o `bg-popover` que os
+   componentes shadcn ja aplicam como utilitario.
+
+   Blur SO aqui — nestas superficies ele de fato desfoca conteudo por baixo,
+   que e' a unica situacao em que backdrop-filter produz alguma coisa alem de
+   custo de GPU.
+   ============================================================================ */
+[data-slot='popover-content'],
+[data-slot='dropdown-menu-content'],
+[data-slot='dropdown-menu-sub-content'],
+[data-slot='context-menu-content'],
+[data-slot='select-content'],
+[data-slot='dialog-content'],
+[data-slot='alert-dialog-content'],
+[data-slot='sheet-content'],
+[data-slot='drawer-content'],
+.glass-surface {
+  background-color: color-mix(in oklab, var(--popover) 84%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-color: var(--surface-line);
+}
+
+[data-slot='dialog-overlay'],
+[data-slot='alert-dialog-overlay'],
+[data-slot='sheet-overlay'],
+[data-slot='drawer-overlay'] {
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/* ============================================================================
+   MOVIMENTO
+
+   Toda animacao continua e todo deslocamento de hover desligam sob
+   prefers-reduced-motion. A cor de estado permanece — quem pediu menos
+   movimento nao pediu menos informacao.
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .surface-interactive:hover {
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   SUPERFICIES DO NAVEGADOR
+
+   Selecao, cursor, scrollbar e ring de foco vem com default que nao pertence a
+   nenhum sistema de design. Sao tematizados aqui a partir dos mesmos tokens.
+   ============================================================================ */
+::selection {
+  background-color: color-mix(in oklab, var(--primary) 32%, transparent);
+  color: var(--foreground);
+}
+
+html {
+  caret-color: var(--primary);
+  accent-color: var(--primary);
+  scrollbar-color: var(--border) var(--background);
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--muted);
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
+  background-clip: padding-box;
 }
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Fix autofill colors for dark theme */
 input:-webkit-autofill,
-input:-webkit-autofill:hover, 
-input:-webkit-autofill:focus, 
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
   -webkit-background-clip: text;
   -webkit-text-fill-color: var(--foreground) !important;

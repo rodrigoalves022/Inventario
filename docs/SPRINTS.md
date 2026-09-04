@@ -1553,6 +1553,87 @@ mantivesse o seu wrapper local). Remoção de `components/ui/table.tsx` (Backlog
 
 ---
 
+## Overhaul visual — Fase 1 de 4 (fundação e superfícies)
+
+**Status**: 🟢 Concluída (2026-09-04). Execução direta pedida pelo usuário ("quero repaginação, mudar
+a visualização; tudo do visual"), com autorização explícita para o orquestrador remover partes do
+pedido com que não concordasse. É a primeira de **4 fases**: (1) fundação e superfícies — esta;
+(2) app shell (sidebar, header, breadcrumbs, cabeçalho de página, CMD+K); (3) paginação nas tabelas
+com sincronia de URL; (4) dashboard (hero, grid de KPI, painéis duplos). A ordem é deliberada: como
+paleta e componentes compartilhados são centralizados, a Fase 1 sozinha repinta as 15 telas.
+
+**Documento de design**: criado `DESIGN.md` na raiz (444 linhas) — não existia. Cobre paleta com o
+papel de cada token, escala tipográfica, superfície/elevação, estados de interação, movimento
+(incluindo `prefers-reduced-motion`), componentes de dado, acessibilidade e uma seção explícita de
+proibições. É a referência das Fases 2–4.
+
+**Decisões do orquestrador que alteraram o pedido original** (o usuário autorizou):
+
+1. **Paleta como token OKLCH, nunca hex em componente.** O pedido trazia hex literais
+   (`#090D16`, `#0EA5E9`…). Espalhar hex pelos componentes destruiria a centralização consolidada no
+   ajuste pós-Sprint 15. Os hex foram convertidos para OKLCH e aplicados sobre os tokens que já
+   existiam em `app/globals.css`.
+2. **`animate-ping` não vai em linha de tabela.** Uma listagem de 142 máquinas renderizaria 142
+   animações simultâneas. O ponto de status em linha é estático; o ping fica reservado a indicadores
+   únicos por tela (o de agentes online chega na Fase 2).
+3. **`backdrop-blur` só em superfície que se sobrepõe a conteúdo** (header fixo, modal, popover,
+   drawer). Em card opaco sobre fundo chapado o blur não produz efeito visível e só custa GPU.
+4. **Fonte Outfit não adicionada.** `Inter` e `JetBrains Mono` já estavam configuradas via
+   `next/font/google`; trocar a fonte de interface inteira arriscaria layout shift em todas as telas
+   sem contrapartida. O que faltava e foi feito: aplicar `font-mono tracking-tight` de forma
+   consistente em todo dado técnico (IP, hostname, MAC, CPU, serial, portas), que era irregular.
+5. **Gaveta de detalhes ao clicar na linha ficou fora** — hoje a linha navega para a página de
+   detalhe; trocar por drawer é mudança de fluxo, não de visual.
+6. **`app/admin/clients/**` e `app/users/page.tsx` intocados**, conforme o usuário determinou ao
+   reverter o commit `65c5d96` nesses arquivos (ver `2425bd9`).
+
+**Verificação independente do orquestrador.** O `implementation-agent` foi interrompido por limite de
+sessão da API já com todo o código pronto, faltando só esta entrada de documentação — que foi escrita
+pelo orquestrador. O código foi verificado integralmente: `npx tsc --noEmit`, `npm run lint` e
+`npm run build` limpos; `npx vitest run` **451/451 em 51 arquivos**, sem nenhum teste alterado.
+
+Além disso, duas afirmações do agente foram **conferidas por cálculo**, não aceitas de palavra:
+
+- *Fidelidade da conversão hex → OKLCH*: reconvertendo cada token de volta para sRGB, todos caem a
+  1–4 unidades do alvo (`--primary` `oklch(0.685 0.148 237)` → `#0aa5e9` para alvo `#0EA5E9`;
+  `--background` → `#090d16` exato; `--card` → `#0d111d` exato; `--warning` → `#f59e0a` para
+  `#F59E0B`; `--destructive` → `#ef4445` para `#EF4444`).
+- *Contraste*: `--muted-foreground` (`#A2AAB5`) dá **8.03:1** sobre o card e **8.28:1** sobre o
+  fundo — exatamente os números que o agente reportou. Todos os tons de estado passam AA sobre o
+  card: primary 6.80, success 7.42, warning 8.77, destructive 5.00 (o mais apertado, ainda acima do
+  piso de 4.5).
+
+**Observação de percepção, registrada para não virar surpresa**: o fundo novo **não** é mais escuro
+que o anterior. O `--background` antigo era `oklch(0.12 0.01 260)` ≈ `#040609`, quase preto puro; o
+alvo pedido (`#090D16`) é ligeiramente mais claro, porém com cast azul frio. A mudança percebida é de
+*temperatura e profundidade de camada*, não de escuridão bruta.
+
+**Decisões de craft do agente que superaram o pedido** (avaliadas e mantidas):
+
+- **A barra de disco virou gradiente de ESCALA, não de estado.** O pedido era gradiente
+  Emerald→Amber→Crimson com marcações em 60% e 80%. O agente trocou o antigo
+  `DISK_USAGE_TIER_BAR_CLASS` (mapa tier → cor chapada) por `disk-usage-scale`: a faixa inteira
+  0–100% é pintada com as trocas de cor exatamente sobre os limiares, e a barra é um recorte dessa
+  escala. Consequência boa: a cor passa a depender da **posição**, não do tier, então significa a
+  mesma coisa entre discos e entre linhas. O tier continua governando o número ao lado e o filtro
+  por faixa dos cards de KPI.
+- **`DISK_USAGE_THRESHOLDS` como fonte de verdade única** (`lib/disk-usage.ts`), consumida tanto por
+  `getDiskUsageTier` quanto pelas marcações visuais — sem isso, marca e cor poderiam divergir do tier
+  sem nada acusar. A semântica exclusiva foi preservada: 60% ainda é "ok", 80% ainda é "warning".
+- **`--accent` deixou de ser cor de marca** e virou a superfície de hover do sistema. O agente
+  percebeu o efeito colateral: o halo decorativo de `app/login/page.tsx` usava `bg-accent/10` e teria
+  ficado quase invisível; migrou para `--info` (o Neon Teal), que é a cor que ele pintava antes.
+- **`prefers-reduced-motion` global** em `app/globals.css`, desligando animação e transição — mas
+  preservando a cor de estado, com a nota correta de que "quem pediu menos movimento não pediu menos
+  informação".
+
+**Arquivos**: `app/globals.css` (paleta, utilitários e keyframes), `DESIGN.md` (novo),
+`lib/table-styles.ts`, `lib/disk-usage.ts`, `components/ui/{summary-card,status-pill,badge,button,card,input}.tsx`,
+`components/stat-cards.tsx`, as 6 tabelas de listagem de tenant, `app/app/[clientSlug]/network/page.tsx`
+e `app/login/page.tsx`.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são

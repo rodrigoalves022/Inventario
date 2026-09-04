@@ -28,22 +28,35 @@ interface StatCardProps {
   valueClassName?: string
 }
 
+/**
+ * Tom da variante. Duas mudancas do Overhaul visual, Fase 1:
+ *
+ * 1. Saiu a barra colorida de 4px em `border-l`. Uma borda colorida grossa num
+ *    dos lados e' o adesivo que se cola num card generico para ele parecer
+ *    categorizado; a borda de 1px reagindo em TODO o perimetro diz a mesma
+ *    coisa e ainda serve de estado de hover. O tom continua legivel em repouso
+ *    pela borda tingida e pelo chip do icone.
+ * 2. `--surface-glow` aponta para o token da variante, e `surface-interactive`
+ *    (app/globals.css) usa a variavel para pintar borda e halo do hover. Assim
+ *    o card de alerta brilha ambar e o de falha brilha vermelho, sem um unico
+ *    rgba() literal no componente.
+ */
 const variantStyles = {
-  default: 'border-border',
-  primary: 'border-l-4 border-l-primary border-t-0 border-r-0 border-b-0',
-  success: 'border-l-4 border-l-success border-t-0 border-r-0 border-b-0',
-  warning: 'border-l-4 border-l-warning border-t-0 border-r-0 border-b-0',
-  danger: 'border-l-4 border-l-destructive border-t-0 border-r-0 border-b-0',
-  info: 'border-l-4 border-l-info border-t-0 border-r-0 border-b-0',
+  default: 'border-surface-line [--surface-glow:var(--color-primary)]',
+  primary: 'border-primary/25 [--surface-glow:var(--color-primary)]',
+  success: 'border-success/25 [--surface-glow:var(--color-success)]',
+  warning: 'border-warning/25 [--surface-glow:var(--color-warning)]',
+  danger: 'border-destructive/25 [--surface-glow:var(--color-destructive)]',
+  info: 'border-info/25 [--surface-glow:var(--color-info)]',
 }
 
 const iconStyles = {
   default: 'bg-muted text-muted-foreground',
-  primary: 'bg-primary/10 text-primary',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  danger: 'bg-destructive/10 text-destructive',
-  info: 'bg-info/10 text-info',
+  primary: 'bg-primary/12 text-primary',
+  success: 'bg-success/12 text-success',
+  warning: 'bg-warning/12 text-warning',
+  danger: 'bg-destructive/12 text-destructive',
+  info: 'bg-info/12 text-info',
 }
 
 function formatPercent(part: number, total: number) {
@@ -59,20 +72,19 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
       href={href as string}
       className={cn(
         // Mesma casca do SummaryCard (components/ui/summary-card.tsx): mesmo
-        // raio, mesmo padding, mesma transicao. `h-full flex flex-col
+        // raio, mesmo padding, mesma transicao, mesma regra de elevacao
+        // (borda de 1px em repouso; sombra + halo so no hover). `h-full flex flex-col
         // justify-between` separa o card em duas faixas — titulo+icone em cima,
         // valor+subtitulo embaixo — para que os NUMEROS fiquem na mesma altura
         // ao longo da fileira mesmo quando os titulos quebram em numero
         // diferente de linhas ("Taxa de disponibilidade" vs "Status warning").
-        'flex h-full w-full select-none flex-col justify-between gap-3 rounded-xl border bg-card p-4 shadow-sm transition-all duration-150 hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
+        'surface-interactive flex h-full w-full select-none flex-col justify-between gap-3 rounded-xl border bg-card p-4',
         variantStyles[variant],
-        href && 'cursor-pointer hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        href && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </p>
+        <p className="section-label">{title}</p>
         {icon && (
           <div className={cn(
             'flex shrink-0 items-center justify-center rounded-lg',
@@ -84,7 +96,15 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
         )}
       </div>
       <div className="space-y-1">
-        <p className={cn('font-bold', featured ? 'text-4xl' : 'text-2xl', valueClassName ?? 'text-card-foreground')}>{value}</p>
+        <p
+          className={cn(
+            'font-bold tabular-nums tracking-tight',
+            featured ? 'text-4xl' : 'text-2xl',
+            valueClassName ?? 'text-card-foreground'
+          )}
+        >
+          {value}
+        </p>
         {subtitle && (
           <p className={cn('text-muted-foreground', featured ? 'text-sm' : 'text-xs')}>{subtitle}</p>
         )}

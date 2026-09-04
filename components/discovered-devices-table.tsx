@@ -6,7 +6,14 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  STATIC_ROW_HOVER_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_DATA_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
 import type { DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
 
 /**
@@ -138,7 +145,7 @@ export function DiscoveredDevicesTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
         <table className="w-full text-sm">
           <thead>
             <tr className={TABLE_HEAD_ROW_CLASS}>
@@ -171,8 +178,8 @@ export function DiscoveredDevicesTable({
             ) : (
               filtered.map((device) => (
                 <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
-                  <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>{device.ip}</td>
-                  <td className={cn(TABLE_CELL_CLASS, 'font-mono text-muted-foreground')}>{device.mac ?? '-'}</td>
+                  <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>{device.ip}</td>
+                  <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{device.mac ?? '-'}</td>
                   <td className={TABLE_CELL_CLASS}>{device.hostname ?? '-'}</td>
                   <td className={TABLE_CELL_CLASS}>
                     <Badge
@@ -195,7 +202,7 @@ export function DiscoveredDevicesTable({
                     ) : null}
                     {!device.vendor && !device.snmpSysDescr ? '-' : null}
                   </td>
-                  <td className={cn(TABLE_CELL_CLASS, 'font-mono text-xs text-muted-foreground')}>
+                  <td className={cn(TABLE_DATA_CELL_CLASS, 'text-xs text-muted-foreground')}>
                     {device.openPorts ?? '-'}
                   </td>
                   <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{formatLastSeen(device.lastSeenAt)}</td>

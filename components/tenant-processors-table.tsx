@@ -7,7 +7,13 @@ import { Cpu, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { SummaryCard } from '@/components/ui/summary-card'
 import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
+import {
+  STATIC_ROW_HOVER_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
 import { getVendorGroup } from '@/lib/processor-vendor'
 
 export type TenantProcessorRow = {
@@ -134,7 +140,7 @@ export function TenantProcessorsTable({
             : 'Nenhum processador encontrado para o filtro selecionado.'}
         </div>
       ) : (
-        <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+        <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -177,7 +183,7 @@ export function TenantProcessorsTable({
                     <td className={TABLE_CELL_CLASS}>
                       <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                         {processor.devices.slice(0, MAX_VISIBLE_DEVICES).map((device) => (
-                          <span key={device.id} className="font-mono">
+                          <span key={device.id} className="data-mono">
                             {device.hostname}
                             <span className="ml-1.5 font-sans text-muted-foreground/80">
                               {device.usuario ? `— ${device.usuario} (snapshot)` : ''}
