@@ -53,7 +53,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
       {/* Usa o StatCard base (components/stat-cards.tsx) em vez de reimplementar
           o hover à mão — elimina a duplicação e corrige o bug do card estático
           ("Taxa de disponibilidade") que antes não tinha hover nenhum. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Taxa de disponibilidade"
           value={`${summary.availabilityPercent}%`}

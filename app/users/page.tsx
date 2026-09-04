@@ -9,6 +9,7 @@ import {
   type AppRole,
 } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
+import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 
 const ROLE_LABELS: Record<AppRole, string> = {
   PLATFORM_ADMIN: 'Administrador da plataforma',
@@ -62,11 +63,11 @@ export default async function UsersPage() {
             <div className="overflow-hidden rounded-xl border bg-card">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-secondary/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">Usuário</th>
-                    <th className="px-4 py-3 font-medium">Papel</th>
-                    <th className="px-4 py-3 font-medium">Escopo</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
+                  <tr className={TABLE_HEAD_ROW_CLASS}>
+                    <th className={TABLE_HEAD_CLASS}>Usuário</th>
+                    <th className={TABLE_HEAD_CLASS}>Papel</th>
+                    <th className={TABLE_HEAD_CLASS}>Escopo</th>
+                    <th className={TABLE_HEAD_CLASS}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -78,18 +79,18 @@ export default async function UsersPage() {
                     </tr>
                   ) : (
                     users.map((row) => (
-                      <tr key={row.id} className="border-b last:border-0 hover:bg-muted/40">
-                        <td className="px-4 py-3">
+                      <tr key={row.id} className={cn('border-b last:border-0', STATIC_ROW_HOVER_CLASS)}>
+                        <td className={TABLE_CELL_CLASS}>
                           <p className="font-medium text-foreground">{row.name ?? '—'}</p>
                           <p className="text-xs text-muted-foreground">{row.email}</p>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">
+                        <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
                           {ROLE_LABELS[row.role as AppRole] ?? row.role}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">
+                        <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
                           {row.client?.name ?? row.organization?.name ?? 'Plataforma'}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className={TABLE_CELL_CLASS}>
                           <span
                             className={cn(
                               'rounded-full border px-2.5 py-0.5 text-xs font-medium',

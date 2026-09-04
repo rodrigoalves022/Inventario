@@ -16,11 +16,12 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
 import { SummaryCard } from '@/components/ui/summary-card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { cn } from '@/lib/utils'
-import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
+import { CLICKABLE_ROW_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
 
@@ -34,23 +35,29 @@ function formatLastCollection(value: string | null) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
 
-function getStatusBadge(status: TenantComputerRow['effectiveStatus']) {
-  if (status === 'offline') return 'bg-destructive/10 text-destructive'
-  if (status === 'warning') return 'bg-warning/10 text-warning'
-  return 'bg-success/10 text-success'
+/**
+ * Traducao do STATUS EFETIVO (`getEffectiveDeviceStatus`: online | warning |
+ * offline — presenca combinada com alertas de disco/RAM) para a pilula
+ * compartilhada. O vocabulario continua sendo o desta tela: "offline" aqui e
+ * uma falha ativa (tom destructive), diferente do "offline" de PRESENCA usado
+ * em /storage, que e apenas ausencia de coleta recente (tom neutral).
+ * Compartilhado entre a linha da tabela (desktop) e o card (mobile) — mesmo
+ * dado, duas formas.
+ */
+const STATUS_TONE: Record<TenantComputerRow['effectiveStatus'], StatusPillTone> = {
+  online: 'success',
+  warning: 'warning',
+  offline: 'destructive',
 }
 
-/** Compartilhado entre a linha da tabela (desktop) e o card (mobile) — mesmo dado, duas formas. */
-function StatusPill({ status }: { status: TenantComputerRow['effectiveStatus'] }) {
+function DeviceStatusPill({ status }: { status: TenantComputerRow['effectiveStatus'] }) {
+  const Icon = status === 'offline' ? WifiOff : status === 'warning' ? TriangleAlert : Wifi
   return (
-    <div
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm border ${getStatusBadge(status)}`}
-    >
-      {status === 'offline' ? <WifiOff className="h-3 w-3" /> : null}
-      {status === 'warning' ? <TriangleAlert className="h-3 w-3" /> : null}
-      {status === 'online' ? <Wifi className="h-3 w-3" /> : null}
-      {status === 'offline' ? 'Desconectado' : status}
-    </div>
+    <StatusPill
+      tone={STATUS_TONE[status]}
+      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
+      label={status === 'offline' ? 'Desconectado' : status}
+    />
   )
 }
 
@@ -243,9 +250,9 @@ export function TenantComputersTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-muted/50 text-muted-foreground">
+              <tr className={TABLE_HEAD_ROW_CLASS}>
                 {canBulkOperate && (
-                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider w-10">
+                  <th className={cn(TABLE_HEAD_CLASS, 'w-10')}>
                     <Checkbox
                       aria-label="Selecionar todos os dispositivos visíveis"
                       checked={
@@ -262,15 +269,13 @@ export function TenantComputersTable({
                     />
                   </th>
                 )}
-                <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Hostname</th>
-                {showTypeColumn && (
-                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Tipo</th>
-                )}
-                <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Rede / IP</th>
-                <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">RAM / Disco</th>
-                <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Alertas ativos</th>
-                <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Última Coleta</th>
-                <th className="px-5 py-4 text-left font-semibold uppercase tracking-wider">Status</th>
+                <th className={TABLE_HEAD_CLASS}>Hostname</th>
+                {showTypeColumn && <th className={TABLE_HEAD_CLASS}>Tipo</th>}
+                <th className={TABLE_HEAD_CLASS}>Rede / IP</th>
+                <th className={TABLE_HEAD_CLASS}>RAM / Disco</th>
+                <th className={TABLE_HEAD_CLASS}>Alertas ativos</th>
+                <th className={TABLE_HEAD_CLASS}>Última Coleta</th>
+                <th className={TABLE_HEAD_CLASS}>Status</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -307,7 +312,7 @@ export function TenantComputersTable({
                     {canBulkOperate && (
                       // stopPropagation: mesmo padrao do <Link> do hostname abaixo —
                       // marcar a checkbox nao pode disparar a navegacao da linha.
-                      <td className="px-5 py-4" onClick={(event) => event.stopPropagation()}>
+                      <td className={TABLE_CELL_CLASS} onClick={(event) => event.stopPropagation()}>
                         <Checkbox
                           aria-label={`Selecionar ${device.hostname}`}
                           checked={selectedIds.has(device.id)}
@@ -315,7 +320,7 @@ export function TenantComputersTable({
                         />
                       </td>
                     )}
-                    <td className="px-5 py-4 font-mono font-medium">
+                    <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
                       <Link
                         href={device.detailsPath}
                         onClick={(event) => event.stopPropagation()}
@@ -328,16 +333,16 @@ export function TenantComputersTable({
                       </p>
                     </td>
                     {showTypeColumn && (
-                      <td className="px-5 py-4">
+                      <td className={TABLE_CELL_CLASS}>
                         <DeviceTypeBadge sistema={device.sistema} />
                       </td>
                     )}
-                    <td className="px-5 py-4">
+                    <td className={TABLE_CELL_CLASS}>
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                         {device.ip ?? '0.0.0.0'}
                       </code>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className={TABLE_CELL_CLASS}>
                       <div className="flex items-center gap-3 text-xs font-medium">
                         <div className={`flex items-center gap-1 ${
                           device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'
@@ -353,16 +358,16 @@ export function TenantComputersTable({
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className={TABLE_CELL_CLASS}>
                       <div className="flex flex-wrap gap-1.5">
                         <IssueBadges deviceId={device.id} issues={device.issues} />
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-muted-foreground tabular-nums">
+                    <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground tabular-nums')}>
                       {formatLastCollection(device.lastCollectionAt)}
                     </td>
-                    <td className="px-5 py-4">
-                      <StatusPill status={device.effectiveStatus} />
+                    <td className={TABLE_CELL_CLASS}>
+                      <DeviceStatusPill status={device.effectiveStatus} />
                     </td>
                   </tr>
                 ))
@@ -399,7 +404,7 @@ export function TenantComputersTable({
                       {device.sistema ?? 'N/A'}
                     </p>
                   </div>
-                  <StatusPill status={device.effectiveStatus} />
+                  <DeviceStatusPill status={device.effectiveStatus} />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-medium">

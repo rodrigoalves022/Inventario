@@ -2,7 +2,8 @@ import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantNetworkWhere } from '@/lib/tenant-scope'
 import { getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
-import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
+import { cn } from '@/lib/utils'
+import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 import { DiscoveredDevicesTable, type DiscoveredDeviceRow } from '@/components/discovered-devices-table'
 import { DISCOVERED_DEVICE_TYPES, type DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
 
@@ -124,13 +125,13 @@ export default async function TenantNetworkPage({ params }: PageProps<'/app/[cli
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-secondary/50">
-              <th className="px-4 py-3 text-left font-semibold">Segmento</th>
-              <th className="px-4 py-3 text-left font-semibold">Subnet</th>
-              <th className="px-4 py-3 text-left font-semibold">Gateway</th>
-              <th className="px-4 py-3 text-left font-semibold">Total</th>
-              <th className="px-4 py-3 text-left font-semibold">Ativos</th>
-              <th className="px-4 py-3 text-left font-semibold">Utilização</th>
+            <tr className={TABLE_HEAD_ROW_CLASS}>
+              <th className={TABLE_HEAD_CLASS}>Segmento</th>
+              <th className={TABLE_HEAD_CLASS}>Subnet</th>
+              <th className={TABLE_HEAD_CLASS}>Gateway</th>
+              <th className={TABLE_HEAD_CLASS}>Total</th>
+              <th className={TABLE_HEAD_CLASS}>Ativos</th>
+              <th className={TABLE_HEAD_CLASS}>Utilização</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -145,17 +146,17 @@ export default async function TenantNetworkPage({ params }: PageProps<'/app/[cli
                 const utilization = segment.devices > 0 ? (segment.active / segment.devices) * 100 : 0
                 return (
                   <tr key={segment.subnet} className={STATIC_ROW_HOVER_CLASS}>
-                    <td className="px-4 py-3 font-medium">{segment.subnet}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{segment.subnet}</td>
-                    <td className="px-4 py-3 font-mono text-muted-foreground">{segment.gateway}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{segment.devices}</td>
-                    <td className="px-4 py-3">
+                    <td className={cn(TABLE_CELL_CLASS, 'font-medium')}>{segment.subnet}</td>
+                    <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{segment.subnet}</td>
+                    <td className={cn(TABLE_CELL_CLASS, 'font-mono text-muted-foreground')}>{segment.gateway}</td>
+                    <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{segment.devices}</td>
+                    <td className={TABLE_CELL_CLASS}>
                       <span className="inline-flex items-center gap-2">
                         <span className="h-2 w-2 rounded-full bg-success" />
                         {segment.active}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={TABLE_CELL_CLASS}>
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-20 rounded-full bg-secondary">
                           <div className="h-full rounded-full bg-primary" style={{ width: `${utilization}%` }} />

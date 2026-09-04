@@ -1405,6 +1405,154 @@ normalizar strings de WMI no banco (o colapso do fabricante é feito na leitura,
 
 ---
 
+## Ajuste pós-Sprint 15 — Padronização visual de tabelas e cards de KPI
+
+**Status**: 🟢 Concluído (2026-09-04). Execução direta aprovada pelo usuário nesta conversa (o próprio
+usuário escreveu o escopo, a partir de 5 screenshots das telas inconsistentes), com 9 correções
+técnicas do orquestrador aplicadas antes da implementação — ver seção própria abaixo. **Não é uma
+sprint numerada**: não cria RF/RN, não toca rota, guard, query, schema nem `agent-go/`; é um ajuste
+de apresentação sobre o que a Sprint 15 entregou.
+
+**Verificação independente do orquestrador**: `npx tsc --noEmit`, `npm run lint` e `npm run build`
+limpos; `npx vitest run` **451/451 em 51 arquivos, estável em 2 execuções consecutivas** (nenhum
+teste precisou ser alterado — a suíte assere comportamento, nunca string de classe, o que é
+exatamente o que tornou esta padronização segura). Conferido por `grep` que **as 10 tabelas importam
+os tokens** e que **não sobrou nenhum `<th className="px-…"` hardcoded** fora da exceção documentada;
+`git diff --stat components/device-detail-tabs.tsx` vazio, confirmando que a exceção foi respeitada
+de fato, não só documentada. Revisão manual de `components/ui/status-pill.tsx` (a distinção RN010
+entre presença e status efetivo está preservada, com o tom `neutral` existindo só para
+presença-offline e o `destructive` reservado a falha ativa) e de `lib/table-styles.ts`.
+
+Uma alteração fora da lista das 10 tabelas foi verificada e aprovada: `app/app/[clientSlug]/reports/page.tsx`
+teve `sm:grid-cols-2` → `md:grid-cols-2`, que é a unificação de grid pedida no escopo (o arquivo
+não estava no inventário de `<th>` porque o que ele tem é grid de `StatCard`, não tabela).
+
+**Objetivo**: fazer as tabelas de listagem e os cards de KPI parecerem o mesmo sistema. Antes deste
+ajuste conviviam **6 variantes diferentes de `<th>`** (`px-4`/`px-5`, `py-3`/`py-4`,
+`font-medium`/`font-semibold`, com e sem `uppercase`, `bg-muted/50` vs `bg-secondary/50` vs
+`bg-secondary/40` vs `bg-secondary/30`) em 10 tabelas, e a diferença aparecia lado a lado ao navegar
+entre `/servers`, `/computers` e `/network`. Refinamento de UI de **RF019** — nenhum RF/RN novo.
+
+### Escopo entregue
+
+| Item | Entrega |
+|---|---|
+| 1 — Tokens centralizados | `lib/table-styles.ts` (arquivo que já existia com `CLICKABLE_ROW_CLASS`/`STATIC_ROW_HOVER_CLASS`, criado justamente para isto) ganhou `TABLE_HEAD_ROW_CLASS`, `TABLE_HEAD_CLASS` e `TABLE_CELL_CLASS`. As 10 tabelas **importam** os tokens — a string não foi colada ~60 vezes, e a próxima correção tem um lugar só |
+| 2 — 10 tabelas padronizadas | `tenant-servers-table.tsx`, `tenant-computers-table.tsx`, `tenant-processors-table.tsx`, `tenant-storage-table.tsx`, `tenant-recent-devices-table.tsx`, `discovered-devices-table.tsx`, `audit-log-table.tsx`, `app/app/[clientSlug]/network/page.tsx`, `app/users/page.tsx`, `app/admin/clients/clients-panel.tsx` |
+| 3 — Pílula de status compartilhada | `components/ui/status-pill.tsx` (novo): componente puramente apresentacional (tom + ícone + rótulo). `PresenceBadge` (storage, dashboard) e `DeviceStatusPill` (computers, servers) passaram a usá-lo **sem colapsar os dois vocabulários** — ver correção 8 abaixo |
+| 4 — Cards de KPI alinhados | `components/ui/summary-card.tsx` e `components/stat-cards.tsx`: `flex h-full w-full select-none flex-col justify-between`, `rounded-xl`, `p-4`, `transition-all duration-150`. Grids unificados em `grid gap-4 md:grid-cols-2 lg:grid-cols-4` (+`xl:grid-cols-5` no grid de 5 cards de `/computers` e do dashboard) |
+
+**Antes → depois do token de cabeçalho**, por arquivo (estado do `<th>`):
+
+| Arquivo | Antes | Depois |
+|---|---|---|
+| `tenant-servers-table.tsx` | `px-4 py-3 text-left font-medium` (**sem uppercase** — é a 1ª screenshot do usuário, cabeçalho em caixa mista) | `TABLE_HEAD_CLASS` |
+| `tenant-computers-table.tsx` | `px-5 py-4 text-left font-semibold uppercase tracking-wider` (**sem `text-xs`**, herdava `text-sm` da `<table>`) | `TABLE_HEAD_CLASS` |
+| `tenant-processors-table.tsx` | `px-5 py-3 … uppercase tracking-wider` | `TABLE_HEAD_CLASS` |
+| `tenant-storage-table.tsx` | `px-5 py-3 … uppercase tracking-wider` | `TABLE_HEAD_CLASS` |
+| `tenant-recent-devices-table.tsx` | `px-4 py-3 text-xs … uppercase tracking-wider` | `TABLE_HEAD_CLASS` |
+| `discovered-devices-table.tsx` | `px-4 py-3 text-left font-semibold`, sem uppercase; `<tr>` em `bg-secondary/50` | `TABLE_HEAD_CLASS` + `TABLE_HEAD_ROW_CLASS` |
+| `audit-log-table.tsx` | `px-4 py-3 text-left font-medium`, sem uppercase; fundo no `<thead>` (`bg-secondary/30`) | `TABLE_HEAD_CLASS` + `TABLE_HEAD_ROW_CLASS` |
+| `app/app/[clientSlug]/network/page.tsx` | `px-4 py-3 text-left font-semibold`, sem uppercase; `<tr>` em `bg-secondary/50` (5ª screenshot) | `TABLE_HEAD_CLASS` + `TABLE_HEAD_ROW_CLASS` |
+| `app/users/page.tsx` | `px-4 py-3 font-medium`, **sem `text-left`**; `<tr>` em `bg-secondary/40` | `TABLE_HEAD_CLASS` + `TABLE_HEAD_ROW_CLASS` |
+| `app/admin/clients/clients-panel.tsx` | `px-4 py-3 text-left font-medium`; borda no `<thead>` | `TABLE_HEAD_CLASS` + `TABLE_HEAD_ROW_CLASS` |
+
+Valores finais dos tokens:
+
+```
+TABLE_HEAD_ROW_CLASS = 'border-b bg-muted/50 text-muted-foreground'   // no <tr> do <thead>
+TABLE_HEAD_CLASS     = 'px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider'
+TABLE_CELL_CLASS     = 'px-5 py-4 align-top'
+```
+
+### As 9 correções do orquestrador — decisões técnicas aplicadas
+
+1. **`npm run check:all` não existe** neste `package.json`. Verificação real: `npx tsc --noEmit`,
+   `npm run lint`, `npm run build`, `npx vitest run` (2x).
+2. **O diagnóstico de "zona morta de clique" do escopo original estava errado; a mudança foi feita
+   por outro motivo.** Um `<button>` filho direto de um grid já recebe `align-self: stretch` e já
+   preenchia a célula — não havia bounding box não-clicável. O problema **real e visível nas
+   screenshots** é outro: os rótulos têm comprimentos muito diferentes ("Total de Dispositivos" vs
+   "Crítico (Acima de 80% usado)"), quebram em número diferente de linhas, e os **números ficavam em
+   alturas diferentes ao longo da fileira**. `h-full flex flex-col justify-between` corrige isso —
+   e é esse o motivo registrado no comentário do código, não "zona morta". `select-none` entrou como
+   melhoria legítima (evita seleção de texto ao clicar repetido num card que é botão).
+3. **Padronizadas as 10 tabelas, não as 4 citadas no escopo.** O objetivo declarado era "100% de
+   consistência"; corrigir só 4 das 10 fora de padrão deixaria o sistema *mais* inconsistente.
+4. **EXCEÇÃO DELIBERADA — `components/device-detail-tabs.tsx` não foi tocado.** As `<th>` de lá
+   (`px-4 py-2 font-medium`) são de **sub-tabelas densas aninhadas dentro das abas de detalhe** do
+   dispositivo (softwares instalados, discos, interfaces), não tabelas de listagem principal. Subir
+   para `py-4` incharia uma aba que mostra dezenas de linhas num painel. A exceção está documentada
+   no comentário do token em `lib/table-styles.ts` para não ser "corrigida" por engano depois.
+5. **Tokens centralizados em `lib/table-styles.ts`**, o arquivo que já existia exatamente para isso,
+   e importados nas 10 tabelas — em vez de a string literal ser colada ~60 vezes.
+6. **`bg-muted/50` e `border-b` ficam no `<tr>` do `<thead>`, não em cada `<th>`.** O escopo original
+   os colocava na classe do `<th>`; repetir background por célula é redundante e pode deixar emenda
+   visível entre células adjacentes. `TABLE_HEAD_CLASS` contém só o que é por célula.
+7. **`text-xs` explícito DIMINUIU o cabeçalho de `/computers`, `/processors` e `/storage`** (as três
+   herdavam `text-sm` da `<table className="w-full text-sm">`). É exatamente o que o usuário pediu e
+   alinha com `tenant-recent-devices-table.tsx`, que já usava `text-xs`, mas é **mudança visível** —
+   fica registrada aqui. Os cabeçalhos continuam legíveis: `text-xs` + `font-semibold` +
+   `uppercase tracking-wider` é o mesmo tratamento já em produção no dashboard desde a Sprint 15.
+8. **Unificado o COMPONENTE de badge, não o vocabulário semântico.** `PresenceBadge` e
+   `DeviceStatusPill` medem coisas diferentes e não intercambiáveis: **presença**
+   (`online | ausente | offline`, derivada da última coleta por `getDevicePresence` — nunca o
+   `Device.status` bruto, **RN010**) e **status efetivo** (`online | warning | offline`, de
+   `getEffectiveDeviceStatus`, que combina presença com alertas de disco/RAM). O novo
+   `components/ui/status-pill.tsx` recebe apenas `tone` + `icon` + `label`; cada chamador continua
+   traduzindo **o seu** enum e lendo **a sua** fonte de dado. "ausente" **não** virou "warning".
+   Consequência deliberada: o tom `neutral` existe só para o "offline" de *presença* (ausência de
+   sinal, `bg-muted`), enquanto o "offline" de *status efetivo* continua `destructive` (falha ativa)
+   — a mesma palavra com dois pesos, porque são duas medidas. `tests/tenant-storage-table.test.tsx`
+   ("usa getDevicePresence (nunca device.status bruto) para o badge de status") continua passando
+   **sem afrouxar a asserção**: os rótulos literais `ausente` e `offline` seguem renderizados.
+9. **Achado lateral registrado, não corrigido**: `components/ui/table.tsx` é código morto — ver
+   Backlog, item 9.
+
+### Verificação executada
+
+| Comando | Resultado |
+|---|---|
+| `npx tsc --noEmit` | ✅ limpo, sem saída |
+| `npm run lint` | ✅ limpo (`eslint app components lib … --max-warnings=0`) |
+| `npm run build` | ✅ sem erro; as 10 rotas afetadas presentes na listagem (`/app/[clientSlug]`, `/computers`, `/servers`, `/processors`, `/storage`, `/network`, `/audit`, `/reports`, `/users`, `/admin/clients` via `/dashboard`) |
+| `npx vitest run` (1ª) | ✅ **451/451 em 51 arquivos** |
+| `npx vitest run` (2ª) | ✅ **451/451 em 51 arquivos** — estável, sem a flakiness "Vitest failed to find the current suite" |
+| `agent-go/` | **N/A** — nenhum arquivo Go tocado |
+
+**Nenhum teste precisou ser ajustado.** Os 451 continuam passando sem edição: os testes de tabela
+asseveram comportamento (navegação da linha, `role`/`tabIndex`, `href` do hostname, contagem de
+linhas, texto renderizado), não strings de classe CSS — que é a razão de a padronização ter sido
+segura. A única mudança estrutural com risco real de quebrar teste era o `StatusPill` compartilhado,
+e ela preservou os rótulos literais (`online`, `ausente`, `offline`, `Desconectado`).
+
+### Definition of Done
+
+| Item | Situação |
+|---|---|
+| Requisito atende `PRODUTO.md`/`PRODUCT.md` | ✅ Refinamento de apresentação de RF019; nenhum documento precisou mudar |
+| RF e RN mapeados | ✅ RF019 (listagens); **RN010** preservada explicitamente na correção 8 (presença ≠ status efetivo). Nenhum ID novo criado |
+| Caso de uso documentado | **N/A** — nenhum fluxo novo nem alterado; só a apresentação dos mesmos dados |
+| Código implementado | ✅ 13 arquivos alterados + 1 novo (`components/ui/status-pill.tsx`) |
+| Validação Zod e isolamento de tenant | ✅ **por não mudar nada disso** — nenhuma entrada externa, query, `where` ou guard foi tocado; a mudança é 100% de classe CSS e composição de componente de apresentação |
+| Banco e migrations | **N/A** — nenhuma mudança de schema |
+| Testes implementados e passando | ✅ 451/451 em 2 execuções. **Nenhum teste novo escrito**: a mudança é de classe CSS/apresentação, e a suíte deste projeto (corretamente) não asserta strings de classe — travar `px-5 py-4` num teste tornaria a próxima mudança de design uma quebra falsa. O comportamento que **importa** e que a mudança poderia ter quebrado (RN010 nos badges, navegação de linha, links) já é coberto pelos testes existentes, que passaram sem edição |
+| Auditoria de segurança | **N/A** — nenhuma rota, guard, segredo, query ou superfície de RBAC tocada; por isso também não se aplica o teste de login real com os 4 papéis |
+| Nenhuma regressão no build | ✅ `tsc`, `lint` e `build` limpos; `agent-go/` intocado |
+| Critérios de aceite aprovados pelo usuário | ⏳ **Pendente** — é exatamente o que falta para virar 🟢. Não marcado como concluído nem commitado pelo `implementation-agent`, por instrução explícita |
+
+### Fora de escopo deste ajuste
+
+`components/device-detail-tabs.tsx` (exceção deliberada, correção 4). A badge "Ativo/Inativo" de
+`app/users/page.tsx` e a "ativo/inativo" de `app/admin/clients/clients-panel.tsx`: são estado de
+**conta**, não de dispositivo, e o escopo aprovado nomeou apenas `PresenceBadge` e `StatusPill` —
+migrá-las para `components/ui/status-pill.tsx` é candidato natural, mas escopo novo. A duplicação
+remanescente do mapa presença → (tom, ícone, rótulo) entre `tenant-storage-table.tsx` e
+`tenant-recent-devices-table.tsx` (já existia antes; o escopo aprovado pedia que cada chamador
+mantivesse o seu wrapper local). Remoção de `components/ui/table.tsx` (Backlog, item 9).
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -1568,3 +1716,21 @@ que importe `publicRoutes` e afirme que toda rota sob `app/api/agent/**/route.ts
 está na lista (barato, pega exatamente esta classe de erro); (b) teste de integração HTTP contra um
 servidor real, que é decisão de infraestrutura de teste bem maior. A opção (a) parece a proporcional,
 mas é escopo novo — fora do que foi aprovado para a Sprint 14.
+
+### 9. `components/ui/table.tsx` é código morto — BAIXO (achado do ajuste pós-Sprint 15)
+
+**Origem**: `implementation-agent`, durante a padronização visual das 10 tabelas (ajuste pós-Sprint
+15). Levantado pelo orquestrador na auditoria prévia e reconfirmado contra o código atual:
+`grep -rn "ui/table" app components lib tests` **não retorna nenhuma linha**.
+
+**Achado**: o componente de tabela do shadcn (`Table`, `TableHeader`, `TableRow`, …) existe no
+repositório mas **não é importado por nenhum arquivo**. Todas as 10 tabelas de listagem usam
+`<table>`/`<thead>`/`<th>` nativos com os tokens de `lib/table-styles.ts`. O arquivo é, hoje, um
+convite a que uma tabela futura seja escrita num padrão diferente do resto do sistema — exatamente
+a inconsistência que o ajuste pós-Sprint 15 acabou de eliminar.
+
+**Por que fica pendente**: é uma decisão de escopo (remover de vez, ou adotá-lo como base e migrar
+as 10 tabelas para ele), não um bug — o código morto não afeta o bundle de produção, já que o
+tree-shaking do Next não inclui módulo não importado. Não foi pedido no escopo aprovado, então
+**não foi corrigido**. Candidato barato: `git rm components/ui/table.tsx` numa sprint futura de
+débito técnico, junto com uma checagem de que nada mais em `components/ui/` está órfão.

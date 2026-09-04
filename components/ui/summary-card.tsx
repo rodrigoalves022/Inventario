@@ -55,7 +55,17 @@ export function SummaryCard({
       data-testid={testId}
       aria-pressed={onClick ? active : undefined}
       className={cn(
-        'rounded-xl border bg-card p-4 text-left transition-all hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
+        // `h-full flex flex-col justify-between` resolve um desalinhamento real
+        // e visivel: os rotulos tem comprimentos muito diferentes ("Total de
+        // Dispositivos" vs "Critico (Acima de 80% usado)"), quebram em numero
+        // diferente de linhas, e sem isso os NUMEROS ficavam em alturas
+        // diferentes ao longo da mesma fileira. Com altura cheia e o valor
+        // empurrado para a base, os numeros da fileira se alinham entre si.
+        // (Nao e correcao de "zona morta de clique": um <button> filho direto
+        // de grid ja recebe align-self: stretch e ja preenchia a celula.)
+        // `select-none` evita selecao de texto ao clicar repetido num card que
+        // e, ele proprio, o controle de filtro.
+        'flex h-full w-full select-none flex-col justify-between rounded-xl border bg-card p-4 text-left transition-all duration-150 hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
         onClick && 'cursor-pointer hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         active && `ring-2 ${tones.ring}`
       )}

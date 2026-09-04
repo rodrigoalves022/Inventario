@@ -58,38 +58,43 @@ export function StatCard({ title, value, subtitle, icon, trend, variant = 'defau
     <Comp
       href={href as string}
       className={cn(
-        'rounded-lg border bg-card shadow-sm transition-all hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
-        featured ? 'p-6' : 'p-5',
+        // Mesma casca do SummaryCard (components/ui/summary-card.tsx): mesmo
+        // raio, mesmo padding, mesma transicao. `h-full flex flex-col
+        // justify-between` separa o card em duas faixas — titulo+icone em cima,
+        // valor+subtitulo embaixo — para que os NUMEROS fiquem na mesma altura
+        // ao longo da fileira mesmo quando os titulos quebram em numero
+        // diferente de linhas ("Taxa de disponibilidade" vs "Status warning").
+        'flex h-full w-full select-none flex-col justify-between gap-3 rounded-xl border bg-card p-4 shadow-sm transition-all duration-150 hover:shadow-md hover:bg-accent/30 hover:border-accent/50',
         variantStyles[variant],
         href && 'cursor-pointer hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       )}
     >
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {title}
-          </p>
-          <p className={cn('font-bold', featured ? 'text-4xl' : 'text-2xl', valueClassName ?? 'text-card-foreground')}>{value}</p>
-          {subtitle && (
-            <p className={cn('text-muted-foreground', featured ? 'text-sm' : 'text-xs')}>{subtitle}</p>
-          )}
-          {trend && (
-            <p className={cn(
-              'text-xs font-medium',
-              trend.isPositive ? 'text-success' : 'text-destructive'
-            )}>
-              {trend.isPositive ? '+' : ''}{trend.value}% em relação ao mês anterior
-            </p>
-          )}
-        </div>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </p>
         {icon && (
           <div className={cn(
-            'flex items-center justify-center rounded-lg',
+            'flex shrink-0 items-center justify-center rounded-lg',
             featured ? 'h-12 w-12' : 'h-10 w-10',
             iconStyles[variant]
           )}>
             {icon}
           </div>
+        )}
+      </div>
+      <div className="space-y-1">
+        <p className={cn('font-bold', featured ? 'text-4xl' : 'text-2xl', valueClassName ?? 'text-card-foreground')}>{value}</p>
+        {subtitle && (
+          <p className={cn('text-muted-foreground', featured ? 'text-sm' : 'text-xs')}>{subtitle}</p>
+        )}
+        {trend && (
+          <p className={cn(
+            'text-xs font-medium',
+            trend.isPositive ? 'text-success' : 'text-destructive'
+          )}>
+            {trend.isPositive ? '+' : ''}{trend.value}% em relação ao mês anterior
+          </p>
         )}
       </div>
     </Comp>
@@ -130,7 +135,7 @@ export function StatsGrid({
   serversPath,
 }: StatsGridProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
       <StatCard
         title="Total de Máquinas"
         value={total}

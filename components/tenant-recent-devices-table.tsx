@@ -3,8 +3,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Wifi, WifiOff, Clock, Inbox } from 'lucide-react'
+import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
+import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
-import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
+import { CLICKABLE_ROW_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 
 export type RecentDeviceRow = {
   id: string
@@ -20,10 +22,13 @@ export type RecentDeviceRow = {
   detailsPath: string
 }
 
-const PRESENCE_BADGE_CLASS: Record<DevicePresence, string> = {
-  online: 'border-success/30 bg-success/10 text-success',
-  ausente: 'border-warning/30 bg-warning/10 text-warning',
-  offline: 'border-border bg-muted text-muted-foreground',
+/** Mesmo vocabulario de PRESENCA de /storage (online | ausente | offline,
+ * derivado da ultima coleta — RN010), traduzido para a mesma pilula
+ * compartilhada. "offline" aqui tambem e ausencia de sinal, nao incidente. */
+const PRESENCE_TONE: Record<DevicePresence, StatusPillTone> = {
+  online: 'success',
+  ausente: 'warning',
+  offline: 'neutral',
 }
 
 const PRESENCE_ICON: Record<DevicePresence, typeof Wifi> = {
@@ -47,12 +52,11 @@ const PRESENCE_DATE_CLASS: Record<DevicePresence, string> = {
 function PresenceBadge({ presence }: { presence: DevicePresence }) {
   const Icon = PRESENCE_ICON[presence]
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm ${PRESENCE_BADGE_CLASS[presence]}`}
-    >
-      <Icon className="h-3 w-3" />
-      {PRESENCE_LABEL[presence]}
-    </span>
+    <StatusPill
+      tone={PRESENCE_TONE[presence]}
+      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
+      label={PRESENCE_LABEL[presence]}
+    />
   )
 }
 
@@ -77,13 +81,13 @@ export function TenantRecentDevicesTable({ devices }: { devices: RecentDeviceRow
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b bg-muted/50 text-muted-foreground">
-          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Hostname</th>
-          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">IP</th>
-          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Sistema</th>
-          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">RAM</th>
-          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Última coleta</th>
-          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
+        <tr className={TABLE_HEAD_ROW_CLASS}>
+          <th className={TABLE_HEAD_CLASS}>Hostname</th>
+          <th className={TABLE_HEAD_CLASS}>IP</th>
+          <th className={TABLE_HEAD_CLASS}>Sistema</th>
+          <th className={TABLE_HEAD_CLASS}>RAM</th>
+          <th className={TABLE_HEAD_CLASS}>Última coleta</th>
+          <th className={TABLE_HEAD_CLASS}>Status</th>
         </tr>
       </thead>
       <tbody className="divide-y">
@@ -101,7 +105,7 @@ export function TenantRecentDevicesTable({ devices }: { devices: RecentDeviceRow
             }}
             className={CLICKABLE_ROW_CLASS}
           >
-            <td className="px-4 py-3 font-mono font-medium">
+            <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
               <Link
                 href={device.detailsPath}
                 onClick={(event) => event.stopPropagation()}
@@ -110,12 +114,12 @@ export function TenantRecentDevicesTable({ devices }: { devices: RecentDeviceRow
                 {device.hostname}
               </Link>
             </td>
-            <td className="px-4 py-3 text-muted-foreground">
+            <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
               <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{device.ip ?? '—'}</code>
             </td>
-            <td className="px-4 py-3">{device.sistema ?? '—'}</td>
-            <td className="px-4 py-3 tabular-nums">{device.ramLabel}</td>
-            <td className={`px-4 py-3 tabular-nums ${PRESENCE_DATE_CLASS[device.presence]}`}>
+            <td className={TABLE_CELL_CLASS}>{device.sistema ?? '—'}</td>
+            <td className={cn(TABLE_CELL_CLASS, 'tabular-nums')}>{device.ramLabel}</td>
+            <td className={cn(TABLE_CELL_CLASS, 'tabular-nums', PRESENCE_DATE_CLASS[device.presence])}>
               {device.lastCollectionAbsolute ? (
                 <>
                   {device.lastCollectionAbsolute}
@@ -125,7 +129,7 @@ export function TenantRecentDevicesTable({ devices }: { devices: RecentDeviceRow
                 'nunca coletado'
               )}
             </td>
-            <td className="px-4 py-3">
+            <td className={TABLE_CELL_CLASS}>
               <PresenceBadge presence={device.presence} />
             </td>
           </tr>

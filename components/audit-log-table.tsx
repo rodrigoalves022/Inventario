@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import type { AuditLogListItem } from '@/lib/audit-log'
 import { getTenantPath } from '@/lib/tenant-links'
 import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
+import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 
 type AuditLogTableProps = {
   logs: AuditLogListItem[]
@@ -73,14 +73,14 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="border-b bg-secondary/30 text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Quando</th>
-              <th className="px-4 py-3 text-left font-medium">Ação</th>
-              <th className="px-4 py-3 text-left font-medium">Usuário</th>
-              {showTenant ? <th className="px-4 py-3 text-left font-medium">Tenant</th> : null}
-              <th className="px-4 py-3 text-left font-medium">Alvo</th>
-              <th className="px-4 py-3 text-left font-medium">Detalhes</th>
+          <thead>
+            <tr className={TABLE_HEAD_ROW_CLASS}>
+              <th className={TABLE_HEAD_CLASS}>Quando</th>
+              <th className={TABLE_HEAD_CLASS}>Ação</th>
+              <th className={TABLE_HEAD_CLASS}>Usuário</th>
+              {showTenant ? <th className={TABLE_HEAD_CLASS}>Tenant</th> : null}
+              <th className={TABLE_HEAD_CLASS}>Alvo</th>
+              <th className={TABLE_HEAD_CLASS}>Detalhes</th>
             </tr>
           </thead>
           <tbody>
@@ -102,21 +102,23 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
                     : null
 
                 return (
-                  <tr key={log.id} className={cn('border-b last:border-0 align-top', STATIC_ROW_HOVER_CLASS)}>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
-                    <td className="px-4 py-3">
+                  <tr key={log.id} className={cn('border-b last:border-0', STATIC_ROW_HOVER_CLASS)}>
+                    <td className={cn(TABLE_CELL_CLASS, 'whitespace-nowrap text-muted-foreground')}>
+                      {formatDate(log.createdAt)}
+                    </td>
+                    <td className={TABLE_CELL_CLASS}>
                       <Badge variant="outline" className={getActionTone(log.action)}>
                         {formatAction(log.action)}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={TABLE_CELL_CLASS}>
                       <div>
                         <p className="font-medium text-foreground">{log.actorEmail ?? 'Sistema'}</p>
                         <p className="text-xs text-muted-foreground">{log.actorRole ?? 'sem role'}</p>
                       </div>
                     </td>
                     {showTenant ? (
-                      <td className="px-4 py-3">
+                      <td className={TABLE_CELL_CLASS}>
                         {log.clientSlug ? (
                           <div className="flex items-start gap-2">
                             <span
@@ -134,7 +136,7 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
                         )}
                       </td>
                     ) : null}
-                    <td className="px-4 py-3">
+                    <td className={TABLE_CELL_CLASS}>
                       <div className="space-y-1">
                         <p className="font-medium text-foreground">{formatTargetType(log.targetType)}</p>
                         {assetHref ? (
@@ -148,7 +150,7 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3">{renderMetadata(log)}</td>
+                    <td className={TABLE_CELL_CLASS}>{renderMetadata(log)}</td>
                   </tr>
                 )
               })

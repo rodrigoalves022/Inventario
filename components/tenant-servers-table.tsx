@@ -3,10 +3,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { TriangleAlert, Wifi, WifiOff } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { cn } from '@/lib/utils'
-import { CLICKABLE_ROW_CLASS } from '@/lib/table-styles'
+import { CLICKABLE_ROW_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 
 export type TenantServerRow = {
   id: string
@@ -20,10 +22,24 @@ export type TenantServerRow = {
   detailsPath: string
 }
 
-const STATUS_BADGE_CLASS: Record<TenantServerRow['effectiveStatus'], string> = {
-  online: 'bg-success/10 text-success',
-  offline: 'bg-destructive/10 text-destructive',
-  warning: 'bg-warning/10 text-warning',
+/** Mesmo vocabulario de STATUS EFETIVO de /computers (online | warning |
+ * offline, de `getEffectiveDeviceStatus`) e a mesma traducao para a pilula
+ * compartilhada — as duas listagens de maquina precisam ler igual. */
+const STATUS_TONE: Record<TenantServerRow['effectiveStatus'], StatusPillTone> = {
+  online: 'success',
+  warning: 'warning',
+  offline: 'destructive',
+}
+
+function DeviceStatusPill({ status }: { status: TenantServerRow['effectiveStatus'] }) {
+  const Icon = status === 'offline' ? WifiOff : status === 'warning' ? TriangleAlert : Wifi
+  return (
+    <StatusPill
+      tone={STATUS_TONE[status]}
+      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
+      label={status === 'offline' ? 'Desconectado' : status}
+    />
+  )
 }
 
 /**
@@ -70,10 +86,10 @@ export function TenantServersTable({
     <div className="rounded-lg border border-border bg-card">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="border-b">
-            <tr className="text-muted-foreground">
+          <thead>
+            <tr className={TABLE_HEAD_ROW_CLASS}>
               {canBulkOperate && (
-                <th className="px-4 py-3 text-left font-medium w-10">
+                <th className={cn(TABLE_HEAD_CLASS, 'w-10')}>
                   <Checkbox
                     aria-label="Selecionar todos os servidores"
                     checked={servers.length > 0 && servers.every((server) => selectedIds.has(server.id))}
@@ -88,13 +104,13 @@ export function TenantServersTable({
                   />
                 </th>
               )}
-              <th className="px-4 py-3 text-left font-medium">Hostname</th>
-              <th className="px-4 py-3 text-left font-medium">IP</th>
-              <th className="px-4 py-3 text-left font-medium">Sistema</th>
-              <th className="px-4 py-3 text-left font-medium">Processador</th>
-              <th className="px-4 py-3 text-left font-medium">RAM</th>
-              <th className="px-4 py-3 text-left font-medium">Armazenamento</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
+              <th className={TABLE_HEAD_CLASS}>Hostname</th>
+              <th className={TABLE_HEAD_CLASS}>IP</th>
+              <th className={TABLE_HEAD_CLASS}>Sistema</th>
+              <th className={TABLE_HEAD_CLASS}>Processador</th>
+              <th className={TABLE_HEAD_CLASS}>RAM</th>
+              <th className={TABLE_HEAD_CLASS}>Armazenamento</th>
+              <th className={TABLE_HEAD_CLASS}>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -113,7 +129,7 @@ export function TenantServersTable({
                 className={cn('border-b last:border-0', CLICKABLE_ROW_CLASS)}
               >
                 {canBulkOperate && (
-                  <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                  <td className={TABLE_CELL_CLASS} onClick={(event) => event.stopPropagation()}>
                     <Checkbox
                       aria-label={`Selecionar ${server.hostname}`}
                       checked={selectedIds.has(server.id)}
@@ -121,28 +137,24 @@ export function TenantServersTable({
                     />
                   </td>
                 )}
-                <td className="px-4 py-3 font-mono font-medium">
+                <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
                   <Link
                     href={server.detailsPath}
                     onClick={(event) => event.stopPropagation()}
-                    className="hover:underline"
+                    className="text-foreground transition-colors hover:text-primary"
                   >
                     {server.hostname}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{server.ip ?? '-'}</td>
-                <td className="px-4 py-3">{server.sistema ?? '-'}</td>
-                <td className="px-4 py-3 max-w-[240px] truncate text-muted-foreground">
+                <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{server.ip ?? '-'}</td>
+                <td className={TABLE_CELL_CLASS}>{server.sistema ?? '-'}</td>
+                <td className={cn(TABLE_CELL_CLASS, 'max-w-[240px] truncate text-muted-foreground')}>
                   {server.processador ?? '-'}
                 </td>
-                <td className="px-4 py-3">{server.ramTotalGb ? `${server.ramTotalGb} GB` : '-'}</td>
-                <td className="px-4 py-3">{server.storageLabel ?? '-'}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASS[server.effectiveStatus]}`}
-                  >
-                    {server.effectiveStatus}
-                  </span>
+                <td className={TABLE_CELL_CLASS}>{server.ramTotalGb ? `${server.ramTotalGb} GB` : '-'}</td>
+                <td className={TABLE_CELL_CLASS}>{server.storageLabel ?? '-'}</td>
+                <td className={TABLE_CELL_CLASS}>
+                  <DeviceStatusPill status={server.effectiveStatus} />
                 </td>
               </tr>
             ))}

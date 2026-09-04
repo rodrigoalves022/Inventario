@@ -5,11 +5,12 @@ import { useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { HardDrive, Search, Wifi, WifiOff, Clock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { StatusPill, STATUS_PILL_ICON_CLASS, type StatusPillTone } from '@/components/ui/status-pill'
 import { SummaryCard } from '@/components/ui/summary-card'
 import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
 import { computeDiskUsagePercent, getDiskUsageTier, DISK_USAGE_TIER_BAR_CLASS, DISK_USAGE_TIER_TEXT_CLASS } from '@/lib/disk-usage'
-import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
+import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 
 export type TenantStorageDisk = {
   unidade: string | null
@@ -28,10 +29,18 @@ export type TenantStorageRow = {
   detailsPath: string
 }
 
-const PRESENCE_BADGE_CLASS: Record<DevicePresence, string> = {
-  online: 'border-success/30 bg-success/10 text-success',
-  ausente: 'border-warning/30 bg-warning/10 text-warning',
-  offline: 'border-border bg-muted text-muted-foreground',
+/**
+ * Traducao da PRESENCA (`DevicePresence`, derivada da ultima coleta por
+ * `getDevicePresence` — nunca do `Device.status` bruto, RN010) para a pilula
+ * compartilhada de `components/ui/status-pill.tsx`. O componente e o mesmo de
+ * /computers e /servers; o vocabulario, nao: "ausente" continua sendo
+ * "ausente" (nao vira "warning"), e "offline" aqui e ausencia de sinal, nao
+ * incidente — por isso tom `neutral`, e nao `destructive`.
+ */
+const PRESENCE_TONE: Record<DevicePresence, StatusPillTone> = {
+  online: 'success',
+  ausente: 'warning',
+  offline: 'neutral',
 }
 
 const PRESENCE_ICON: Record<DevicePresence, typeof Wifi> = {
@@ -43,15 +52,11 @@ const PRESENCE_ICON: Record<DevicePresence, typeof Wifi> = {
 function PresenceBadge({ presence }: { presence: DevicePresence }) {
   const Icon = PRESENCE_ICON[presence]
   return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm',
-        PRESENCE_BADGE_CLASS[presence]
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {presence}
-    </span>
+    <StatusPill
+      tone={PRESENCE_TONE[presence]}
+      icon={<Icon className={STATUS_PILL_ICON_CLASS} />}
+      label={presence}
+    />
   )
 }
 
@@ -158,7 +163,7 @@ export function TenantStorageTable({
           os cards, seriam duas UIs mostrando o mesmo numero e aplicando o mesmo
           filtro (ver doc de SummaryCard). As badges de TIPO abaixo ficam — sao
           outra dimensao, sem card correspondente. */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           testId="usage-card-all"
           icon={<HardDrive className="h-4 w-4" />}
@@ -243,12 +248,12 @@ export function TenantStorageTable({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-muted/50 text-muted-foreground">
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Hostname</th>
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Usuário</th>
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Disco</th>
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Uso</th>
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Status</th>
+                <tr className={TABLE_HEAD_ROW_CLASS}>
+                  <th className={TABLE_HEAD_CLASS}>Hostname</th>
+                  <th className={TABLE_HEAD_CLASS}>Usuário</th>
+                  <th className={TABLE_HEAD_CLASS}>Disco</th>
+                  <th className={TABLE_HEAD_CLASS}>Uso</th>
+                  <th className={TABLE_HEAD_CLASS}>Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -256,19 +261,19 @@ export function TenantStorageTable({
                   const diskCount = device.diskUsages.length
                   return (
                     <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
-                      <td className="px-5 py-4 align-top font-mono font-medium">
+                      <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>
                         <Link href={device.detailsPath} className="text-foreground hover:text-primary transition-colors">
                           {device.hostname}
                         </Link>
                       </td>
-                      <td className="px-5 py-4 align-top text-muted-foreground">{device.usuario ?? '—'}</td>
-                      <td className="px-5 py-4 align-top">
+                      <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{device.usuario ?? '—'}</td>
+                      <td className={TABLE_CELL_CLASS}>
                         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                           <HardDrive className="h-3 w-3" />
                           {device.types.length > 0 ? device.types.join(', ') : 'N/A'} · {diskCount} disco{diskCount !== 1 ? 's' : ''}
                         </div>
                       </td>
-                      <td className="px-5 py-4 align-top">
+                      <td className={TABLE_CELL_CLASS}>
                         <div className="min-w-[10rem] space-y-2">
                           {device.diskUsages.map((disk, index) => {
                             const tier = getDiskUsageTier(disk.usagePercent)
@@ -292,7 +297,7 @@ export function TenantStorageTable({
                           })}
                         </div>
                       </td>
-                      <td className="px-5 py-4 align-top">
+                      <td className={TABLE_CELL_CLASS}>
                         <PresenceBadge presence={device.presence} />
                       </td>
                     </tr>

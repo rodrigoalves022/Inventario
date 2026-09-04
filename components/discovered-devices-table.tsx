@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
+import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 import type { DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
 
 /**
@@ -141,14 +141,14 @@ export function DiscoveredDevicesTable({
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-secondary/50">
-              <th className="px-4 py-3 text-left font-semibold">IP</th>
-              <th className="px-4 py-3 text-left font-semibold">MAC</th>
-              <th className="px-4 py-3 text-left font-semibold">Hostname</th>
-              <th className="px-4 py-3 text-left font-semibold">Tipo</th>
-              <th className="px-4 py-3 text-left font-semibold">Fabricante / Descrição SNMP</th>
-              <th className="px-4 py-3 text-left font-semibold">Portas</th>
-              <th className="px-4 py-3 text-left font-semibold">Última Coleta</th>
+            <tr className={TABLE_HEAD_ROW_CLASS}>
+              <th className={TABLE_HEAD_CLASS}>IP</th>
+              <th className={TABLE_HEAD_CLASS}>MAC</th>
+              <th className={TABLE_HEAD_CLASS}>Hostname</th>
+              <th className={TABLE_HEAD_CLASS}>Tipo</th>
+              <th className={TABLE_HEAD_CLASS}>Fabricante / Descrição SNMP</th>
+              <th className={TABLE_HEAD_CLASS}>Portas</th>
+              <th className={TABLE_HEAD_CLASS}>Última Coleta</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -171,10 +171,10 @@ export function DiscoveredDevicesTable({
             ) : (
               filtered.map((device) => (
                 <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
-                  <td className="px-4 py-3 font-mono font-medium">{device.ip}</td>
-                  <td className="px-4 py-3 font-mono text-muted-foreground">{device.mac ?? '-'}</td>
-                  <td className="px-4 py-3">{device.hostname ?? '-'}</td>
-                  <td className="px-4 py-3">
+                  <td className={cn(TABLE_CELL_CLASS, 'font-mono font-medium')}>{device.ip}</td>
+                  <td className={cn(TABLE_CELL_CLASS, 'font-mono text-muted-foreground')}>{device.mac ?? '-'}</td>
+                  <td className={TABLE_CELL_CLASS}>{device.hostname ?? '-'}</td>
+                  <td className={TABLE_CELL_CLASS}>
                     <Badge
                       variant="outline"
                       className={cn(
@@ -186,7 +186,7 @@ export function DiscoveredDevicesTable({
                       {TYPE_LABEL[device.deviceType]}
                     </Badge>
                   </td>
-                  <td className="max-w-xs px-4 py-3 text-muted-foreground">
+                  <td className={cn(TABLE_CELL_CLASS, 'max-w-xs text-muted-foreground')}>
                     {device.vendor ? <div className="font-medium text-foreground">{device.vendor}</div> : null}
                     {device.snmpSysDescr ? (
                       <div className="truncate text-xs" title={device.snmpSysDescr}>
@@ -195,8 +195,10 @@ export function DiscoveredDevicesTable({
                     ) : null}
                     {!device.vendor && !device.snmpSysDescr ? '-' : null}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{device.openPorts ?? '-'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatLastSeen(device.lastSeenAt)}</td>
+                  <td className={cn(TABLE_CELL_CLASS, 'font-mono text-xs text-muted-foreground')}>
+                    {device.openPorts ?? '-'}
+                  </td>
+                  <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{formatLastSeen(device.lastSeenAt)}</td>
                 </tr>
               ))
             )}

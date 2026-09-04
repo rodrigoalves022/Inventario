@@ -7,7 +7,7 @@ import { Cpu, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { SummaryCard } from '@/components/ui/summary-card'
 import { cn } from '@/lib/utils'
-import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
+import { STATIC_ROW_HOVER_CLASS, TABLE_CELL_CLASS, TABLE_HEAD_CLASS, TABLE_HEAD_ROW_CLASS } from '@/lib/table-styles'
 import { getVendorGroup } from '@/lib/processor-vendor'
 
 export type TenantProcessorRow = {
@@ -87,7 +87,7 @@ export function TenantProcessorsTable({
           card "Total" limpa o filtro, mesmo padrao de TenantComputersTable. Nao
           existe fileira de badges de fabricante aqui: seriam duas UIs para o
           mesmo dado (ver doc de SummaryCard). */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           testId="vendor-card-all"
           icon={<Cpu className="h-4 w-4" />}
@@ -138,17 +138,17 @@ export function TenantProcessorsTable({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-muted/50 text-muted-foreground">
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Processador</th>
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Fabricante</th>
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Dispositivos</th>
-                  <th className="px-5 py-3 text-left font-semibold uppercase tracking-wider">Hostnames / último usuário</th>
+                <tr className={TABLE_HEAD_ROW_CLASS}>
+                  <th className={TABLE_HEAD_CLASS}>Processador</th>
+                  <th className={TABLE_HEAD_CLASS}>Fabricante</th>
+                  <th className={TABLE_HEAD_CLASS}>Dispositivos</th>
+                  <th className={TABLE_HEAD_CLASS}>Hostnames / último usuário</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredProcessors.map((processor) => (
                   <tr key={processor.name} className={STATIC_ROW_HOVER_CLASS}>
-                    <td className="px-5 py-4 align-top">
+                    <td className={TABLE_CELL_CLASS}>
                       <Link
                         href={`${computersPath}?search=${encodeURIComponent(processor.name)}`}
                         className="flex items-center gap-2 font-medium text-foreground hover:text-primary transition-colors"
@@ -158,7 +158,7 @@ export function TenantProcessorsTable({
                         {processor.name}
                       </Link>
                     </td>
-                    <td className="px-5 py-4 align-top">
+                    <td className={TABLE_CELL_CLASS}>
                       {/* Exibe o GRUPO, nao a string crua: a badge da linha, o
                           card do topo e o filtro da URL falam o mesmo
                           vocabulario de 3 fabricantes (Sprint 15). */}
@@ -166,7 +166,7 @@ export function TenantProcessorsTable({
                         {getVendorGroup(processor.vendor)}
                       </Badge>
                     </td>
-                    <td className="px-5 py-4 align-top">
+                    <td className={TABLE_CELL_CLASS}>
                       <Link
                         href={`${computersPath}?search=${encodeURIComponent(processor.name)}`}
                         className="text-lg font-bold text-primary hover:underline"
@@ -174,7 +174,7 @@ export function TenantProcessorsTable({
                         {processor.count}
                       </Link>
                     </td>
-                    <td className="px-5 py-4 align-top">
+                    <td className={TABLE_CELL_CLASS}>
                       <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                         {processor.devices.slice(0, MAX_VISIBLE_DEVICES).map((device) => (
                           <span key={device.id} className="font-mono">
