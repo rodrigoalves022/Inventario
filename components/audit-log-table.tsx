@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import type { AuditLogListItem } from '@/lib/audit-log'
 import { getTenantPath } from '@/lib/tenant-links'
@@ -10,12 +13,35 @@ import {
   TABLE_HEAD_ROW_CLASS,
   TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
+import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  getPageSlice,
+  paginationQueryUpdates,
+  parsePageNumber,
+  parsePageSize,
+  replaceListQueryParams,
+  type PageSize,
+} from '@/lib/table-pagination'
 
 type AuditLogTableProps = {
   logs: AuditLogListItem[]
   emptyMessage: string
   showTenant?: boolean
   tenantBasePath?: string | null
+  /**
+   * Overhaul visual — Fase 3. Paginacao OPT-IN: `/app/[clientSlug]/audit` liga,
+   * `/admin/clients/audit` (fora do escopo desta fase) continua exatamente como
+   * estava, sem rodape e sem recorte. Por isso o default e' `false` em vez de
+   * paginar sempre.
+   *
+   * Nao ha nada de server-side aqui: a query de `listAuditLogs` (LIMIT 200)
+   * fica INTACTA e o rodape recorta os ate-200 registros ja carregados.
+   */
+  paginated?: boolean
+  /** `?page=`/`?limit=`, revalidados aqui tambem. */
+  initialPage?: number
+  initialPageSize?: number
 }
 
 function formatDate(value: string) {
@@ -74,7 +100,46 @@ function renderMetadata(log: AuditLogListItem) {
   )
 }
 
-export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBasePath = null }: AuditLogTableProps) {
+export function AuditLogTable({
+  logs,
+  emptyMessage,
+  showTenant = false,
+  tenantBasePath = null,
+  paginated = false,
+  initialPage = 1,
+  initialPageSize = DEFAULT_PAGE_SIZE,
+}: AuditLogTableProps) {
+  const [page, setPage] = useState(() => parsePageNumber(initialPage))
+  const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
+
+  /** Sem `paginated`, o recorte e' ignorado e a tabela renderiza a lista
+   * inteira — nao ha "pagina gigante" a simular: `getPageSlice` so aceita
+   * tamanhos do catalogo fechado e um valor arbitrario cairia no default de
+   * 25, truncando silenciosamente a listagem do /admin. */
+  const slice = getPageSlice(logs, page, pageSize)
+  const visibleLogs = paginated ? slice.items : logs
+
+  /** Os filtros de auditoria (`action`, `actorEmail`, `from`, `to`) vivem num
+   * `<form method="GET">` na page.tsx; `replaceListQueryParams` preserva todos
+   * eles ao escrever `page`/`limit`. E o caminho inverso tambem esta certo por
+   * construcao: o form nao tem campo `page`, entao submeter um filtro novo
+   * deixa a URL sem `page` — ou seja, volta para a pagina 1, que e' o que uma
+   * troca de filtro deve fazer. */
+  function syncUrl(nextPage: number, nextPageSize: PageSize) {
+    replaceListQueryParams(paginationQueryUpdates(nextPage, nextPageSize))
+  }
+
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    syncUrl(nextPage, pageSize)
+  }
+
+  function changePageSize(nextPageSize: PageSize) {
+    setPageSize(nextPageSize)
+    setPage(1)
+    syncUrl(1, nextPageSize)
+  }
+
   return (
     <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
       <div className="overflow-x-auto">
@@ -90,14 +155,14 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
             </tr>
           </thead>
           <tbody>
-            {logs.length === 0 ? (
+            {visibleLogs.length === 0 ? (
               <tr>
                 <td colSpan={showTenant ? 6 : 5} className="px-4 py-10 text-center text-muted-foreground">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
-              logs.map((log) => {
+              visibleLogs.map((log) => {
                 const assetHref =
                   log.targetType === 'device' && log.targetId
                     ? tenantBasePath
@@ -164,6 +229,16 @@ export function AuditLogTable({ logs, emptyMessage, showTenant = false, tenantBa
           </tbody>
         </table>
       </div>
+
+      {paginated ? (
+        <TablePagination
+          slice={slice}
+          onPageChange={changePage}
+          onPageSizeChange={changePageSize}
+          itemNoun={{ one: 'registro', other: 'registros' }}
+          navLabel="Paginação do log de auditoria"
+        />
+      ) : null}
     </div>
   )
 }

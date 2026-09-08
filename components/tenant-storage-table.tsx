@@ -24,6 +24,14 @@ import {
   TABLE_HEAD_ROW_CLASS,
   TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
+import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  getPageSlice,
+  parsePageNumber,
+  parsePageSize,
+  type PageSize,
+} from '@/lib/table-pagination'
 
 export type TenantStorageDisk = {
   unidade: string | null
@@ -70,15 +78,24 @@ export function TenantStorageTable({
   devices,
   initialType = 'all',
   initialUsageRange = 'all',
+  initialPage = 1,
+  initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   devices: TenantStorageRow[]
   initialType?: string
   initialUsageRange?: 'all' | 'ok' | 'warning' | 'critical'
+  /** Vem de `?page=`/`?limit=` (Overhaul visual — Fase 3). Revalidados aqui
+   * tambem, e nao so na page.tsx: entrada de URL nao e' confiavel nem quando
+   * so mexe em UI. */
+  initialPage?: number
+  initialPageSize?: number
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const [typeFilter, setTypeFilter] = useState(initialType)
   const [usageFilter, setUsageFilter] = useState<'all' | 'ok' | 'warning' | 'critical'>(initialUsageRange)
+  const [page, setPage] = useState(() => parsePageNumber(initialPage))
+  const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
 
   const types = useMemo(() => {
     const unique = new Set(devices.flatMap((device) => device.types))
@@ -129,31 +146,69 @@ export function TenantStorageTable({
     return counts
   }, [rows, typeFilter])
 
-  function syncUrl(nextType: string, nextUsage: 'all' | 'ok' | 'warning' | 'critical') {
+  /**
+   * Recorte da pagina. Ordem obrigatoria: filtrar -> contar (`usageSummary`,
+   * acima) -> paginar. O rodape conta `filteredRows`, nao `devices`; os cards
+   * seguem contando o conjunto do tipo ativo, exatamente como antes.
+   */
+  const slice = getPageSlice(filteredRows, page, pageSize)
+
+  /**
+   * Mecanismo de sincronizacao de URL JA existente nesta tabela (`?tipo=`,
+   * `?faixa=`) — `page`/`limit` entraram AQUI em vez de virar um segundo
+   * mecanismo (`history.replaceState`) sobrescrevendo este. Default some da
+   * URL: `?tipo=SSD` continua sendo `?tipo=SSD`, nao `?tipo=SSD&page=1&limit=25`.
+   */
+  function syncUrl(
+    nextType: string,
+    nextUsage: 'all' | 'ok' | 'warning' | 'critical',
+    nextPage: number,
+    nextPageSize: PageSize
+  ) {
     const params = new URLSearchParams()
     if (nextType !== 'all') params.set('tipo', nextType)
     if (nextUsage !== 'all') params.set('faixa', nextUsage)
+    if (nextPage > 1) params.set('page', String(nextPage))
+    if (nextPageSize !== DEFAULT_PAGE_SIZE) params.set('limit', String(nextPageSize))
     const query = params.toString()
     router.replace(query ? `${pathname}?${query}` : pathname)
   }
 
+  /** Toda troca de filtro volta para a pagina 1 — senao o usuario que estava na
+   * pagina 4 de 6 cai numa pagina que o novo recorte nao tem. */
   function applyTypeFilter(type: string) {
     const next = typeFilter === type ? 'all' : type
     setTypeFilter(next)
-    syncUrl(next, usageFilter)
+    setPage(1)
+    syncUrl(next, usageFilter, 1, pageSize)
   }
 
   function applyUsageFilter(usage: 'ok' | 'warning' | 'critical') {
     const next = usageFilter === usage ? 'all' : usage
     setUsageFilter(next)
-    syncUrl(typeFilter, next)
+    setPage(1)
+    syncUrl(typeFilter, next, 1, pageSize)
   }
 
   /** Card "Total de Dispositivos" — limpa a faixa, mantendo o filtro de tipo
    * (mesmo papel do card "Total Máquinas" em TenantComputersTable). */
   function clearUsageFilter() {
     setUsageFilter('all')
-    syncUrl(typeFilter, 'all')
+    setPage(1)
+    syncUrl(typeFilter, 'all', 1, pageSize)
+  }
+
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    syncUrl(typeFilter, usageFilter, nextPage, pageSize)
+  }
+
+  /** Trocar itens por pagina volta para a pagina 1: a pagina 4 de 25-em-25 nao
+   * tem equivalente honesto em 100-em-100. */
+  function changePageSize(nextPageSize: PageSize) {
+    setPageSize(nextPageSize)
+    setPage(1)
+    syncUrl(typeFilter, usageFilter, 1, nextPageSize)
   }
 
   return (
@@ -257,7 +312,7 @@ export function TenantStorageTable({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredRows.map((device) => {
+                {slice.items.map((device) => {
                   const diskCount = device.diskUsages.length
                   return (
                     <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
@@ -320,6 +375,14 @@ export function TenantStorageTable({
               </tbody>
             </table>
           </div>
+
+          <TablePagination
+            slice={slice}
+            onPageChange={changePage}
+            onPageSizeChange={changePageSize}
+            itemNoun={{ one: 'dispositivo', other: 'dispositivos' }}
+            navLabel="Paginação dos dispositivos com armazenamento"
+          />
         </div>
       )}
     </div>

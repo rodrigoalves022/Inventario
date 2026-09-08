@@ -8,13 +8,19 @@ import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory
 import { canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantServersTable, type TenantServerRow } from '@/components/tenant-servers-table'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 
-export default async function TenantServersPage({ params }: PageProps<'/app/[clientSlug]'>) {
+export default async function TenantServersPage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
   const session = await auth()
   const canOperate = canOperateTenant(getSessionPermissionUser(session), tenant)
+
+  // Overhaul visual — Fase 3: `?page=`/`?limit=` do rodape de paginacao.
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const initialPage = parsePageNumber(resolvedSearchParams.page)
+  const initialPageSize = parsePageSize(resolvedSearchParams.limit)
 
   const [allDevices, tenantAlertSettings] = await Promise.all([
     prisma.device.findMany({
@@ -81,7 +87,13 @@ export default async function TenantServersPage({ params }: PageProps<'/app/[cli
         {/* Action buttons... */}
       </div>
 
-      <TenantServersTable servers={servers} tenantSlug={tenantSlug} canOperate={canOperate} />
+      <TenantServersTable
+        servers={servers}
+        tenantSlug={tenantSlug}
+        canOperate={canOperate}
+        initialPage={initialPage}
+        initialPageSize={initialPageSize}
+      />
     </div>
   )
 }

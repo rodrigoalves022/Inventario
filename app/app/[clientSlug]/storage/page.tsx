@@ -5,6 +5,7 @@ import { getTenantPath } from '@/lib/tenant-links'
 import { getDevicePresence } from '@/lib/inventory-alerts'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantStorageTable } from '@/components/tenant-storage-table'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 
 export default async function TenantStoragePage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
@@ -18,6 +19,10 @@ export default async function TenantStoragePage({ params, searchParams }: PagePr
   const rawFaixa = typeof faixaParam === 'string' ? faixaParam : faixaParam?.[0]
   const initialFaixa: 'all' | 'ok' | 'warning' | 'critical' =
     rawFaixa === 'ok' || rawFaixa === 'warning' || rawFaixa === 'critical' ? rawFaixa : 'all'
+
+  // Overhaul visual — Fase 3: `?page=`/`?limit=` do rodape de paginacao.
+  const initialPage = parsePageNumber(resolvedSearchParams.page)
+  const initialPageSize = parsePageSize(resolvedSearchParams.limit)
 
   const [devices, tenantAlertSettings] = await Promise.all([
     prisma.device.findMany({
@@ -75,7 +80,13 @@ export default async function TenantStoragePage({ params, searchParams }: PagePr
         </p>
       </div>
 
-      <TenantStorageTable devices={storageDevices} initialType={initialTipo} initialUsageRange={initialFaixa} />
+      <TenantStorageTable
+        devices={storageDevices}
+        initialType={initialTipo}
+        initialUsageRange={initialFaixa}
+        initialPage={initialPage}
+        initialPageSize={initialPageSize}
+      />
     </div>
   )
 }

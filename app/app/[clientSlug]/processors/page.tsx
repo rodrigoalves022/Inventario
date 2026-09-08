@@ -4,6 +4,7 @@ import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
 import { inferVendor, getVendorGroup } from '@/lib/processor-vendor'
 import { TenantProcessorsTable } from '@/components/tenant-processors-table'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 
 export default async function TenantProcessorsPage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
@@ -17,6 +18,10 @@ export default async function TenantProcessorsPage({ params, searchParams }: Pag
   // `?fabricante=Intel%20Xeon` continua caindo no grupo Intel em vez de virar
   // uma lista vazia (ver lib/processor-vendor.ts, Sprint 15).
   const initialVendor = rawVendor === 'all' ? 'all' : getVendorGroup(rawVendor)
+
+  // Overhaul visual — Fase 3: `?page=`/`?limit=` do rodape de paginacao.
+  const initialPage = parsePageNumber(resolvedSearchParams.page)
+  const initialPageSize = parsePageSize(resolvedSearchParams.limit)
 
   const devices = await prisma.device.findMany({
     where: {
@@ -61,6 +66,8 @@ export default async function TenantProcessorsPage({ params, searchParams }: Pag
       <TenantProcessorsTable
         processors={processors}
         initialVendor={initialVendor}
+        initialPage={initialPage}
+        initialPageSize={initialPageSize}
         computersPath={getTenantPath(tenantSlug, 'computers')}
       />
     </div>

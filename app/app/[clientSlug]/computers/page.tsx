@@ -10,6 +10,7 @@ import { canManageTenantAlerts, canOperateTenant, getSessionPermissionUser } fro
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantAlertSettingsForm } from '@/components/tenant-alert-settings-form'
 import { TenantComputersTable } from '@/components/tenant-computers-table'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 
 export default async function TenantComputersPage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
@@ -24,6 +25,12 @@ export default async function TenantComputersPage({ params, searchParams }: Page
   // caixa de busca da tabela.
   const searchFilterParam = resolvedSearchParams.search ?? resolvedSearchParams.os
   const initialSearch = typeof searchFilterParam === 'string' ? searchFilterParam : (searchFilterParam?.[0] ?? '')
+
+  // Overhaul visual — Fase 3. `?page=`/`?limit=` do rodape de paginacao. O
+  // parse defensivo (limit fora de 10/25/50/100 cai em 25) mora em
+  // lib/table-pagination.ts e roda de novo dentro do componente.
+  const initialPage = parsePageNumber(resolvedSearchParams.page)
+  const initialPageSize = parsePageSize(resolvedSearchParams.limit)
 
   const statusFilterParam = resolvedSearchParams.status
   const rawStatus = typeof statusFilterParam === 'string' ? statusFilterParam : statusFilterParam?.[0]
@@ -86,6 +93,8 @@ export default async function TenantComputersPage({ params, searchParams }: Page
         devices={devices}
         initialSearch={initialSearch}
         initialStatusFilter={initialStatusFilter}
+        initialPage={initialPage}
+        initialPageSize={initialPageSize}
         tenantSlug={tenantSlug}
         canOperate={canOperate}
       />

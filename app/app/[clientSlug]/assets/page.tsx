@@ -8,6 +8,7 @@ import { buildTenantDeviceRow } from '@/lib/tenant-device-rows'
 import { canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getDefaultAlertSettings, getTenantAlertSettingsBySlug } from '@/lib/tenant-alert-settings'
 import { TenantComputersTable } from '@/components/tenant-computers-table'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 
 /**
  * Listagem unificada de dispositivos do tenant (Opcao B escolhida pelo
@@ -33,6 +34,13 @@ export default async function TenantAssetsPage({ params, searchParams }: PagePro
   const rawStatus = typeof statusFilterParam === 'string' ? statusFilterParam : statusFilterParam?.[0]
   const initialStatusFilter: 'all' | 'online' | 'warning' | 'offline' =
     rawStatus === 'online' || rawStatus === 'warning' || rawStatus === 'offline' ? rawStatus : 'all'
+
+  // `/assets` compartilha `TenantComputersTable` com `/computers`, entao herdou
+  // o rodape de paginacao — e com ele a escrita de `?page=`/`?limit=` na URL.
+  // Sem ler os dois de volta aqui, recarregar caia na pagina 1 com um `?page=3`
+  // obsoleto pendurado na barra de endereco.
+  const initialPage = parsePageNumber(resolvedSearchParams.page)
+  const initialPageSize = parsePageSize(resolvedSearchParams.limit)
 
   const [allDevices, tenantAlertSettings] = await Promise.all([
     prisma.device.findMany({
@@ -73,6 +81,8 @@ export default async function TenantAssetsPage({ params, searchParams }: PagePro
         devices={devices}
         initialSearch={initialSearch}
         initialStatusFilter={initialStatusFilter}
+        initialPage={initialPage}
+        initialPageSize={initialPageSize}
         showTypeColumn
         tenantSlug={tenantSlug}
         canOperate={canOperate}

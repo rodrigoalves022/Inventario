@@ -13,6 +13,7 @@ import {
 } from '@/lib/table-styles'
 import { DiscoveredDevicesTable, type DiscoveredDeviceRow } from '@/components/discovered-devices-table'
 import { DISCOVERED_DEVICE_TYPES, type DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 
 /**
  * Sprint 14. `DiscoveredDevice.deviceType` e' `String` livre no banco (RNF012 —
@@ -34,10 +35,18 @@ function extractSubnet(ip?: string | null) {
   return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`
 }
 
-export default async function TenantNetworkPage({ params }: PageProps<'/app/[clientSlug]'>) {
+export default async function TenantNetworkPage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
+
+  // Overhaul visual — Fase 3: `?page=`/`?limit=` do rodape da tabela de
+  // dispositivos descobertos. A tabela de SEGMENTOS acima dela nao pagina —
+  // ela e' derivada e tem uma linha por sub-rede (tipicamente uma mao cheia),
+  // nao o dump de ate 500 linhas que a de descoberta pode ser.
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const initialPage = parsePageNumber(resolvedSearchParams.page)
+  const initialPageSize = parsePageSize(resolvedSearchParams.limit)
 
   const [networks, discoveredRows, tenantSettings] = await Promise.all([
     prisma.network.findMany({
@@ -191,7 +200,12 @@ export default async function TenantNetworkPage({ params }: PageProps<'/app/[cli
           </p>
         </div>
 
-        <DiscoveredDevicesTable devices={discoveredDevices} discoveryEnabled={discoveryEnabled} />
+        <DiscoveredDevicesTable
+          devices={discoveredDevices}
+          discoveryEnabled={discoveryEnabled}
+          initialPage={initialPage}
+          initialPageSize={initialPageSize}
+        />
       </div>
     </div>
   )

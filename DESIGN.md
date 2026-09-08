@@ -419,6 +419,12 @@ partir dos mesmos tokens:
 - **Borda colorida de mais de 1px num lado só** de card, item de lista ou alerta. É o
   adesivo que se cola num card genérico para ele parecer categorizado. A borda de 1px
   reagindo no perímetro inteiro diz a mesma coisa e ainda serve de estado de hover.
+  **Exceção única: o indicador de rota ativa da sidebar** (Fase 2). Ali a barra vertical
+  não categoriza nada — ela responde "onde eu estou", que é a única pergunta que a
+  navegação existe para responder, e é convenção estabelecida de menu lateral. Repare
+  que ela é implementada como `<span>` posicionado, **não** como `border-l-2`: borda
+  real somaria 2px à caixa do item e faria o texto andar na horizontal ao navegar de
+  uma rota para outra.
 - **Borda de 1px sob sombra larga** (card fantasma). Elevação declarada uma vez.
 - **`hover:scale()` em card com texto** — reamostra o número. Use `translateY`.
 - **Monoespaçado como fantasia de "técnico"** em rótulo, título ou mensagem.
@@ -431,14 +437,22 @@ partir dos mesmos tokens:
 
 ---
 
-## 11. Fora do escopo da Fase 1
+## 11. Cobertura por fase
 
-Registrado aqui para quem continuar não achar que foi esquecimento. Estas superfícies
-ainda **não** foram redesenhadas e vão herdar os tokens acima sem tratamento próprio:
+As 4 fases do overhaul estão **concluídas**. O que cada uma passou a governar:
 
-- Sidebar, header, breadcrumb, cabeçalho de página, paleta de comando (Fase 2).
-- Paginação de listagem (Fase 3).
-- Dashboard, hero, painéis duplos (Fase 4).
+- **Fase 1** — tokens, tipografia, superfície/elevação, estados, movimento (este documento).
+- **Fase 2** — sidebar, header, breadcrumb, paleta de comando (`Ctrl/⌘+K`).
+  Fonte única de rota→nome: `lib/shell-navigation.ts`, que alimenta menu, trilha e paleta.
+- **Fase 3** — rodapé de paginação (`lib/table-pagination.ts` + `components/ui/table-pagination.tsx`).
+  É paginação de **apresentação**, não de escala: o Server Component continua carregando
+  o conjunto inteiro. Server-side (`skip`/`take`) está no Backlog.
+- **Fase 4** — dashboard: hero de conformidade, grid de KPI navegável, painéis duplos.
+
+Ainda **não** redesenhado — herda os tokens sem tratamento próprio:
+
 - `app/admin/clients/**` e `app/users/page.tsx` — fora de escopo por decisão explícita do
   usuário; recebem a paleta nova pelos tokens, sem edição de arquivo.
-- `app/portal/**` — superfície separada (visão do cliente final), não revisada nesta fase.
+- `app/portal/**` — superfície separada (visão do cliente final).
+- `components/device-detail-tabs.tsx` — sub-tabelas densas de detalhe, com densidade
+  própria deliberada (ver `lib/table-styles.ts`).

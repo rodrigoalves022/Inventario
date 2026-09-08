@@ -1634,6 +1634,128 @@ e `app/login/page.tsx`.
 
 ---
 
+## Overhaul visual — Fases 2, 3 e 4 (shell, paginação e dashboard)
+
+**Status**: 🟢 Concluídas (2026-09-08). As três rodaram **em paralelo**, cada uma com fronteira de
+arquivos fechada e nenhuma escrevendo neste arquivo (a documentação foi escrita pelo orquestrador,
+justamente para as três não colidirem aqui). Com isso o overhaul de 4 fases está completo.
+
+### Fase 2 — App shell (sidebar, header, breadcrumbs, paleta de comando)
+
+- **Fonte única de rota→nome**: `lib/shell-navigation.ts` (novo). Antes existiam **dois mapas
+  divergíveis** dentro de `components/sidebar.tsx`: os `NavigationItem[]` do menu e a tabela
+  `titles` de `getHeaderTitle`. Agora há uma tabela só (`TENANT_ROUTES`) alimentando menu, trilha e
+  paleta; o que difere entre eles é o *filtro*, nunca o rótulo. Há teste que falha se alguém
+  reintroduzir a divergência.
+- **Breadcrumbs com RBAC**: o nível "Clientes" só vira link quando `canAccessClientList(user)`
+  (`isPlatformAdmin || isOrgAdmin`); ORG_OPERATOR, CLIENT_VIEWER e papel `null` recebem texto, nunca
+  âncora. Default sem a opção é texto (fail-closed). Isso é RBAC vazando por navegação, não detalhe
+  estético — 10 testes cobrem, incluindo a prova de que um nível sem href não vira `<a>` na tela.
+- **`Ctrl/⌘+K` real, não enfeite** (`components/command-palette.tsx`): abre, filtra as rotas do
+  tenant já filtradas pelo papel, navega por setas, fecha no `Esc`. Usa `cmdk` e
+  `components/ui/command.tsx`, **ambos já presentes** — nenhuma dependência nova. O listener global
+  ignora `input`/`textarea`/`select`/`contenteditable` (senão sequestraria o Ctrl+K de quem digita
+  num filtro). Foco preso, `role="dialog"`, retorno de foco. **Não** busca dispositivos no banco —
+  isso exigiria rota de API com escopo de tenant, paginação e rate limit próprios; virou candidato
+  a sprint futura.
+- **Zero query nova no layout**, por decisão do agente: a pílula de frota deriva do
+  `lastCollectionAt` que o layout já buscava, usando a **mesma** constante
+  `ONLINE_PRESENCE_MINUTES` de `getDevicePresence` — para a pílula não dizer "frota ativa" enquanto
+  a tabela ao lado mostra tudo como "ausente".
+- Desvio deliberado do pedido verbatim: a sidebar usa `bg-sidebar/80`, **não** `bg-card/80`. O
+  `DESIGN.md` §2.2 define a sidebar como camada um degrau *abaixo* do conteúdo; `bg-card`
+  inverteria a hierarquia (menu mais claro que a tela que ele serve). O indicador ativo é um
+  `<span>` posicionado e não `border-l-2`, senão o item ativo ganharia 2px de caixa e o texto andaria
+  ao navegar.
+
+### Fase 3 — Paginação unificada
+
+- `lib/table-pagination.ts` (puro, sem React) + `components/ui/table-pagination.tsx`, consumidos
+  pelas 6 tabelas. O rodapé recebe **o mesmo objeto `slice`** que produziu as linhas, justamente
+  para não poder dizer um número enquanto a tabela mostra outro.
+- **Decisão arquitetural: paginação client-side.** Server-side (`skip`/`take`) quebraria os cards de
+  KPI da Sprint 15, que contam sobre o conjunto inteiro e têm invariantes de soma testadas — eles
+  passariam a exigir queries de contagem próprias — e mexeria em query escopada por tenant, risco
+  de RBAC injustificável numa fase de apresentação. **É paginação de apresentação, não ganho de
+  escala**: o servidor continua carregando tudo. Está escrito com essas palavras no cabeçalho dos
+  dois arquivos. Server-side virou item de Backlog.
+- Ordem correta e testada: **filtrar → contar → paginar**. O rodapé conta o conjunto *filtrado*, e
+  trocar filtro ou busca reseta para a página 1.
+- **Substantivo parametrizado** (`itemNoun`): `/processors` lista **modelos**, `/audit` lista
+  **registros** — um rodapé dizendo "dispositivos" numa tabela de modelos seria mentira.
+- `parsePageSize`/`parsePageNumber` usam `/^-?\d+$/` em vez de `Number()` cru, porque
+  `Number('1e2') === 100` e `Number('0x19') === 25` passariam pelo catálogo como valores legítimos
+  vindos da URL. `?page=99` numa lista de 6 páginas cai na 6, nunca numa tela vazia.
+- **`components/ui/pagination.tsx` (item 9 do Backlog, código morto) foi reescrito, não deletado.**
+  As primitivas antigas não serviam: todo controle era `<a>` **sem `href`** — fora da ordem de
+  tabulação, sem Enter/Espaço, sem estado desabilitado, de modo que "Anterior" desativado no extremo
+  era inexprimível. Viraram `<button>`, com rótulos em português.
+- **Mudança de comportamento registrada**: a checkbox "selecionar todos" de `/computers` e
+  `/servers` passou a operar sobre a **página atual**, não sobre o conjunto filtrado inteiro —
+  selecionar 142 máquinas fora da tela seria a checkbox mentindo sobre o próprio alcance.
+- **Zero teste existente alterado** (as fixtures têm 1–6 linhas, abaixo do default de 25); 59 testes
+  novos.
+
+### Fase 4 — Dashboard de frota
+
+- Hero de conformidade (`components/fleet-security-hero.tsx`), grid de 5 KPI navegáveis e painel
+  duplo (`critical-devices-panel` | `recent-activity-panel`); `loading.tsx` refeito para a forma
+  real, senão a página pula ao hidratar.
+- **Ambiguidade real encontrada no brief**: o pedido dizia "Antivírus **Ativo** %", e esse agregado
+  não existia — `securityCompliance` expõe `antivirusUpdatedPercent`, que é **outra medida**
+  (assinatura atualizada), não o mesmo número com outra conta. Entregou "ativo" como pedido **e**
+  "atualizado" como nota do mesmo bloco: antivírus ligado com assinatura velha não é conformidade, e
+  mostrar só um dos dois esconderia isso.
+- **Percentual sempre com base de cálculo à vista** ("3 de 5 máquinas com dado apurado") e
+  `knownCount === 0` → **"Sem dado"**, nunca `0%` nem `NaN`. Há teste assertando inclusive por
+  *ausência* de `0%` na tela.
+- **Dois links que estavam prestes a mentir, corrigidos**: (a) os cards de status apontam para
+  `/assets`, não `/computers` — o `summary` conta computadores **e** servidores, e `/computers`
+  exclui servidor por definição, abrindo menos linhas do que o card promete; (b) o card de disco
+  crítico usa o critério de **pior disco** (o mesmo de `/storage`, via `lib/disk-usage.ts`), não os
+  buckets que somam a capacidade de todos os discos antes de calcular a %.
+- **Micro-tendência não entregue, de propósito**: não existe série temporal *agregada de frota*
+  nesta base (`MetricSample` é por dispositivo). Qualquer sparkline seria dado sintético num painel
+  de operação. Card sólido com contexto real > gráfico mentiroso.
+- **Descoberta desligada ≠ nada encontrado**: `discoveryEnabled` é fail-closed e o painel diz que a
+  varredura está desligada, nunca "0 dispositivos descobertos" (RN017). O bloco de auditoria **some
+  inteiro** sem permissão — lista vazia sugeriria "não houve atividade".
+- Mudança visível: o `StatsGrid` (cards Windows 10 / Windows 11 / Servidores) saiu do dashboard. A
+  informação não se perdeu — o recorte por SO segue no gráfico de distribuição logo abaixo, que já
+  linka para a listagem filtrada.
+- Passou a repassar `alertDiskThresholdGb` do tenant para `getDeviceReportRows`; antes a página
+  omitia e caía no default de 10 GB, o que divergiria da configuração do cliente agora que
+  `criticalDisks` alimenta o painel.
+
+### Verificação independente do orquestrador
+
+`npx tsc --noEmit`, `npm run lint` e `npm run build` limpos — **build sem nenhum warning** (o
+`layout.tsx` chegou a emitir um sobre import nomeado de `version`, resolvido pela Fase 2 com import
+default). `npx vitest run` **575/575 em 60 arquivos, estável em 2 execuções consecutivas**, e mais
+2 execuções após as correções abaixo.
+
+**Correção de contagem**: o alvo "451 testes" citado nos despachos já estava defasado — a baseline
+real quando as fases começaram era **500**. O total final é 575 (39 da Fase 2, 59 da Fase 3, 26 da
+Fase 4, menos sobreposição de arquivo).
+
+**Três pontas soltas que os agentes relataram e o orquestrador corrigiu** (nenhuma estava dentro da
+fronteira de quem a encontrou):
+
+1. **`/assets` escrevia `?page=`/`?limit=` mas não lia de volta.** A rota compartilha
+   `TenantComputersTable` com `/computers`, então herdou o rodapé — e recarregar caía na página 1
+   com um `?page=3` obsoleto na barra de endereço. Corrigido lendo os dois via `parsePageNumber`/
+   `parsePageSize`, igual `/computers`.
+2. **Bug de precedência em `getInitials`** (`components/sidebar.tsx`, pré-existente):
+   `(parts[0]?.[0] ?? '' + (parts[1]?.[0] ?? ''))` agrupa como `a ?? ('' + b)` porque `??` tem
+   precedência **menor** que `+` — "Rodrigo Silva" produzia `R`, nunca `RS`. Corrigido com
+   parênteses por termo.
+3. **`DESIGN.md` desatualizado**: §11 ainda listava as Fases 2–4 como pendentes (agora descreve a
+   cobertura de cada fase concluída) e §10 proibia "borda colorida de mais de 1px num lado só", que
+   é exatamente o indicador de rota ativa — registrada a exceção, com a razão (navegação responde
+   "onde estou", não categoriza) e a nota de que é `<span>` posicionado, não borda real.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -1815,3 +1937,58 @@ as 10 tabelas para ele), não um bug — o código morto não afeta o bundle de 
 tree-shaking do Next não inclui módulo não importado. Não foi pedido no escopo aprovado, então
 **não foi corrigido**. Candidato barato: `git rm components/ui/table.tsx` numa sprint futura de
 débito técnico, junto com uma checagem de que nada mais em `components/ui/` está órfão.
+
+---
+
+### 10. Paginação server-side quando o volume justificar — MÉDIO (achado do Overhaul visual, Fase 3)
+
+**Origem**: decisão arquitetural tomada na Fase 3 do overhaul (2026-09-08).
+
+**Achado**: a paginação entregue é **client-side** — `lib/table-pagination.ts` recorta um array que o
+Server Component já carregou inteiro. Resolve a tela (deixa de renderizar 142 linhas de uma vez),
+mas **não é ganho de escala**: `prisma.*.findMany` continua sem `skip`/`take` e o payload inteiro
+continua trafegando até o navegador.
+
+**Por que ficou assim**: server-side exigiria mover busca e filtros para a URL e para queries
+Prisma, o que (a) quebraria os cards de KPI da Sprint 15, que contam sobre o conjunto inteiro e têm
+invariantes de soma testadas — passariam a precisar de queries de contagem próprias; e (b) mexeria
+em query escopada por tenant, risco de RBAC injustificável numa fase de apresentação.
+
+**Quando encarar**: quando um tenant real tiver volume que torne o payload um problema medido, não
+antes. O trabalho é próprio, com teste próprio, e precisa preservar as invariantes de soma dos cards.
+
+---
+
+### 11. `criticalFilter` de `/computers` não sobrevive a recarregar — BAIXO (achado do Overhaul visual, Fase 3)
+
+**Achado**: os cards "Pouco Disco" / "Pouca RAM" / "Coleta Atrasada" de `/computers` resetam a
+página corretamente ao filtrar, mas **não têm parâmetro de URL**. Recarregar perde o filtro, enquanto
+`?search=`, `?status=`, `?tipo=`, `?faixa=` e `?fabricante=` sobrevivem.
+
+**Por que fica pendente**: o escopo verbatim da Fase 3 nomeava `page/limit/search/status`; criar um
+parâmetro novo era escopo além do aprovado. Correção é pequena e localizada em
+`components/tenant-computers-table.tsx` (adicionar a chave ao `syncUrl` que já existe lá) mais a
+leitura em `computers/page.tsx`.
+
+---
+
+### 12. `/audit` não sinaliza o teto de 200 registros — BAIXO (achado do Overhaul visual, Fase 3)
+
+**Achado**: `app/app/[clientSlug]/audit/page.tsx` busca `listAuditLogs({ limit: 200 })`. O rodapé de
+paginação agora recorta esses até-200, mas nada diz ao usuário quando o teto foi atingido — quem vê
+"Exibindo 176–200 de 200 registros" não sabe se são todos ou se há mais atrás.
+
+**Por que fica pendente**: exibir a nota exigiria ou duplicar a constante `200` (hoje só na page)
+dentro do componente, ou passar uma prop que não vem de `searchParams` — ambos fora da fronteira de
+arquivos da fase. A query ficou intacta, como instruído.
+
+---
+
+### 13. Busca de dispositivos na paleta de comando — BAIXO (achado do Overhaul visual, Fase 2)
+
+**Achado**: o `Ctrl/⌘+K` busca **apenas rotas** do tenant. Buscar dispositivo, software ou usuário
+por nome — que é o que um operador espera de uma paleta de comando — não foi implementado.
+
+**Por que fica pendente**: não é trabalho de UI. Exige rota de API própria com escopo por tenant,
+paginação e rate limit (o mesmo tratamento que `/api/agent/*` recebeu), além de decidir o que um
+`ORG_OPERATOR` pode encontrar por busca. É sprint própria, com auditoria de segurança própria.

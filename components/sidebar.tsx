@@ -5,9 +5,25 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { signOut } from 'next-auth/react'
 import type { AppRole } from '@/lib/permissions'
-import { getPermissionUser, isOrgAdmin, isOrgOperator, isPlatformAdmin } from '@/lib/permissions'
+import { getPermissionUser } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { getTenantBasePath, getTenantPath } from '@/lib/tenant-links'
+import { getTenantBasePath } from '@/lib/tenant-links'
+import { ONLINE_PRESENCE_MINUTES } from '@/lib/inventory-alerts'
+import {
+  buildShellNavigation,
+  canAccessClientList,
+  getBreadcrumbTrail,
+  isPathActive,
+  type ShellNavItem,
+  type ShellTenant,
+} from '@/lib/shell-navigation'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
+import { ShellBreadcrumbs } from '@/components/shell-breadcrumbs'
+import {
+  CommandPalette,
+  CommandPaletteTrigger,
+  useCommandPalette,
+} from '@/components/command-palette'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,32 +33,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  LayoutDashboard,
   Monitor,
-  Server,
-  HardDrive,
-  Cpu,
-  Network,
   ChevronDown,
   ChevronsUpDown,
   Check,
   Loader2,
-  BarChart3,
-  Users,
-  Shield,
   Building2,
   LogOut,
-  ClipboardList,
-  BellRing,
   Menu,
   X,
-  Settings,
 } from 'lucide-react'
 
-type TenantShellInfo = {
-  name: string
-  slug: string
-}
+type TenantShellInfo = ShellTenant
 
 type SwitchableClient = {
   id: string
@@ -54,7 +56,14 @@ type SwitchableClient = {
  * Troca de cliente sem sair pra lista completa em /clients — o brief original
  * (sessao de /shape) previa isso pra ORG_ADMIN/ORG_OPERATOR, escopado a
  * clientes da propria org. Colapsa pro rotulo estatico de sempre quando so ha
- * 1 cliente (orgs DIRECT) — ver o branch em Sidebar.
+ * 1 cliente (orgs DIRECT) — ver o branch em Header.
+ *
+ * Overhaul visual, Fase 2: o controle SAIU do topo da sidebar e virou uma
+ * acao contextual do header, ao lado do perfil. Motivo: o cliente ativo ja e
+ * o segundo nivel da trilha de breadcrumbs — manter um cartao inteiro
+ * repetindo o mesmo nome no topo do menu era dizer a mesma coisa duas vezes,
+ * na coluna mais estreita da tela. Aqui ele e um controle compacto de 36px de
+ * altura, alinhado com a busca e o avatar.
  */
 function ClientSwitcher({ current, clients }: { current: TenantShellInfo; clients: SwitchableClient[] }) {
   const router = useRouter()
@@ -87,24 +96,24 @@ function ClientSwitcher({ current, clients }: { current: TenantShellInfo; client
         <button
           type="button"
           disabled={isPending}
-          className="w-full rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2.5 text-left transition-colors hover:bg-sidebar-accent/70 disabled:cursor-wait"
+          aria-label={`Cliente ativo: ${current.name}. Trocar de cliente`}
+          className="flex h-9 items-center gap-2 rounded-lg border border-surface-line bg-secondary/50 px-2.5 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 lg:max-w-[10rem] xl:max-w-[14rem]"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cliente</p>
-              <p className="truncate text-sm font-semibold text-sidebar-foreground" title={current.name}>
-                {current.name}
-              </p>
-            </div>
-            {isPending ? (
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-            ) : (
-              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            )}
-          </div>
+          <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+          {/* Abaixo de `lg` o controle vira icone + seta: a trilha ao lado ja
+              mostra o nome do cliente nessa largura, e dois nomes do mesmo
+              cliente num header de 64px nao cabem. O `aria-label` do botao
+              continua carregando o nome para quem usa leitor de tela. */}
+          <span className="hidden truncate font-medium lg:inline">{current.name}</span>
+          {isPending ? (
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+          ) : (
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60 border-sidebar-border bg-sidebar p-1">
+      <DropdownMenuContent align="end" className="w-64 p-1">
+        <DropdownMenuLabel className="section-label px-2 pt-1.5 pb-1">Trocar de cliente</DropdownMenuLabel>
         {needsFilter && (
           <div className="p-1 pb-1.5">
             <input
@@ -113,7 +122,8 @@ function ClientSwitcher({ current, clients }: { current: TenantShellInfo; client
               onChange={(event) => setFilter(event.target.value)}
               onKeyDown={(event) => event.stopPropagation()}
               placeholder="Buscar cliente..."
-              className="w-full rounded-md border border-sidebar-border bg-transparent px-2 py-1.5 text-sm text-sidebar-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-sidebar-ring"
+              aria-label="Buscar cliente"
+              className="w-full rounded-md border border-surface-line bg-transparent px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
           </div>
         )}
@@ -147,13 +157,6 @@ export type SidebarUser = {
   role?: AppRole | null
 }
 
-type NavigationItem = {
-  name: string
-  href: string
-  icon: React.ComponentType<{ className?: string }>
-  exact?: boolean
-}
-
 const ROLE_LABELS: Record<AppRole, string> = {
   PLATFORM_ADMIN: 'Administrador da plataforma',
   ORG_ADMIN: 'Administrador da conta',
@@ -161,16 +164,15 @@ const ROLE_LABELS: Record<AppRole, string> = {
   CLIENT_VIEWER: 'Portal do cliente',
 }
 
-function isPathActive(pathname: string, href: string, exact = false) {
-  if (exact) return pathname === href
-  return pathname === href || pathname.startsWith(`${href}/`)
-}
-
 function getInitials(user: SidebarUser) {
   const source = user.name?.trim() || user.email?.trim() || ''
   if (!source) return '??'
   const parts = source.split(/[\s@.]+/).filter(Boolean)
-  return (parts[0]?.[0] ?? '' + (parts[1]?.[0] ?? '')).toUpperCase().slice(0, 2) || source.slice(0, 2).toUpperCase()
+  // Os parenteses de cada termo sao necessarios: `??` tem precedencia MENOR que
+  // `+`, entao `a ?? '' + b` agrupa como `a ?? ('' + b)` — a versao anterior
+  // devolvia so a inicial do primeiro nome ("Rodrigo Silva" -> "R", nunca "RS").
+  const initials = (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
+  return initials.toUpperCase().slice(0, 2) || source.slice(0, 2).toUpperCase()
 }
 
 function NavigationSection({
@@ -179,31 +181,48 @@ function NavigationSection({
   pathname,
 }: {
   title: string
-  items: NavigationItem[]
+  items: ShellNavItem[]
   pathname: string
 }) {
   if (items.length === 0) return null
 
   return (
     <div>
-      <h2 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h2>
-      <ul className="space-y-1">
+      <h2 className="section-label mb-2 px-3">{title}</h2>
+      <ul className="space-y-0.5">
         {items.map((item) => {
           const isActive = isPathActive(pathname, item.href, item.exact)
           return (
             <li key={item.name}>
               <Link
                 href={item.href}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  'group relative flex items-center gap-3 rounded-lg py-2 pr-3 pl-4 text-sm transition-colors duration-150',
+                  'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none',
                   isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                    ? 'bg-primary/10 font-semibold text-primary'
+                    : 'font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
                 )}
               >
-                <item.icon className="h-4 w-4" />
+                {/* Barra de estado atual. E um elemento posicionado, nao um
+                    `border-l-2`: com borda, o item ATIVO ganharia 2px de
+                    largura de caixa e todo o texto da linha andaria 2px pro
+                    lado ao navegar. O span nao ocupa espaco no fluxo, e ainda
+                    aceita raio proprio pra nao brigar com o canto arredondado
+                    do item. */}
+                {isActive && (
+                  <span
+                    aria-hidden
+                    className="absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary"
+                  />
+                )}
+                <item.icon
+                  className={cn(
+                    'h-4 w-4 shrink-0 transition-colors',
+                    isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
+                  )}
+                />
                 {item.name}
               </Link>
             </li>
@@ -214,233 +233,9 @@ function NavigationSection({
   )
 }
 
-export function Sidebar({
-  tenant,
-  user,
-  switchableClients,
-}: {
-  tenant?: TenantShellInfo
-  user?: SidebarUser
-  /** So passado quando o papel pode trocar de cliente (ver app/app/[clientSlug]/layout.tsx). */
-  switchableClients?: SwitchableClient[]
-}) {
-  const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = useState(false)
-
-  // Fecha o drawer mobile a cada navegacao — sem isso o menu ficaria aberto
-  // por cima da tela seguinte depois de tocar num link. Ajuste de estado
-  // durante o render (em vez de um useEffect) e o padrao recomendado pelo
-  // React para "resetar estado quando uma prop muda"; evita o
-  // re-render em cascata de um setState sincrono dentro de efeito.
-  const [prevPathname, setPrevPathname] = useState(pathname)
-  if (pathname !== prevPathname) {
-    setPrevPathname(pathname)
-    setMobileOpen(false)
-  }
-
-  const permissionUser = getPermissionUser({ role: user?.role ?? null })
-
-  const platformAdmin = isPlatformAdmin(permissionUser)
-  const orgAdmin = isOrgAdmin(permissionUser)
-  const orgOperator = isOrgOperator(permissionUser)
-  // Fail-closed: papel desconhecido nao ve nenhum menu. A versao anterior fazia
-  // `canAccessGlobalAdmin(user) || !user.role`, ou seja, mostrava o menu
-  // administrativo inteiro justamente quando o papel nao era reconhecido.
-  const canSeeAccountArea = platformAdmin || orgAdmin
-  const canSeeManagement = platformAdmin || orgAdmin || orgOperator
-
-  const inventory: NavigationItem[] = tenant
-    ? [
-        { name: 'Visão geral', href: getTenantBasePath(tenant.slug), icon: LayoutDashboard, exact: true },
-        { name: 'Máquinas', href: getTenantPath(tenant.slug, 'computers'), icon: Monitor },
-        { name: 'Servidores', href: getTenantPath(tenant.slug, 'servers'), icon: Server },
-        { name: 'Armazenamento', href: getTenantPath(tenant.slug, 'storage'), icon: HardDrive },
-        { name: 'Processadores', href: getTenantPath(tenant.slug, 'processors'), icon: Cpu },
-        { name: 'Rede', href: getTenantPath(tenant.slug, 'network'), icon: Network },
-      ]
-    : []
-
-  const management: NavigationItem[] = tenant
-    ? [
-        ...(canSeeManagement
-          ? [
-              { name: 'Relatórios', href: getTenantPath(tenant.slug, 'reports'), icon: BarChart3 },
-              { name: 'Alertas', href: getTenantPath(tenant.slug, 'alerts'), icon: BellRing },
-              { name: 'Configurações', href: getTenantPath(tenant.slug, 'settings'), icon: Settings },
-            ]
-          : []),
-        ...(canSeeAccountArea
-          ? [{ name: 'Auditoria', href: getTenantPath(tenant.slug, 'audit'), icon: ClipboardList }]
-          : []),
-      ]
-    : []
-
-  const account: NavigationItem[] = canSeeAccountArea
-    ? [
-        { name: 'Clientes', href: '/admin/clients', icon: Building2, exact: true },
-        ...(platformAdmin
-          ? [
-              { name: 'Auditoria global', href: '/admin/clients/audit', icon: ClipboardList, exact: true },
-              { name: 'Usuários', href: '/users', icon: Users, exact: true },
-              { name: 'Segurança', href: '/security', icon: Shield, exact: true },
-            ]
-          : []),
-      ]
-    : []
-
-  return (
-    <>
-      {!mobileOpen && (
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Abrir menu"
-          className="fixed left-3 top-3 z-50 flex h-11 w-11 items-center justify-center rounded-lg border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-md lg:hidden"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-      )}
-
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      <aside
-        className={cn(
-          'fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out',
-          'lg:translate-x-0',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
-      >
-      <div className="flex h-full flex-col">
-        <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Monitor className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <h1 className="flex-1 text-sm font-semibold text-sidebar-foreground">Inventário TI</h1>
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            aria-label="Fechar menu"
-            className="-mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent lg:hidden"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-          {tenant ? (
-            switchableClients && switchableClients.length > 1 ? (
-              <ClientSwitcher current={tenant} clients={switchableClients} />
-            ) : (
-              <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2.5">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cliente</p>
-                <p className="truncate text-sm font-semibold text-sidebar-foreground" title={tenant.name}>
-                  {tenant.name}
-                </p>
-                {canSeeAccountArea && (
-                  <Link
-                    href="/admin/clients"
-                    className="mt-1 inline-block text-xs text-muted-foreground underline-offset-4 hover:text-sidebar-foreground hover:underline"
-                  >
-                    Trocar cliente
-                  </Link>
-                )}
-              </div>
-            )
-          ) : (
-            canSeeAccountArea && (
-              <div className="rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs text-muted-foreground">
-                Escolha um cliente em <span className="font-medium text-sidebar-foreground">Clientes</span> para
-                abrir o inventário dele.
-              </div>
-            )
-          )}
-
-          <NavigationSection title="Inventário" items={inventory} pathname={pathname} />
-          <NavigationSection title="Gestão" items={management} pathname={pathname} />
-          <NavigationSection title="Conta" items={account} pathname={pathname} />
-        </nav>
-
-        <div className="border-t border-sidebar-border p-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                  {user ? getInitials(user) : '??'}
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="truncate text-sm font-medium text-sidebar-foreground">
-                    {user?.name || user?.email || 'Sessão'}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {user?.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
-                  </p>
-                </div>
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="w-60 border-sidebar-border bg-sidebar">
-              <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
-                {user?.email ?? 'Não identificado'}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-sidebar-border" />
-              <DropdownMenuItem
-                className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
-                onClick={() => signOut({ callbackUrl: '/login' })}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sair da conta
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      </aside>
-    </>
-  )
-}
-
-function getHeaderTitle(pathname: string, tenant?: TenantShellInfo) {
-  if (!tenant) {
-    if (pathname.startsWith('/admin/clients/audit')) return 'Auditoria global'
-    if (pathname.startsWith('/admin/clients/novo')) return 'Novo cliente'
-    if (pathname.startsWith('/admin/clients')) return 'Clientes'
-    if (pathname.startsWith('/users')) return 'Usuários'
-    if (pathname.startsWith('/security')) return 'Segurança'
-    return 'Painel'
-  }
-
-  const basePath = getTenantBasePath(tenant.slug)
-  const titles: Array<{ match: string; title: string; exact?: boolean }> = [
-    { match: `${basePath}/computers`, title: 'Máquinas' },
-    { match: `${basePath}/servers`, title: 'Servidores' },
-    { match: `${basePath}/storage`, title: 'Armazenamento' },
-    { match: `${basePath}/processors`, title: 'Processadores' },
-    { match: `${basePath}/network`, title: 'Rede' },
-    { match: `${basePath}/reports`, title: 'Relatórios' },
-    { match: `${basePath}/alerts`, title: 'Alertas' },
-    { match: `${basePath}/settings`, title: 'Configurações' },
-    { match: `${basePath}/audit`, title: 'Auditoria' },
-    // Listagem unificada (exata) vem antes do detalhe (prefixo `/assets/<id>`)
-    // — sem essa ordem, `startsWith` faria a listagem cair no titulo do detalhe.
-    { match: `${basePath}/assets`, title: 'Todos os dispositivos', exact: true },
-    { match: `${basePath}/assets/`, title: 'Detalhe da máquina' },
-  ]
-
-  return (
-    titles.find((item) => (item.exact ? pathname === item.match : pathname.startsWith(item.match)))?.title ??
-    'Visão geral'
-  )
-}
-
 /**
- * Fora do componente de proposito (ver comentario de `now` abaixo): assim o
- * `Date.now()` de fallback nao e mais uma chamada impura "durante o render"
+ * Fora do componente de proposito (ver comentario de `now` em Sidebar): assim
+ * o `Date.now()` de fallback nao e mais uma chamada impura "durante o render"
  * aos olhos do lint de pureza do React Compiler — `now` deixou de ser
  * capturado por closure e passou a parametro explicito.
  */
@@ -457,54 +252,310 @@ function formatRelative(iso: string | null | undefined, now?: string): string {
   return `há ${days} dia${days > 1 ? 's' : ''}`
 }
 
-export function Header({
+/**
+ * Estado da frota derivado do UNICO dado de coleta que o shell ja tem em
+ * maos (`lastCollectionAt`, uma consulta que o layout do tenant ja fazia).
+ * Nenhuma consulta nova entra aqui: contar agentes online por faixa seria um
+ * agregado por navegacao no layout, custo permanente por uma pilula.
+ *
+ * O limiar e `ONLINE_PRESENCE_MINUTES` — a MESMA constante de
+ * `getDevicePresence`. Sem isso, a pilula poderia dizer "frota ativa"
+ * enquanto a tabela ao lado ja mostra todas as maquinas como "ausente".
+ */
+function getFleetStatus(
+  lastCollectionAt: string | null | undefined,
+  now?: string
+): { tone: StatusPillTone; label: string } {
+  if (!lastCollectionAt) return { tone: 'neutral', label: 'Sem coletas' }
+  const reference = now ? new Date(now).getTime() : Date.now()
+  const ageMinutes = (reference - new Date(lastCollectionAt).getTime()) / 60000
+  if (ageMinutes <= ONLINE_PRESENCE_MINUTES) return { tone: 'success', label: 'Frota ativa' }
+  return { tone: 'warning', label: 'Coleta atrasada' }
+}
+
+export function Sidebar({
   tenant,
+  user,
   lastCollectionAt,
   now,
+  appVersion,
 }: {
   tenant?: TenantShellInfo
+  user?: SidebarUser
+  /** Ultima coleta do tenant, ja resolvida pelo layout (Server Component). */
   lastCollectionAt?: string | null
   /**
    * Timestamp de referencia calculado pelo Server Component chamador (ver
    * `app/app/[clientSlug]/layout.tsx`) e passado como prop serializada.
    *
-   * Header comeca com 'use client', mas como todo componente client ele e
-   * renderizado no servidor (SSR) e depois hidratado no browser. Antes,
-   * `formatRelative` chamava `Date.now()` direto: o SSR calculava "ha 17
-   * min" com o relogio do servidor, e a hidratacao recalculava com o
-   * relogio do client alguns instantes depois — sempre que essa janela
-   * cruzava uma fronteira de minuto/hora/dia, o texto renderizado no
-   * servidor nao batia com o do client, um hydration mismatch classico de
+   * Sidebar comeca com 'use client', mas como todo componente client ele e
+   * renderizado no servidor (SSR) e depois hidratado no browser. Se
+   * `formatRelative`/`getFleetStatus` chamassem `Date.now()` direto, o SSR
+   * calcularia "ha 17 min" com o relogio do servidor e a hidratacao
+   * recalcularia com o relogio do client alguns instantes depois — sempre que
+   * essa janela cruzasse uma fronteira de minuto/hora/dia, o texto do
+   * servidor nao bateria com o do client, um hydration mismatch classico de
    * "tempo relativo". O React reage a um mismatch de texto descartando e
    * re-renderizando do zero a subarvore inteira a partir dali, o que
-   * reatribui os `useId()` que o Radix usa para o `id` do
-   * `DropdownMenuTrigger` mais abaixo na Sidebar — o sintoma visivel
-   * (`id` divergente entre server e client) nao era um bug no
-   * DropdownMenuTrigger em si, e sim esse efeito cascata.
+   * reatribui os `useId()` que o Radix usa para o `id` dos
+   * `DropdownMenuTrigger` mais abaixo — o sintoma visivel (`id` divergente
+   * entre server e client) nao era bug do DropdownMenuTrigger em si, e sim
+   * esse efeito cascata.
    *
-   * A correcao: `now` e calculado uma unica vez no Server Component (que
-   * so roda no servidor) e flui como prop ja serializada, entao a primeira
-   * renderizacao do client (antes de qualquer efeito) usa exatamente o
-   * mesmo valor que o SSR usou — sem essa segunda leitura de relogio, nao
-   * ha mais como os dois lados divergirem.
+   * A correcao: `now` e calculado uma unica vez no Server Component e flui
+   * como prop ja serializada, entao a primeira renderizacao do client (antes
+   * de qualquer efeito) usa exatamente o mesmo valor que o SSR usou.
    */
   now?: string
+  /** Versao do painel, lida do package.json pelo layout. */
+  appVersion?: string
 }) {
   const pathname = usePathname()
-  const title = getHeaderTitle(pathname, tenant)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Fecha o drawer mobile a cada navegacao — sem isso o menu ficaria aberto
+  // por cima da tela seguinte depois de tocar num link. Ajuste de estado
+  // durante o render (em vez de um useEffect) e o padrao recomendado pelo
+  // React para "resetar estado quando uma prop muda"; evita o
+  // re-render em cascata de um setState sincrono dentro de efeito.
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname)
+    setMobileOpen(false)
+  }
+
+  const permissionUser = getPermissionUser({ role: user?.role ?? null })
+  const sections = buildShellNavigation(tenant, permissionUser)
+  const fleet = getFleetStatus(lastCollectionAt, now)
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 pl-16 pr-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-        {tenant && <p className="text-xs text-muted-foreground">{tenant.name}</p>}
+    <>
+      {!mobileOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Abrir menu"
+          className="fixed top-3 left-3 z-50 flex h-11 w-11 items-center justify-center rounded-lg border border-surface-line bg-sidebar text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      )}
+
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[3px] lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/*
+        Vidro na sidebar: e superficie FIXA que se sobrepoe a conteudo — no
+        mobile literalmente, como drawer por cima da tela; no desktop, como
+        coluna fixa enquanto o conteudo rola. E o caso permitido em DESIGN.md
+        §4.1 ("so em superficie que se sobrepoe a conteudo").
+
+        O tom vem de `--sidebar`, nao de `--card`: DESIGN.md §2.2 define a
+        sidebar como a segunda camada neutra, um degrau ABAIXO do conteudo.
+        Pintar de `bg-card` inverteria essa hierarquia — o menu ficaria mais
+        claro que a tela que ele serve.
+      */}
+      <aside
+        className={cn(
+          'fixed top-0 left-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar/80 backdrop-blur-md transition-transform duration-300 ease-out',
+          'lg:translate-x-0',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+              <Monitor className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <h1 className="flex-1 text-sm font-semibold text-sidebar-foreground">Inventário TI</h1>
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Fechar menu"
+              className="-mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:hidden"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+            {!tenant && sections.length > 0 && (
+              <div className="rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs text-muted-foreground">
+                Escolha um cliente em <span className="font-medium text-sidebar-foreground">Clientes</span> para
+                abrir o inventário dele.
+              </div>
+            )}
+
+            {sections.map((section) => (
+              <NavigationSection
+                key={section.title}
+                title={section.title}
+                items={section.items}
+                pathname={pathname}
+              />
+            ))}
+          </nav>
+
+          <div className="border-t border-sidebar-border p-3">
+            {tenant ? (
+              /*
+                Rodape do tenant: sessao ativa + estado da frota. O menu de
+                perfil (sair da conta) migrou pro header nesta fase — ver
+                `Header`. As telas administrativas, que nao tem tenant,
+                continuam com o menu aqui, no ramo `else`.
+              */
+              <div className="space-y-2.5 rounded-lg border border-surface-line bg-sidebar-accent/40 px-3 py-2.5">
+                <div>
+                  <p className="section-label">Sessão</p>
+                  <p className="truncate text-sm font-semibold text-sidebar-foreground" title={tenant.name}>
+                    {tenant.name}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {user?.name || user?.email || 'Sessão'}
+                    {user?.role ? ` · ${ROLE_LABELS[user.role]}` : ''}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-t border-surface-line pt-2.5">
+                  <StatusPill tone={fleet.tone} label={fleet.label} />
+                  {appVersion && (
+                    <span
+                      className="data-mono text-[11px] text-muted-foreground"
+                      title={`Versão do painel: ${appVersion}`}
+                    >
+                      v{appVersion}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Última coleta {formatRelative(lastCollectionAt, now)}
+                </p>
+              </div>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                      {user ? getInitials(user) : '??'}
+                    </div>
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="truncate text-sm font-medium text-sidebar-foreground">
+                        {user?.name || user?.email || 'Sessão'}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {user?.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
+                      </p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="right" align="end" className="w-60">
+                  <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                    {user?.email ?? 'Não identificado'}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    onClick={() => signOut({ callbackUrl: '/login' })}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sair da conta
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+      </aside>
+    </>
+  )
+}
+
+/** Acoes de perfil no header — so montado quando o chamador passa a sessao. */
+function ProfileMenu({ user }: { user: SidebarUser }) {
+  const label = user.name || user.email || 'Sessão'
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Conta de ${label}`}
+          className="flex h-9 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+            {getInitials(user)}
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="font-normal">
+          <span className="block truncate text-sm font-medium text-foreground">{label}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {user.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+          onClick={() => signOut({ callbackUrl: '/login' })}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Sair da conta
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export function Header({
+  tenant,
+  user,
+  switchableClients,
+}: {
+  tenant?: TenantShellInfo
+  /**
+   * Sessao do usuario. So o shell do tenant passa isto hoje; as telas
+   * administrativas (`/admin/clients`, `/users`, `/security`) chamam
+   * `<Header />` sem props e mantem o menu de perfil no rodape da sidebar.
+   * Sem essa prop o header nao monta perfil nem paleta — nao existe nada pra
+   * buscar sem saber o papel de quem busca.
+   */
+  user?: SidebarUser
+  /** So passado quando o papel pode trocar de cliente (ver o layout do tenant). */
+  switchableClients?: SwitchableClient[]
+}) {
+  const pathname = usePathname()
+  const { open, setOpen } = useCommandPalette()
+
+  const permissionUser = getPermissionUser({ role: user?.role ?? null })
+  const trail = getBreadcrumbTrail(pathname, tenant, {
+    // RBAC vazando pela navegacao e RBAC quebrado: quem nao abre
+    // /admin/clients recebe "Clientes" como TEXTO, nunca como link.
+    canAccessClientList: canAccessClientList(permissionUser),
+  })
+  const sections = user ? buildShellNavigation(tenant, permissionUser) : []
+  const hasPalette = sections.some((section) => section.items.length > 0)
+
+  return (
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-surface-line bg-background/80 pr-4 pl-16 backdrop-blur-md lg:gap-4 lg:px-6">
+      <ShellBreadcrumbs trail={trail} className="min-w-0 flex-1" />
+
+      <div className="flex shrink-0 items-center gap-2">
+        {hasPalette && <CommandPaletteTrigger onOpen={() => setOpen(true)} />}
+        {tenant && switchableClients && switchableClients.length > 1 && (
+          <ClientSwitcher current={tenant} clients={switchableClients} />
+        )}
+        {user && <ProfileMenu user={user} />}
       </div>
 
-      {tenant && (
-        <p className="text-sm text-muted-foreground">
-          Última coleta: <span className="text-foreground">{formatRelative(lastCollectionAt, now)}</span>
-        </p>
-      )}
+      {hasPalette && <CommandPalette open={open} onOpenChange={setOpen} sections={sections} />}
     </header>
   )
 }

@@ -5,6 +5,7 @@ import { StatCard } from '@/components/stat-cards'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantBasePath } from '@/lib/tenant-links'
 import { listAuditLogs } from '@/lib/audit-log'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 import { canViewTenantAudit, getSessionPermissionUser } from '@/lib/permissions'
 import { 
   History, 
@@ -30,6 +31,11 @@ type TenantAuditSearchParams = {
   actorEmail?: string
   from?: string
   to?: string
+  /** Overhaul visual — Fase 3: rodape de paginacao. NAO alteram a query de
+   * `listAuditLogs` (o LIMIT 200 continua igual) — recortam no cliente os ate
+   * 200 registros ja carregados. */
+  page?: string
+  limit?: string
 }
 
 function parseDate(value: string | undefined, endOfDay = false) {
@@ -170,10 +176,13 @@ export default async function TenantAuditPage({
         </form>
       </div>
 
-      <AuditLogTable 
-        logs={logs} 
-        emptyMessage="Nenhum evento registrado nos critérios selecionados para este tenant." 
+      <AuditLogTable
+        logs={logs}
+        emptyMessage="Nenhum evento registrado nos critérios selecionados para este tenant."
         tenantBasePath={basePath}
+        paginated
+        initialPage={parsePageNumber(filters.page)}
+        initialPageSize={parsePageSize(filters.limit)}
       />
     </div>
   )

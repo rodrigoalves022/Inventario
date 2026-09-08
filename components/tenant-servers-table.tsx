@@ -15,6 +15,16 @@ import {
   TABLE_HEAD_ROW_CLASS,
   TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
+import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  getPageSlice,
+  paginationQueryUpdates,
+  parsePageNumber,
+  parsePageSize,
+  replaceListQueryParams,
+  type PageSize,
+} from '@/lib/table-pagination'
 
 export type TenantServerRow = {
   id: string
@@ -51,16 +61,49 @@ export function TenantServersTable({
   servers,
   tenantSlug,
   canOperate = false,
+  initialPage = 1,
+  initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   servers: TenantServerRow[]
   /** Sprint 12. Mesmo contrato de tenant-computers-table.tsx: seleção múltipla
    * + barra de comando em lote só aparecem quando os dois estão presentes. */
   tenantSlug?: string
   canOperate?: boolean
+  /** `?page=`/`?limit=` (Overhaul visual — Fase 3), revalidados aqui tambem. */
+  initialPage?: number
+  initialPageSize?: number
 }) {
   const router = useRouter()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(() => parsePageNumber(initialPage))
+  const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
   const canBulkOperate = Boolean(tenantSlug && canOperate)
+
+  /** Esta tabela nao tem filtro nem busca — o conjunto "filtrado" e' a lista
+   * inteira, entao a ordem filtrar -> contar -> paginar colapsa no recorte. */
+  const slice = getPageSlice(servers, page, pageSize)
+
+  /**
+   * `history.replaceState`, e nao `router.replace`: /servers nao tinha
+   * sincronizacao de URL nenhuma antes desta fase, e o recorte e' todo
+   * client-side — um `router.replace` por clique de pagina refaria o
+   * `findMany` do tenant inteiro no servidor para nao mudar uma linha. Ver
+   * `replaceListQueryParams` em lib/table-pagination.ts.
+   */
+  function syncUrl(nextPage: number, nextPageSize: PageSize) {
+    replaceListQueryParams(paginationQueryUpdates(nextPage, nextPageSize))
+  }
+
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    syncUrl(nextPage, pageSize)
+  }
+
+  function changePageSize(nextPageSize: PageSize) {
+    setPageSize(nextPageSize)
+    setPage(1)
+    syncUrl(1, nextPageSize)
+  }
 
   function toggleSelected(deviceId: string, checked: boolean) {
     setSelectedIds((current) => {
@@ -89,14 +132,19 @@ export function TenantServersTable({
             <tr className={TABLE_HEAD_ROW_CLASS}>
               {canBulkOperate && (
                 <th className={cn(TABLE_HEAD_CLASS, 'w-10')}>
+                  {/* Escopo da checkbox de cabecalho: a PAGINA atual, nao a
+                      lista inteira. Com paginacao, "todos" sem qualificacao
+                      selecionaria linhas que o usuario nao esta vendo — e o
+                      estado marcado/desmarcado nao teria relacao com o que
+                      aparece na tela. */}
                   <Checkbox
-                    aria-label="Selecionar todos os servidores"
-                    checked={servers.length > 0 && servers.every((server) => selectedIds.has(server.id))}
+                    aria-label="Selecionar todos os servidores desta página"
+                    checked={slice.items.length > 0 && slice.items.every((server) => selectedIds.has(server.id))}
                     onCheckedChange={(checked) => {
                       setSelectedIds((current) => {
                         const next = new Set(current)
-                        if (checked) servers.forEach((server) => next.add(server.id))
-                        else servers.forEach((server) => next.delete(server.id))
+                        if (checked) slice.items.forEach((server) => next.add(server.id))
+                        else slice.items.forEach((server) => next.delete(server.id))
                         return next
                       })
                     }}
@@ -113,7 +161,7 @@ export function TenantServersTable({
             </tr>
           </thead>
           <tbody>
-            {servers.map((server) => (
+            {slice.items.map((server) => (
               <tr
                 key={server.id}
                 role="button"
@@ -160,6 +208,14 @@ export function TenantServersTable({
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        slice={slice}
+        onPageChange={changePage}
+        onPageSizeChange={changePageSize}
+        itemNoun={{ one: 'servidor', other: 'servidores' }}
+        navLabel="Paginação dos servidores"
+      />
 
       {canBulkOperate && tenantSlug && (
         <BulkCommandBar

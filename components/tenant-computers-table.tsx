@@ -29,6 +29,16 @@ import {
 } from '@/lib/table-styles'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
+import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  getPageSlice,
+  paginationQueryUpdates,
+  parsePageNumber,
+  parsePageSize,
+  replaceListQueryParams,
+  type PageSize,
+} from '@/lib/table-pagination'
 
 /** Alias mantido pelo nome historico do componente — o formato da linha e o
  * mesmo usado por qualquer listagem de dispositivo do tenant (computers,
@@ -113,10 +123,16 @@ export function TenantComputersTable({
   showTypeColumn = false,
   tenantSlug,
   canOperate = false,
+  initialPage = 1,
+  initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   devices: TenantComputerRow[]
   initialSearch?: string
   initialStatusFilter?: 'all' | TenantComputerRow['effectiveStatus']
+  /** `?page=`/`?limit=` (Overhaul visual — Fase 3), revalidados aqui tambem:
+   * entrada de URL nao e' confiavel nem quando so mexe em UI. */
+  initialPage?: number
+  initialPageSize?: number
   /** Listagem unificada (`/assets`): mostra a coluna "Tipo" (Computador/Servidor)
    * e generaliza o texto de estado vazio, que por padrao fala em "computador". */
   showTypeColumn?: boolean
@@ -132,6 +148,8 @@ export function TenantComputersTable({
   const [statusFilter, setStatusFilter] = useState<'all' | TenantComputerRow['effectiveStatus']>(initialStatusFilter)
   const [criticalFilter, setCriticalFilter] = useState<'all' | 'low_disk' | 'low_ram' | 'stale_collection'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(() => parsePageNumber(initialPage))
+  const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
   const canBulkOperate = Boolean(tenantSlug && canOperate)
 
   function toggleSelected(deviceId: string, checked: boolean) {
@@ -172,8 +190,78 @@ export function TenantComputersTable({
     })
   }, [criticalFilter, devices, search, statusFilter])
 
+  /**
+   * Recorte da pagina. Ordem obrigatoria: filtrar -> contar -> paginar.
+   * `summary` (acima) segue contando sobre `devices` INTEIRO, que e' o que os
+   * 5 cards de KPI sempre prometeram; o rodape conta `filteredDevices`, o
+   * conjunto que o usuario esta de fato percorrendo. Os dois numeros sao
+   * diferentes de proposito e nenhum deles e' o 25 da pagina.
+   */
+  const slice = getPageSlice(filteredDevices, page, pageSize)
+
+  /**
+   * `?search=` e `?status=` ja eram LIDOS por computers/page.tsx mas nunca
+   * eram escritos de volta — recarregar a pagina perdia o filtro. Agora os
+   * quatro parametros do escopo (`page`, `limit`, `search`, `status`) fecham o
+   * ciclo. `os` (link legado do grafico de SO do dashboard) e' removido no
+   * primeiro sync porque alimenta a MESMA caixa de busca: deixar os dois na
+   * URL faria a proxima recarga ressuscitar o valor antigo.
+   *
+   * `history.replaceState` em vez de `router.replace`: o recorte e' todo
+   * client-side, e um round-trip de RSC por tecla digitada ou por clique de
+   * pagina refaria o `findMany` do tenant inteiro sem mudar uma linha.
+   */
+  function syncUrl(
+    nextSearch: string,
+    nextStatus: 'all' | TenantComputerRow['effectiveStatus'],
+    nextPage: number,
+    nextPageSize: PageSize
+  ) {
+    replaceListQueryParams({
+      search: nextSearch.trim() ? nextSearch : null,
+      os: null,
+      status: nextStatus !== 'all' ? nextStatus : null,
+      ...paginationQueryUpdates(nextPage, nextPageSize),
+    })
+  }
+
+  /** Toda troca de busca/filtro volta para a pagina 1: sem isso, quem estava na
+   * pagina 4 de 6 cai numa pagina que o novo recorte nao tem. */
+  function changeSearch(nextSearch: string) {
+    setSearch(nextSearch)
+    setPage(1)
+    syncUrl(nextSearch, statusFilter, 1, pageSize)
+  }
+
+  function changeStatusFilter(nextStatus: 'all' | TenantComputerRow['effectiveStatus']) {
+    setStatusFilter(nextStatus)
+    setPage(1)
+    syncUrl(search, nextStatus, 1, pageSize)
+  }
+
   function toggleCriticalFilter(value: 'low_disk' | 'low_ram' | 'stale_collection') {
     setCriticalFilter((current) => (current === value ? 'all' : value))
+    setPage(1)
+    syncUrl(search, statusFilter, 1, pageSize)
+  }
+
+  function clearCriticalFilter() {
+    setCriticalFilter('all')
+    setPage(1)
+    syncUrl(search, statusFilter, 1, pageSize)
+  }
+
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    syncUrl(search, statusFilter, nextPage, pageSize)
+  }
+
+  /** Trocar itens por pagina volta para a pagina 1: a pagina 4 de 25-em-25 nao
+   * tem equivalente honesto em 100-em-100. */
+  function changePageSize(nextPageSize: PageSize) {
+    setPageSize(nextPageSize)
+    setPage(1)
+    syncUrl(search, statusFilter, 1, nextPageSize)
   }
 
   return (
@@ -186,7 +274,7 @@ export function TenantComputersTable({
           value={summary.total}
           tone="primary"
           active={criticalFilter === 'all'}
-          onClick={() => setCriticalFilter('all')}
+          onClick={clearCriticalFilter}
         />
         <SummaryCard
           icon={<TriangleAlert className="h-4 w-4" />}
@@ -194,7 +282,7 @@ export function TenantComputersTable({
           value={summary.warning}
           tone="warning"
           active={statusFilter === 'warning'}
-          onClick={() => setStatusFilter((current) => (current === 'warning' ? 'all' : 'warning'))}
+          onClick={() => changeStatusFilter(statusFilter === 'warning' ? 'all' : 'warning')}
         />
         <SummaryCard
           icon={<HardDrive className="h-4 w-4" />}
@@ -228,7 +316,7 @@ export function TenantComputersTable({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => changeSearch(event.target.value)}
             placeholder="Buscar por hostname, IP ou sistema..."
             className="pl-9 h-10 w-full bg-card"
           />
@@ -236,7 +324,7 @@ export function TenantComputersTable({
 
         <Tabs
           value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as any)}
+          onValueChange={(value) => changeStatusFilter(value as 'all' | TenantComputerRow['effectiveStatus'])}
           className="w-full md:w-auto"
         >
           <TabsList className="grid w-full grid-cols-4 h-10">
@@ -248,24 +336,32 @@ export function TenantComputersTable({
         </Tabs>
       </div>
 
-      {/* Table — telas md+; abaixo disso vira lista de cards (ver bloco seguinte) */}
-      <div className={cn(TABLE_SHELL_CLASS, 'hidden overflow-hidden md:block')}>
-        <div className="overflow-x-auto">
+      {/* UMA casca para as duas formas do mesmo dado (tabela em md+, lista de
+          cards abaixo disso) e UM rodape de paginacao no fim dela. Antes eram
+          duas cascas irmas; com paginacao, duas cascas exigiriam dois rodapes —
+          dois seletores "Itens por página", dois contadores, duas `<nav>` — para
+          controlar o mesmo recorte. */}
+      <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className={TABLE_HEAD_ROW_CLASS}>
                 {canBulkOperate && (
                   <th className={cn(TABLE_HEAD_CLASS, 'w-10')}>
+                    {/* Escopo: a PAGINA atual (`slice.items`), que e' o que o
+                        rotulo "visíveis" ja prometia. Com paginacao, marcar
+                        aqui e selecionar 142 maquinas fora da tela seria a
+                        checkbox mentindo sobre o proprio alcance. */}
                     <Checkbox
                       aria-label="Selecionar todos os dispositivos visíveis"
                       checked={
-                        filteredDevices.length > 0 && filteredDevices.every((device) => selectedIds.has(device.id))
+                        slice.items.length > 0 && slice.items.every((device) => selectedIds.has(device.id))
                       }
                       onCheckedChange={(checked) => {
                         setSelectedIds((current) => {
                           const next = new Set(current)
-                          if (checked) filteredDevices.forEach((device) => next.add(device.id))
-                          else filteredDevices.forEach((device) => next.delete(device.id))
+                          if (checked) slice.items.forEach((device) => next.add(device.id))
+                          else slice.items.forEach((device) => next.delete(device.id))
                           return next
                         })
                       }}
@@ -298,7 +394,7 @@ export function TenantComputersTable({
                   </td>
                 </tr>
               ) : (
-                filteredDevices.map((device) => (
+                slice.items.map((device) => (
                   <tr
                     key={device.id}
                     role="button"
@@ -378,70 +474,83 @@ export function TenantComputersTable({
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Cards — telas abaixo de md, no lugar da tabela. Mesma linha vira um
-          alvo de toque unico (a linha inteira e' um Link), em vez de so o
-          hostname como na versao desktop. */}
-      <div className={cn(TABLE_SHELL_CLASS, 'md:hidden')}>
-        {filteredDevices.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-5 py-12 text-center text-muted-foreground">
-            <Search className="h-8 w-8 opacity-20" />
-            <p className="text-base font-medium">
-              {showTypeColumn ? 'Nenhum dispositivo encontrado' : 'Nenhum computador encontrado'}
-            </p>
-            <p className="text-sm">Tente ajustar os filtros ou limpar a busca.</p>
-          </div>
-        ) : (
-          <div className="divide-y">
-            {filteredDevices.map((device) => (
-              <Link
-                key={device.id}
-                href={device.detailsPath}
-                className="block space-y-3 p-4 active:bg-muted/40"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="data-mono truncate font-medium text-foreground">{device.hostname}</p>
-                    <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide mt-1">
-                      {device.sistema ?? 'N/A'}
-                    </p>
+        {/* Cards — telas abaixo de md, no lugar da tabela. Mesma linha vira um
+            alvo de toque unico (a linha inteira e' um Link), em vez de so o
+            hostname como na versao desktop. Mesma pagina (`slice.items`) das
+            linhas acima. */}
+        <div className="md:hidden">
+          {filteredDevices.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-5 py-12 text-center text-muted-foreground">
+              <Search className="h-8 w-8 opacity-20" />
+              <p className="text-base font-medium">
+                {showTypeColumn ? 'Nenhum dispositivo encontrado' : 'Nenhum computador encontrado'}
+              </p>
+              <p className="text-sm">Tente ajustar os filtros ou limpar a busca.</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {slice.items.map((device) => (
+                <Link
+                  key={device.id}
+                  href={device.detailsPath}
+                  className="block space-y-3 p-4 active:bg-muted/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="data-mono truncate font-medium text-foreground">{device.hostname}</p>
+                      <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide mt-1">
+                        {device.sistema ?? 'N/A'}
+                      </p>
+                    </div>
+                    <DeviceStatusPill status={device.effectiveStatus} />
                   </div>
-                  <DeviceStatusPill status={device.effectiveStatus} />
-                </div>
 
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-medium">
-                  {showTypeColumn && <DeviceTypeBadge sistema={device.sistema} />}
-                  <code className="bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                    {device.ip ?? '0.0.0.0'}
-                  </code>
-                  <span className={cn(
-                    'flex items-center gap-1',
-                    device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'
-                  )}>
-                    <Activity className="h-3 w-3" />
-                    {device.ramTotalGb ? `${device.ramTotalGb}GB` : '—'}
-                  </span>
-                  <span className={cn(
-                    'flex items-center gap-1',
-                    device.issues.some((issue) => issue.code === 'low_disk') ? 'text-destructive' : 'text-muted-foreground'
-                  )}>
-                    <HardDrive className="h-3 w-3" />
-                    {device.lowestDiskFreeGb !== null ? `${device.lowestDiskFreeGb}GB` : device.storageLabel?.split(' ')[0] ?? '—'}
-                  </span>
-                </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-medium">
+                    {showTypeColumn && <DeviceTypeBadge sistema={device.sistema} />}
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                      {device.ip ?? '0.0.0.0'}
+                    </code>
+                    <span className={cn(
+                      'flex items-center gap-1',
+                      device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'
+                    )}>
+                      <Activity className="h-3 w-3" />
+                      {device.ramTotalGb ? `${device.ramTotalGb}GB` : '—'}
+                    </span>
+                    <span className={cn(
+                      'flex items-center gap-1',
+                      device.issues.some((issue) => issue.code === 'low_disk') ? 'text-destructive' : 'text-muted-foreground'
+                    )}>
+                      <HardDrive className="h-3 w-3" />
+                      {device.lowestDiskFreeGb !== null ? `${device.lowestDiskFreeGb}GB` : device.storageLabel?.split(' ')[0] ?? '—'}
+                    </span>
+                  </div>
 
-                <div className="flex flex-wrap gap-1.5">
-                  <IssueBadges deviceId={device.id} issues={device.issues} />
-                </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <IssueBadges deviceId={device.id} issues={device.issues} />
+                  </div>
 
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  Última coleta: {formatLastCollection(device.lastCollectionAt)}
-                </p>
-              </Link>
-            ))}
-          </div>
-        )}
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    Última coleta: {formatLastCollection(device.lastCollectionAt)}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <TablePagination
+          slice={slice}
+          onPageChange={changePage}
+          onPageSizeChange={changePageSize}
+          itemNoun={
+            showTypeColumn
+              ? { one: 'dispositivo', other: 'dispositivos' }
+              : { one: 'computador', other: 'computadores' }
+          }
+          navLabel={showTypeColumn ? 'Paginação dos ativos' : 'Paginação dos computadores'}
+        />
       </div>
 
       {canBulkOperate && tenantSlug && (

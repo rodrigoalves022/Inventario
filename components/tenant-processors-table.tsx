@@ -15,6 +15,14 @@ import {
   TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
 import { getVendorGroup } from '@/lib/processor-vendor'
+import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  getPageSlice,
+  parsePageNumber,
+  parsePageSize,
+  type PageSize,
+} from '@/lib/table-pagination'
 
 export type TenantProcessorRow = {
   name: string
@@ -44,14 +52,21 @@ export function TenantProcessorsTable({
   processors,
   initialVendor = 'all',
   computersPath,
+  initialPage = 1,
+  initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   processors: TenantProcessorRow[]
   initialVendor?: string
   computersPath: string
+  /** `?page=`/`?limit=` (Overhaul visual — Fase 3), revalidados aqui tambem. */
+  initialPage?: number
+  initialPageSize?: number
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const [vendorFilter, setVendorFilter] = useState(initialVendor)
+  const [page, setPage] = useState(() => parsePageNumber(initialPage))
+  const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
 
   /**
    * Contagem em DISPOSITIVOS (nao em modelos) nos 4 cards, de proposito: um
@@ -77,14 +92,42 @@ export function TenantProcessorsTable({
     return processors.filter((processor) => getVendorGroup(processor.vendor) === vendorFilter)
   }, [processors, vendorFilter])
 
+  /**
+   * Recorte da pagina. Filtrar -> contar -> paginar: `summary` (acima) segue
+   * contando DISPOSITIVOS sobre o conjunto inteiro e o rodape conta MODELOS
+   * sobre o conjunto filtrado. Sao duas contagens diferentes de proposito, e e'
+   * por isso que o substantivo do rodape e' parametro — "37 dispositivos" numa
+   * tabela de modelos de CPU seria mentira.
+   */
+  const slice = getPageSlice(filteredProcessors, page, pageSize)
+
+  /** Mesmo `router.replace` que esta tabela ja usava para `?fabricante=`;
+   * `page`/`limit` entraram aqui, e nao num segundo mecanismo. */
+  function syncUrl(nextVendor: string, nextPage: number, nextPageSize: PageSize) {
+    const params = new URLSearchParams()
+    if (nextVendor !== 'all') params.set('fabricante', nextVendor)
+    if (nextPage > 1) params.set('page', String(nextPage))
+    if (nextPageSize !== DEFAULT_PAGE_SIZE) params.set('limit', String(nextPageSize))
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname)
+  }
+
   function applyVendorFilter(vendor: string) {
     const next = vendorFilter === vendor ? 'all' : vendor
     setVendorFilter(next)
+    setPage(1)
+    syncUrl(next, 1, pageSize)
+  }
 
-    const params = new URLSearchParams()
-    if (next !== 'all') params.set('fabricante', next)
-    const query = params.toString()
-    router.replace(query ? `${pathname}?${query}` : pathname)
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    syncUrl(vendorFilter, nextPage, pageSize)
+  }
+
+  function changePageSize(nextPageSize: PageSize) {
+    setPageSize(nextPageSize)
+    setPage(1)
+    syncUrl(vendorFilter, 1, nextPageSize)
   }
 
   return (
@@ -152,7 +195,7 @@ export function TenantProcessorsTable({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredProcessors.map((processor) => (
+                {slice.items.map((processor) => (
                   <tr key={processor.name} className={STATIC_ROW_HOVER_CLASS}>
                     <td className={TABLE_CELL_CLASS}>
                       <Link
@@ -205,6 +248,14 @@ export function TenantProcessorsTable({
               </tbody>
             </table>
           </div>
+
+          <TablePagination
+            slice={slice}
+            onPageChange={changePage}
+            onPageSizeChange={changePageSize}
+            itemNoun={{ one: 'modelo', other: 'modelos' }}
+            navLabel="Paginação dos modelos de processador"
+          />
         </div>
       )}
     </div>

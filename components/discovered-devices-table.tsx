@@ -15,6 +15,16 @@ import {
   TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
 import type { DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
+import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  getPageSlice,
+  paginationQueryUpdates,
+  parsePageNumber,
+  parsePageSize,
+  replaceListQueryParams,
+  type PageSize,
+} from '@/lib/table-pagination'
 
 /**
  * Sprint 14 (RF028). Linha ja serializada pelo Server Component
@@ -91,14 +101,23 @@ function formatLastSeen(value: string) {
 export function DiscoveredDevicesTable({
   devices,
   discoveryEnabled,
+  initialPage = 1,
+  initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   devices: DiscoveredDeviceRow[]
   /** Muda apenas o texto de estado vazio: sem a varredura habilitada, "nenhum
    * dispositivo" nao e' um dado sobre a rede, e' a feature desligada. */
   discoveryEnabled: boolean
+  /** `?page=`/`?limit=` (Overhaul visual — Fase 3), revalidados aqui tambem.
+   * A aba de tipo e a busca continuam so em estado local: nunca tiveram
+   * parametro proprio na URL, e criar um agora seria escopo novo. */
+  initialPage?: number
+  initialPageSize?: number
 }) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [page, setPage] = useState(() => parsePageNumber(initialPage))
+  const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
 
   const filtered = useMemo(() => {
     const allowedTypes = TYPE_FILTERS[typeFilter]
@@ -121,10 +140,45 @@ export function DiscoveredDevicesTable({
     })
   }, [devices, search, typeFilter])
 
+  /** Filtrar -> contar -> paginar: o rodape conta `filtered` (o que a aba e a
+   * busca deixaram), nunca as 500 linhas que o Server Component carregou. */
+  const slice = getPageSlice(filtered, page, pageSize)
+
+  /** `history.replaceState`: /network nao tinha sincronizacao de URL e o
+   * recorte e' client-side (ver lib/table-pagination.ts). */
+  function syncUrl(nextPage: number, nextPageSize: PageSize) {
+    replaceListQueryParams(paginationQueryUpdates(nextPage, nextPageSize))
+  }
+
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    syncUrl(nextPage, pageSize)
+  }
+
+  function changePageSize(nextPageSize: PageSize) {
+    setPageSize(nextPageSize)
+    setPage(1)
+    syncUrl(1, nextPageSize)
+  }
+
+  /** Trocar aba ou busca volta para a pagina 1 — caso contrario o usuario na
+   * pagina 3 de "Todos" cai numa pagina vazia ao filtrar "Impressoras". */
+  function changeTypeFilter(nextTypeFilter: TypeFilter) {
+    setTypeFilter(nextTypeFilter)
+    setPage(1)
+    syncUrl(1, pageSize)
+  }
+
+  function changeSearch(nextSearch: string) {
+    setSearch(nextSearch)
+    setPage(1)
+    syncUrl(1, pageSize)
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={typeFilter} onValueChange={(value) => setTypeFilter(value as TypeFilter)}>
+        <Tabs value={typeFilter} onValueChange={(value) => changeTypeFilter(value as TypeFilter)}>
           <TabsList>
             <TabsTrigger value="all">Todos</TabsTrigger>
             <TabsTrigger value="printers">Impressoras</TabsTrigger>
@@ -139,78 +193,91 @@ export function DiscoveredDevicesTable({
             aria-label="Buscar por IP, hostname ou MAC"
             placeholder="Buscar por IP, hostname ou MAC..."
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => changeSearch(event.target.value)}
             className="h-9 pl-8"
           />
         </div>
       </div>
 
-      <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className={TABLE_HEAD_ROW_CLASS}>
-              <th className={TABLE_HEAD_CLASS}>IP</th>
-              <th className={TABLE_HEAD_CLASS}>MAC</th>
-              <th className={TABLE_HEAD_CLASS}>Hostname</th>
-              <th className={TABLE_HEAD_CLASS}>Tipo</th>
-              <th className={TABLE_HEAD_CLASS}>Fabricante / Descrição SNMP</th>
-              <th className={TABLE_HEAD_CLASS}>Portas</th>
-              <th className={TABLE_HEAD_CLASS}>Última Coleta</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                  {!discoveryEnabled ? (
-                    <span className="inline-flex items-center gap-2">
-                      <Radar className="h-4 w-4" />
-                      Varredura de rede desabilitada para este tenant. Habilite em Computadores → Configurações de
-                      Alerta → Descoberta de Rede.
-                    </span>
-                  ) : devices.length === 0 ? (
-                    'Nenhum dispositivo descoberto ainda. A varredura roda a cada 6 horas em cada agente.'
-                  ) : (
-                    'Nenhum dispositivo descoberto corresponde ao filtro.'
-                  )}
-                </td>
+      {/* A rolagem horizontal fica no wrapper INTERNO, nao na casca: com o
+          rodape dentro da casca, `overflow-x-auto` na casca faria a barra de
+          paginacao rolar junto com as colunas. */}
+      <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className={TABLE_HEAD_ROW_CLASS}>
+                <th className={TABLE_HEAD_CLASS}>IP</th>
+                <th className={TABLE_HEAD_CLASS}>MAC</th>
+                <th className={TABLE_HEAD_CLASS}>Hostname</th>
+                <th className={TABLE_HEAD_CLASS}>Tipo</th>
+                <th className={TABLE_HEAD_CLASS}>Fabricante / Descrição SNMP</th>
+                <th className={TABLE_HEAD_CLASS}>Portas</th>
+                <th className={TABLE_HEAD_CLASS}>Última Coleta</th>
               </tr>
-            ) : (
-              filtered.map((device) => (
-                <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
-                  <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>{device.ip}</td>
-                  <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{device.mac ?? '-'}</td>
-                  <td className={TABLE_CELL_CLASS}>{device.hostname ?? '-'}</td>
-                  <td className={TABLE_CELL_CLASS}>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'gap-1 px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide',
-                        TYPE_BADGE_CLASS[device.deviceType]
-                      )}
-                    >
-                      <TypeIcon deviceType={device.deviceType} />
-                      {TYPE_LABEL[device.deviceType]}
-                    </Badge>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    {!discoveryEnabled ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Radar className="h-4 w-4" />
+                        Varredura de rede desabilitada para este tenant. Habilite em Computadores → Configurações de
+                        Alerta → Descoberta de Rede.
+                      </span>
+                    ) : devices.length === 0 ? (
+                      'Nenhum dispositivo descoberto ainda. A varredura roda a cada 6 horas em cada agente.'
+                    ) : (
+                      'Nenhum dispositivo descoberto corresponde ao filtro.'
+                    )}
                   </td>
-                  <td className={cn(TABLE_CELL_CLASS, 'max-w-xs text-muted-foreground')}>
-                    {device.vendor ? <div className="font-medium text-foreground">{device.vendor}</div> : null}
-                    {device.snmpSysDescr ? (
-                      <div className="truncate text-xs" title={device.snmpSysDescr}>
-                        {device.snmpSysDescr}
-                      </div>
-                    ) : null}
-                    {!device.vendor && !device.snmpSysDescr ? '-' : null}
-                  </td>
-                  <td className={cn(TABLE_DATA_CELL_CLASS, 'text-xs text-muted-foreground')}>
-                    {device.openPorts ?? '-'}
-                  </td>
-                  <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{formatLastSeen(device.lastSeenAt)}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                slice.items.map((device) => (
+                  <tr key={device.id} className={STATIC_ROW_HOVER_CLASS}>
+                    <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>{device.ip}</td>
+                    <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{device.mac ?? '-'}</td>
+                    <td className={TABLE_CELL_CLASS}>{device.hostname ?? '-'}</td>
+                    <td className={TABLE_CELL_CLASS}>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'gap-1 px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide',
+                          TYPE_BADGE_CLASS[device.deviceType]
+                        )}
+                      >
+                        <TypeIcon deviceType={device.deviceType} />
+                        {TYPE_LABEL[device.deviceType]}
+                      </Badge>
+                    </td>
+                    <td className={cn(TABLE_CELL_CLASS, 'max-w-xs text-muted-foreground')}>
+                      {device.vendor ? <div className="font-medium text-foreground">{device.vendor}</div> : null}
+                      {device.snmpSysDescr ? (
+                        <div className="truncate text-xs" title={device.snmpSysDescr}>
+                          {device.snmpSysDescr}
+                        </div>
+                      ) : null}
+                      {!device.vendor && !device.snmpSysDescr ? '-' : null}
+                    </td>
+                    <td className={cn(TABLE_DATA_CELL_CLASS, 'text-xs text-muted-foreground')}>
+                      {device.openPorts ?? '-'}
+                    </td>
+                    <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{formatLastSeen(device.lastSeenAt)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <TablePagination
+          slice={slice}
+          onPageChange={changePage}
+          onPageSizeChange={changePageSize}
+          itemNoun={{ one: 'dispositivo', other: 'dispositivos' }}
+          navLabel="Paginação dos dispositivos descobertos"
+        />
       </div>
     </div>
   )
