@@ -10,7 +10,7 @@ export default function StorageLoading() {
 
       <div className="grid gap-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-border bg-card p-6">
+          <div key={index} className="rounded-xl border border-surface-line bg-card p-6">
             <div className="mb-4 flex items-center justify-between">
               <div className="space-y-1.5">
                 <Skeleton className="h-5 w-32" />

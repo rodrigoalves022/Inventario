@@ -8,8 +8,8 @@ export default function NetworkLoading() {
         <Skeleton className="mt-2 h-4 w-96" />
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
-        <div className="border-b border-border bg-secondary/50 p-3">
+      <div className="rounded-xl border border-surface-line bg-card">
+        <div className="border-b border-surface-line bg-secondary/50 p-3">
           <div className="grid grid-cols-6 gap-4">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-3 w-16" />

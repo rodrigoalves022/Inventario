@@ -69,7 +69,7 @@ function summaryText() {
   return screen.getByTestId('table-pagination-summary').textContent
 }
 
-/** SummaryCard renderiza rotulo e valor dentro do mesmo `<button>`. */
+/** KpiCard renderiza rotulo e valor dentro do mesmo `<button>`. */
 function cardText(label: string) {
   return (screen.getByText(label).closest('button') as HTMLElement).textContent
 }

@@ -1,7 +1,7 @@
 import { auth } from '@/auth'
 import { HardDrive, Monitor, TriangleAlert, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
-import { StatCard } from '@/components/stat-cards'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { OsDistributionChart, StatusChart, RamDistributionChart } from '@/components/dashboard-charts-lazy'
 import { TenantEmptyState } from '@/components/tenant-empty-state'
 import { TenantRecentDevicesTable, type RecentDeviceRow } from '@/components/tenant-recent-devices-table'
@@ -14,7 +14,7 @@ import {
   type AuditActivityItem,
   type NetworkDiscoveryItem,
 } from '@/components/recent-activity-panel'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
@@ -221,48 +221,47 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
         real.
       */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-        <StatCard
-          title="Máquinas monitoradas"
+        <KpiCard
+          label="Máquinas monitoradas"
           value={summary.totalDevices}
           subtitle={`${summary.computadores} computador${summary.computadores === 1 ? '' : 'es'} · ${summary.servidores} servidor${summary.servidores === 1 ? '' : 'es'}`}
-          icon={<Monitor className="h-6 w-6" />}
-          variant="primary"
-          featured
+          icon={<Monitor />}
+          tone="primary"
           href={assetsPath}
         />
-        <StatCard
-          title="Online agora"
+        <KpiCard
+          label="Online agora"
           value={summary.online}
           subtitle={`${summary.availabilityPercent}% de disponibilidade`}
-          icon={<Wifi className="h-5 w-5" />}
-          variant="success"
+          icon={<Wifi />}
+          tone="success"
           href={`${assetsPath}?status=online`}
         />
-        <StatCard
-          title="Em atenção"
+        <KpiCard
+          label="Em atenção"
           value={summary.warning}
           subtitle={`Disco abaixo de ${alertDiskThresholdGb} GB livres ou RAM abaixo do limiar`}
-          icon={<TriangleAlert className="h-5 w-5" />}
-          variant="warning"
-          valueClassName={summary.warning > 0 ? 'text-warning' : undefined}
+          icon={<TriangleAlert />}
+          tone="warning"
+          emphasizeValue={summary.warning > 0}
           href={`${assetsPath}?status=warning`}
         />
-        <StatCard
-          title="Sem coleta recente"
+        <KpiCard
+          label="Sem coleta recente"
           value={summary.offline}
           subtitle={`Sem contato há ${alertOfflineHours}h ou mais`}
-          icon={<WifiOff className="h-5 w-5" />}
-          variant="danger"
-          valueClassName={summary.offline > 0 ? 'text-destructive' : undefined}
+          icon={<WifiOff />}
+          tone="destructive"
+          emphasizeValue={summary.offline > 0}
           href={`${assetsPath}?status=offline`}
         />
-        <StatCard
-          title="Disco crítico"
+        <KpiCard
+          label="Disco crítico"
           value={criticalDiskDevices}
           subtitle={`Pior disco acima de ${DISK_USAGE_THRESHOLDS.critical}% usado`}
-          icon={<HardDrive className="h-5 w-5" />}
-          variant="danger"
-          valueClassName={criticalDiskDevices > 0 ? 'text-destructive' : undefined}
+          icon={<HardDrive />}
+          tone="destructive"
+          emphasizeValue={criticalDiskDevices > 0}
           href={`${getTenantPath(tenantSlug, 'storage')}?faixa=critical`}
         />
       </div>
@@ -298,23 +297,20 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
         />
       </div>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold text-card-foreground">
-            Últimas atualizações
-          </CardTitle>
-          <CardDescription>
-            Somente dispositivos pertencentes ao tenant atual
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-hidden rounded-xl border">
-            <div className="overflow-x-auto">
-              <TenantRecentDevicesTable devices={recentDevices} />
-            </div>
+      <Panel>
+        <PanelHeader
+          title="Últimas atualizações"
+          description="Somente dispositivos pertencentes ao tenant atual"
+        />
+        {/* `flush`: a tabela sangra ate a borda do painel. O recuo de 20px e'
+            das CELULAS (TABLE_CELL_CLASS ja usa px-5) — envolver numa segunda
+            borda aqui seria card dentro de card, que o Panel proibe. */}
+        <PanelBody flush>
+          <div className="overflow-x-auto">
+            <TenantRecentDevicesTable devices={recentDevices} />
           </div>
-        </CardContent>
-      </Card>
+        </PanelBody>
+      </Panel>
     </div>
   )
 }

@@ -57,7 +57,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-surface-line bg-card p-6">
         <h2 className="mb-1 text-lg font-semibold text-foreground">Webhooks</h2>
         <p className="mb-4 text-sm text-muted-foreground">
           Cada endpoint recebe apenas os eventos selecionados, com o payload assinado no header{' '}

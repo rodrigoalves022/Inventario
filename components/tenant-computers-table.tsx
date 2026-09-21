@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
-import { SummaryCard } from '@/components/ui/summary-card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { cn } from '@/lib/utils'
@@ -266,45 +266,50 @@ export function TenantComputersTable({
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards — os 3 de criticidade dobram como filtro, ver SummaryCard */}
+      {/* Summary Cards — os 3 de criticidade dobram como filtro, ver KpiCard */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard
-          icon={<Monitor className="h-4 w-4" />}
+        <KpiCard
+          icon={<Monitor />}
           label="Total Máquinas"
           value={summary.total}
           tone="primary"
+          emphasizeValue
           active={criticalFilter === 'all'}
           onClick={clearCriticalFilter}
         />
-        <SummaryCard
-          icon={<TriangleAlert className="h-4 w-4" />}
+        <KpiCard
+          icon={<TriangleAlert />}
           label="Warnings Ativos"
           value={summary.warning}
           tone="warning"
+          emphasizeValue
           active={statusFilter === 'warning'}
           onClick={() => changeStatusFilter(statusFilter === 'warning' ? 'all' : 'warning')}
         />
-        <SummaryCard
-          icon={<HardDrive className="h-4 w-4" />}
+        <KpiCard
+          icon={<HardDrive />}
           label="Pouco Disco"
           value={summary.lowDisk}
           tone="destructive"
+          emphasizeValue
           active={criticalFilter === 'low_disk'}
           onClick={() => toggleCriticalFilter('low_disk')}
         />
-        <SummaryCard
-          icon={<Activity className="h-4 w-4" />}
+        <KpiCard
+          icon={<Activity />}
           label="Pouca RAM"
           value={summary.lowRam}
           tone="warning"
+          emphasizeValue
           active={criticalFilter === 'low_ram'}
           onClick={() => toggleCriticalFilter('low_ram')}
         />
-        <SummaryCard
-          icon={<History className="h-4 w-4" />}
+        <KpiCard
+          icon={<History />}
           label="Coleta Atrasada"
           value={summary.stale}
           tone="destructive"
+          emphasizeValue
           active={criticalFilter === 'stale_collection'}
           onClick={() => toggleCriticalFilter('stale_collection')}
         />

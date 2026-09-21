@@ -8,7 +8,7 @@ export default function AlertsLoading() {
         <Skeleton className="mt-2 h-4 w-96" />
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-surface-line bg-card p-6">
         <Skeleton className="mb-4 h-5 w-20" />
         <div className="divide-y rounded-xl border">
           {Array.from({ length: 3 }).map((_, index) => (
@@ -23,7 +23,7 @@ export default function AlertsLoading() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-surface-line bg-card p-6">
         <Skeleton className="mb-4 h-5 w-40" />
         <div className="divide-y">
           {Array.from({ length: 4 }).map((_, index) => (

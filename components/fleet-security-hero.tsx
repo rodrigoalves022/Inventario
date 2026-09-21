@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, BrickWall, Lock, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DeviceReportRow, DeviceReportSummary } from '@/lib/reports/device-report'
+import { Panel, PanelHeader } from '@/components/ui/panel'
 
 /**
  * Hero de POSTURA DE SEGURANCA da frota (Overhaul visual — Fase 4).
@@ -239,7 +240,7 @@ function IndicatorBlock({ indicator }: { indicator: FleetSecurityIndicator }) {
   const Icon = INDICATOR_ICON[indicator.key]
 
   return (
-    <div className="px-6 py-5">
+    <div className="px-5 py-5">
       <div className="flex items-center gap-3">
         <span className={cn('rounded-lg p-2', TONE_ICON_CLASS[tone])}>
           <Icon className="h-4 w-4" />
@@ -284,11 +285,12 @@ export function FleetSecurityHero({
   reportsHref: string
 }) {
   return (
-    <section
-      aria-labelledby="fleet-security-hero-title"
-      className="rounded-xl border border-surface-line bg-card"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-4 px-6 pb-4 pt-6">
+    <Panel aria-labelledby="fleet-security-hero-title">
+      {/* Recuo de 20px, nao 24px. O hero ficava imediatamente acima dos dois
+          paineis do bloco duplo, na mesma largura, e comecava o texto 4px mais
+          a direita que eles — desalinhamento visivel entre superficies
+          verticalmente adjacentes. Agora os tres saem do mesmo PanelHeader. */}
+      <PanelHeader className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <h2 id="fleet-security-hero-title" className="text-base font-semibold text-card-foreground">
             Postura de segurança da frota
@@ -306,13 +308,13 @@ export function FleetSecurityHero({
           Relatório completo
           <ArrowRight className="h-4 w-4" />
         </Link>
-      </div>
+      </PanelHeader>
 
       <div className="grid grid-cols-1 divide-y divide-surface-line border-t border-surface-line md:grid-cols-3 md:divide-x md:divide-y-0">
         {indicators.map((indicator) => (
           <IndicatorBlock key={indicator.key} indicator={indicator} />
         ))}
       </div>
-    </section>
+    </Panel>
   )
 }

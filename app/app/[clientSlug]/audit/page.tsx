@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { AuditLogTable } from '@/components/audit-log-table'
-import { StatCard } from '@/components/stat-cards'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantBasePath } from '@/lib/tenant-links'
 import { listAuditLogs } from '@/lib/audit-log'
@@ -93,36 +93,36 @@ export default async function TenantAuditPage({
       </div>
 
       {/* Summary Grid — cada card filtra a tabela abaixo (mesmo padrao dos
-          outros grids de resumo clicaveis do tenant). Usa o StatCard base
-          (components/stat-cards.tsx) em vez de reimplementar o hover à mão. */}
+          outros grids de resumo clicaveis do tenant). Usa o KpiCard
+          (components/ui/kpi-card.tsx) em vez de reimplementar o hover à mão. */}
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          title="Log do Tenant"
+        <KpiCard
+          label="Log do Tenant"
           value={logs.length}
-          icon={<History className="h-5 w-5" />}
-          variant="primary"
+          icon={<History />}
+          tone="primary"
           href={`${basePath}/audit`}
         />
-        <StatCard
-          title="Acesso a Chaves"
+        <KpiCard
+          label="Acesso a Chaves"
           value={credentialViews}
-          icon={<KeyRound className="h-5 w-5" />}
-          variant="info"
-          valueClassName="text-info"
+          icon={<KeyRound />}
+          tone="info"
+          emphasizeValue
           href={`${basePath}/audit?action=credentials.view`}
         />
-        <StatCard
-          title="Exclusões"
+        <KpiCard
+          label="Exclusões"
           value={deviceDeletes}
-          icon={<Trash2 className="h-5 w-5" />}
-          variant="danger"
-          valueClassName="text-destructive"
+          icon={<Trash2 />}
+          tone="destructive"
+          emphasizeValue
           href={`${basePath}/audit?action=device.delete`}
         />
       </div>
 
       {/* Filter Bar */}
-      <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="rounded-xl border border-surface-line bg-card p-4">
         <form method="GET" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-end">
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">

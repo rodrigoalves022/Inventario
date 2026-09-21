@@ -16,7 +16,7 @@ export default function ReportsLoading() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-border bg-card p-4">
+          <div key={index} className="rounded-xl border border-surface-line bg-card p-4">
             <Skeleton className="h-3 w-28" />
             <Skeleton className="mt-2 h-7 w-16" />
           </div>
@@ -25,7 +25,7 @@ export default function ReportsLoading() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {Array.from({ length: 2 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-border bg-card p-6">
+          <div key={index} className="rounded-xl border border-surface-line bg-card p-6">
             <Skeleton className="mb-4 h-5 w-64" />
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, row) => (
@@ -44,7 +44,7 @@ export default function ReportsLoading() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {Array.from({ length: 2 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-border bg-card p-6">
+          <div key={index} className="rounded-xl border border-surface-line bg-card p-6">
             <Skeleton className="mb-4 h-5 w-40" />
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, row) => (

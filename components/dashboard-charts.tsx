@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, Sector, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 import type { PieSectorDataItem } from 'recharts/types/polar/Pie'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 
 interface ChartData {
   name: string
@@ -24,7 +24,7 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ n
   if (!active || !payload?.length) return null
   const entry = payload[0]
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-xl">
+    <div className="rounded-lg border border-surface-line bg-popover px-3 py-2 text-sm text-popover-foreground shadow-xl">
       <p className="font-medium">{entry.name}</p>
       <p className="text-muted-foreground">
         {entry.value} máquina{entry.value === 1 ? '' : 's'}
@@ -71,16 +71,9 @@ export function OsDistributionChart({ data, computersPath }: OsDistributionChart
   }
 
   return (
-    <Card className="border-border bg-card">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-card-foreground">
-          Distribuição por Sistema
-        </CardTitle>
-        <CardDescription>
-          Sistemas operacionais instalados
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Panel>
+      <PanelHeader title="Distribuição por Sistema" description="Sistemas operacionais instalados" />
+      <PanelBody>
         <div className="flex items-center gap-6">
           <div className="h-[180px] w-[180px] outline-none [&_.recharts-surface]:outline-none [&_*]:outline-none">
             <ResponsiveContainer width="100%" height="100%">
@@ -149,8 +142,8 @@ export function OsDistributionChart({ data, computersPath }: OsDistributionChart
             ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </PanelBody>
+    </Panel>
   )
 }
 
@@ -170,16 +163,9 @@ export function StatusChart({ data, computersPath }: StatusChartProps) {
   }
 
   return (
-    <Card className="border-border bg-card">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-card-foreground">
-          Status dos Dispositivos
-        </CardTitle>
-        <CardDescription>
-          Estado atual da rede
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Panel>
+      <PanelHeader title="Status dos Dispositivos" description="Estado atual da rede" />
+      <PanelBody>
         <div className="flex items-center gap-6">
           <div className="h-[180px] w-[180px] outline-none [&_.recharts-surface]:outline-none [&_*]:outline-none">
             <ResponsiveContainer width="100%" height="100%">
@@ -248,8 +234,8 @@ export function StatusChart({ data, computersPath }: StatusChartProps) {
             ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </PanelBody>
+    </Panel>
   )
 }
 
@@ -271,16 +257,9 @@ export function RamDistributionChart({
   description = 'Quantidade de RAM por máquina',
 }: RamChartProps) {
   return (
-    <Card className="border-border bg-card">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-card-foreground">
-          {title}
-        </CardTitle>
-        <CardDescription>
-          {description}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Panel>
+      <PanelHeader title={title} description={description} />
+      <PanelBody>
         <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="vertical" margin={{ left: 0, right: 20 }}>
@@ -314,7 +293,7 @@ export function RamDistributionChart({
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </CardContent>
-    </Card>
+      </PanelBody>
+    </Panel>
   )
 }

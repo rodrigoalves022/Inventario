@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { HardDrive, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
-import { SummaryCard } from '@/components/ui/summary-card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
 import {
@@ -216,42 +216,46 @@ export function TenantStorageTable({
       {/* Cards de KPI — os 3 de faixa dobram como filtro (?faixa=) e o card
           "Total" limpa a faixa. A antiga fileira de badges de faixa saiu: com
           os cards, seriam duas UIs mostrando o mesmo numero e aplicando o mesmo
-          filtro (ver doc de SummaryCard). As badges de TIPO abaixo ficam — sao
+          filtro (ver doc de KpiCard). As badges de TIPO abaixo ficam — sao
           outra dimensao, sem card correspondente. */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard
+        <KpiCard
           testId="usage-card-all"
-          icon={<HardDrive className="h-4 w-4" />}
+          icon={<HardDrive />}
           label="Total de Dispositivos"
           value={usageSummary.total}
           tone="primary"
+          emphasizeValue
           active={usageFilter === 'all'}
           onClick={clearUsageFilter}
         />
-        <SummaryCard
+        <KpiCard
           testId="usage-card-ok"
-          icon={<HardDrive className="h-4 w-4" />}
+          icon={<HardDrive />}
           label={`Normal (${USAGE_RANGE_LABEL.ok})`}
           value={usageSummary.ok}
           tone="success"
+          emphasizeValue
           active={usageFilter === 'ok'}
           onClick={() => applyUsageFilter('ok')}
         />
-        <SummaryCard
+        <KpiCard
           testId="usage-card-warning"
-          icon={<HardDrive className="h-4 w-4" />}
+          icon={<HardDrive />}
           label={`Em Alerta (${USAGE_RANGE_LABEL.warning})`}
           value={usageSummary.warning}
           tone="warning"
+          emphasizeValue
           active={usageFilter === 'warning'}
           onClick={() => applyUsageFilter('warning')}
         />
-        <SummaryCard
+        <KpiCard
           testId="usage-card-critical"
-          icon={<HardDrive className="h-4 w-4" />}
+          icon={<HardDrive />}
           label={`Crítico (${USAGE_RANGE_LABEL.critical})`}
           value={usageSummary.critical}
           tone="destructive"
+          emphasizeValue
           active={usageFilter === 'critical'}
           onClick={() => applyUsageFilter('critical')}
         />
@@ -292,7 +296,7 @@ export function TenantStorageTable({
       </div>
 
       {filteredRows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-surface-line p-8 text-center text-muted-foreground">
           <Search className="h-6 w-6 opacity-30" />
           {devices.length === 0
             ? 'Nenhum dispositivo com discos reportados no cliente selecionado.'

@@ -1,7 +1,8 @@
 import { Download, FileText } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { Button } from '@/components/ui/button'
-import { StatCard } from '@/components/stat-cards'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantCollectionLogWhere, getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { getTenantPath } from '@/lib/tenant-links'
@@ -50,39 +51,49 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
         </div>
       </div>
 
-      {/* Usa o StatCard base (components/stat-cards.tsx) em vez de reimplementar
-          o hover à mão — elimina a duplicação e corrige o bug do card estático
-          ("Taxa de disponibilidade") que antes não tinha hover nenhum. */}
+      {/*
+        "Taxa de disponibilidade" e' um PERCENTUAL DERIVADO — nao existe
+        listagem que mostre "as maquinas que compoem 94%", entao ele nao tem
+        para onde levar e continua sem `href`. O que muda na Sprint 16 e' que
+        agora ele tambem nao FINGE levar: o KpiCard so aplica
+        `surface-interactive` quando ha `href` ou `onClick`, entao o card parou
+        de levantar 2px e ganhar halo no hover sem ser clicavel nem focalizavel,
+        ao lado de tres cards que sao.
+      */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Taxa de disponibilidade"
+        <KpiCard
+          label="Taxa de disponibilidade"
           value={`${summary.availabilityPercent}%`}
-          valueClassName="text-success"
+          tone="success"
+          emphasizeValue
         />
-        <StatCard
-          title="Dispositivos online"
+        <KpiCard
+          label="Dispositivos online"
           value={summary.online}
-          valueClassName="text-info"
+          tone="info"
+          emphasizeValue
           href={`${getTenantPath(tenantSlug, 'computers')}?status=online`}
         />
-        <StatCard
-          title="Dispositivos offline"
+        <KpiCard
+          label="Dispositivos offline"
           value={summary.offline}
-          valueClassName="text-destructive"
+          tone="destructive"
+          emphasizeValue
           href={`${getTenantPath(tenantSlug, 'computers')}?status=offline`}
         />
-        <StatCard
-          title="Status warning"
+        <KpiCard
+          label="Status warning"
           value={summary.warning}
-          valueClassName="text-warning"
+          tone="warning"
+          emphasizeValue
           href={`${getTenantPath(tenantSlug, 'computers')}?status=warning`}
         />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Distribuição de sistemas operacionais</h2>
-          <div className="space-y-3">
+        <Panel>
+          <PanelHeader title="Distribuição de sistemas operacionais" />
+          <PanelBody className="space-y-3">
             {summary.osDistribution.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum sistema operacional reportado ainda.</p>
             ) : (
@@ -101,15 +112,15 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
                 )
               })
             )}
-          </div>
-        </div>
+          </PanelBody>
+        </Panel>
 
-        <div className="rounded-xl border border-border bg-card p-6">
-          <h2 className="mb-1 text-lg font-semibold text-foreground">Uso de disco por máquina</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            Quantidade de máquinas por faixa de uso — discos de tamanhos diferentes não se
-            resumem a um único percentual somado.
-          </p>
+        <Panel>
+          <PanelHeader
+            title="Uso de disco por máquina"
+            description="Quantidade de máquinas por faixa de uso — discos de tamanhos diferentes não se resumem a um único percentual somado."
+          />
+          <PanelBody>
           {summary.diskUsageDistribution.every((bucket) => bucket.count === 0) ? (
             <p className="text-sm text-muted-foreground">Nenhum disco reportado ainda.</p>
           ) : (
@@ -137,13 +148,14 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
               })}
             </div>
           )}
-        </div>
+          </PanelBody>
+        </Panel>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Distribuição de RAM</h2>
-          <div className="space-y-3">
+        <Panel>
+          <PanelHeader title="Distribuição de RAM" />
+          <PanelBody className="space-y-3">
             {summary.ramDistribution.every((item) => item.count === 0) ? (
               <p className="text-sm text-muted-foreground">Nenhuma informação de memória reportada ainda.</p>
             ) : (
@@ -163,27 +175,34 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
                 )
               })
             )}
-          </div>
-        </div>
+          </PanelBody>
+        </Panel>
 
-        <div className="rounded-xl border border-border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Últimas coletas</h2>
-          <div className="space-y-3">
+        <Panel>
+          <PanelHeader title="Últimas coletas" />
+          {/* Linhas com `divide-y`, nao cartoezinhos com borda propria: o
+              Panel proibe card dentro de card (borda dentro de borda e'
+              elevacao declarada duas vezes). `flush` porque cada linha ja
+              carrega o recuo de 20px. E `.data-mono` no lugar de `font-mono`
+              cru — e' a classe que todos os outros hostnames do app usam. */}
+          <PanelBody flush>
             {logs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma coleta registrada ainda.</p>
+              <p className="px-5 pb-5 text-sm text-muted-foreground">Nenhuma coleta registrada ainda.</p>
             ) : (
-              logs.map((log) => (
-                <div key={log.id} className="rounded-md border border-border p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-sm text-foreground">{log.device.hostname}</span>
-                    <span className="text-xs text-muted-foreground">{new Date(log.coletadoEm).toLocaleString('pt-BR')}</span>
+              <div className="divide-y divide-surface-line border-t border-surface-line">
+                {logs.map((log) => (
+                  <div key={log.id} className="px-5 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="data-mono text-sm text-foreground">{log.device.hostname}</span>
+                      <span className="text-xs text-muted-foreground">{new Date(log.coletadoEm).toLocaleString('pt-BR')}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{log.mensagem ?? '-'}</p>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{log.mensagem ?? '-'}</p>
-                </div>
-              ))
+                ))}
+              </div>
             )}
-          </div>
-        </div>
+          </PanelBody>
+        </Panel>
       </div>
     </div>
   )

@@ -35,7 +35,12 @@ function extractQuotedKeysInBlock(source: string, varName: string): string[] {
 }
 
 function extractSwitchCaseTypes(source: string): string[] {
-  const funcMatch = source.match(/func execute\([^)]*\) httpapi\.CommandResult \{([\s\S]*?)\n\}\n/)
+  // `\r?\n` e nao `\n`: o repositorio e' clonado no Windows com
+  // `core.autocrlf`, entao service.go chega ao disco com CRLF. Ancorar o fim do
+  // corpo em `\n}\n` fazia o parser nao encontrar NADA num checkout com CRLF —
+  // e o teste falhava com "corpo nao encontrado" mesmo com o arquivo intacto,
+  // acusando uma divergencia de allowlist que nao existia.
+  const funcMatch = source.match(/func execute\([^)]*\) httpapi\.CommandResult \{([\s\S]*?)\r?\n\}\r?\n/)
   if (!funcMatch) {
     throw new Error('Corpo de func execute(...) nao encontrado em service.go — parser de paridade precisa ser atualizado.')
   }
@@ -47,7 +52,10 @@ function extractSwitchCaseTypes(source: string): string[] {
 }
 
 function extractDiscriminatedUnionTypes(source: string): string[] {
-  const unionMatch = source.match(/agentCommandInputSchema = z\.discriminatedUnion\('type',\s*\[([\s\S]*?)\n\]\)/)
+  // Mesma robustez a CRLF do parser de `func execute` acima — ver o comentario
+  // la. Aqui o arquivo lido e' TypeScript, que hoje esta em LF, mas ancorar em
+  // `\n` sozinho e' a mesma armadilha esperando o proximo checkout.
+  const unionMatch = source.match(/agentCommandInputSchema = z\.discriminatedUnion\('type',\s*\[([\s\S]*?)\r?\n\]\)/)
   if (!unionMatch) {
     throw new Error('Bloco agentCommandInputSchema nao encontrado em lib/agent-commands.ts — parser de paridade precisa ser atualizado.')
   }

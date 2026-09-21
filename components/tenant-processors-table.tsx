@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Cpu, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { SummaryCard } from '@/components/ui/summary-card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { cn } from '@/lib/utils'
 import {
   STATIC_ROW_HOVER_CLASS,
@@ -135,48 +135,52 @@ export function TenantProcessorsTable({
       {/* Cards de KPI — os 3 de fabricante dobram como filtro (?fabricante=) e o
           card "Total" limpa o filtro, mesmo padrao de TenantComputersTable. Nao
           existe fileira de badges de fabricante aqui: seriam duas UIs para o
-          mesmo dado (ver doc de SummaryCard). */}
+          mesmo dado (ver doc de KpiCard). */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard
+        <KpiCard
           testId="vendor-card-all"
-          icon={<Cpu className="h-4 w-4" />}
+          icon={<Cpu />}
           label="Total de Máquinas"
           value={summary.total}
           tone="primary"
+          emphasizeValue
           active={vendorFilter === 'all'}
           onClick={() => applyVendorFilter('all')}
         />
-        <SummaryCard
+        <KpiCard
           testId="vendor-card-Intel"
-          icon={<Cpu className="h-4 w-4" />}
+          icon={<Cpu />}
           label="Intel"
           value={summary.Intel}
           tone="info"
+          emphasizeValue
           active={vendorFilter === 'Intel'}
           onClick={() => applyVendorFilter('Intel')}
         />
-        <SummaryCard
+        <KpiCard
           testId="vendor-card-AMD"
-          icon={<Cpu className="h-4 w-4" />}
+          icon={<Cpu />}
           label="AMD"
           value={summary.AMD}
           tone="destructive"
+          emphasizeValue
           active={vendorFilter === 'AMD'}
           onClick={() => applyVendorFilter('AMD')}
         />
-        <SummaryCard
+        <KpiCard
           testId="vendor-card-Nao identificado"
-          icon={<Cpu className="h-4 w-4" />}
+          icon={<Cpu />}
           label="Outros / Não Identificados"
           value={summary['Nao identificado']}
           tone="warning"
+          emphasizeValue
           active={vendorFilter === 'Nao identificado'}
           onClick={() => applyVendorFilter('Nao identificado')}
         />
       </div>
 
       {filteredProcessors.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-surface-line p-8 text-center text-muted-foreground">
           <Search className="h-6 w-6 opacity-30" />
           {processors.length === 0
             ? 'Nenhum processador reportado ainda para este cliente.'

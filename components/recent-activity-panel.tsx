@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, Radar, ScrollText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DISCOVERED_DEVICE_TYPES, type DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
+import { Panel, PanelHeader } from '@/components/ui/panel'
 
 /**
  * Painel direito do bloco duplo do dashboard (Overhaul visual — Fase 4): o que
@@ -109,13 +110,17 @@ function BlockHeader({
   linkLabel: string
   className?: string
 }) {
+  // `PanelHeader` no lugar do padding solto: este bloco usava `pb-3` enquanto o
+  // painel de alerta critico ao lado usava `pb-4`, entao os dois titulos
+  // ficavam a distancias diferentes da primeira linha da lista, lado a lado na
+  // mesma fileira. Agora o recuo vem de um lugar so.
   return (
-    <div className={cn('flex items-start justify-between gap-4 px-5 pb-3 pt-5', className)}>
+    <PanelHeader className={cn('flex items-start justify-between gap-4', className)}>
       <div className="space-y-1">
         {/* `h2` e nao `h3`: os dois blocos deste painel sao irmaos do titulo do
-            painel de alerta critico ao lado, e o `h1` da tela mora no cabecalho
-            fixo do shell. Pular para h3 aqui abriria um buraco na arvore de
-            titulos que leitor de tela navega. */}
+            painel de alerta critico ao lado, e o `h1` da tela e' o da propria
+            pagina. Pular para h3 aqui abriria um buraco na arvore de titulos
+            que leitor de tela navega. */}
         <h2 className="text-base font-semibold text-card-foreground">{title}</h2>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
@@ -126,7 +131,7 @@ function BlockHeader({
         {linkLabel}
         <ArrowRight className="h-4 w-4" />
       </Link>
-    </div>
+    </PanelHeader>
   )
 }
 
@@ -175,10 +180,7 @@ export function RecentActivityPanel({
   const discoveryGrows = audit === null
 
   return (
-    <section
-      aria-label="Atividade recente do tenant"
-      className="flex h-full flex-col rounded-xl border border-surface-line bg-card"
-    >
+    <Panel aria-label="Atividade recente do tenant" className="flex h-full flex-col">
       <BlockHeader
         title="Descobertas de rede"
         description="Dispositivos sem agente vistos pela varredura SNMP/ARP."
@@ -250,6 +252,6 @@ export function RecentActivityPanel({
           )}
         </>
       ) : null}
-    </section>
+    </Panel>
   )
 }

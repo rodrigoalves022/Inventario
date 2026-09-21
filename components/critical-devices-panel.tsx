@@ -3,6 +3,7 @@ import { ArrowRight, HardDrive, ShieldCheck, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatRelativeAge } from '@/lib/dashboard/fleet-overview'
 import type { DeviceReportRow } from '@/lib/reports/device-report'
+import { Panel, PanelFooter, PanelHeader } from '@/components/ui/panel'
 
 /**
  * Painel esquerdo do bloco duplo do dashboard (Overhaul visual — Fase 4):
@@ -152,11 +153,9 @@ export function CriticalDevicesPanel({
   const hidden = Math.max(totalCritical - entries.length, 0)
 
   return (
-    <section
-      aria-labelledby="critical-devices-title"
-      className="flex h-full flex-col rounded-xl border border-surface-line bg-card"
-    >
-      <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-5">
+    <Panel aria-labelledby="critical-devices-title" className="flex h-full flex-col">
+      <PanelHeader>
+        <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h2 id="critical-devices-title" className="text-base font-semibold text-card-foreground">
             Dispositivos em alerta crítico
@@ -176,7 +175,8 @@ export function CriticalDevicesPanel({
         >
           {totalCritical}
         </span>
-      </div>
+        </div>
+      </PanelHeader>
 
       {entries.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 border-t border-surface-line px-5 py-10 text-center">
@@ -221,7 +221,7 @@ export function CriticalDevicesPanel({
       )}
 
       {hidden > 0 ? (
-        <div className="border-t border-surface-line px-5 py-3">
+        <PanelFooter>
           <Link
             href={allDevicesHref}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -229,8 +229,8 @@ export function CriticalDevicesPanel({
             Ver as outras {hidden} máquinas em alerta
             <ArrowRight className="h-4 w-4" />
           </Link>
-        </div>
+        </PanelFooter>
       ) : null}
-    </section>
+    </Panel>
   )
 }
