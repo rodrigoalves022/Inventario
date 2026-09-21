@@ -57,7 +57,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
         </p>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h2 className="mb-1 text-lg font-semibold text-foreground">Webhooks</h2>
         <p className="mb-4 text-sm text-muted-foreground">
           Cada endpoint recebe apenas os eventos selecionados, com o payload assinado no header{' '}
@@ -71,7 +71,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum webhook configurado.</p>
         ) : (
-          <div className="divide-y rounded-lg border">
+          <div className="divide-y rounded-xl border">
             {rows.map((row) => (
               <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0 space-y-1">

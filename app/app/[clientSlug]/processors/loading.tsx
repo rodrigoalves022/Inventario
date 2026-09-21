@@ -10,7 +10,7 @@ export default function ProcessorsLoading() {
 
       <div className="space-y-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="rounded-lg border border-border bg-card p-6">
+          <div key={index} className="rounded-xl border border-border bg-card p-6">
             <Skeleton className="h-5 w-64" />
             <Skeleton className="mt-2 h-3 w-24" />
             <div className="mt-4 border-t border-border pt-4">

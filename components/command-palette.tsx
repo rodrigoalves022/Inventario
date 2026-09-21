@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { CornerDownLeft, Search } from 'lucide-react'
+import { CornerDownLeft, Monitor, Search, Server } from 'lucide-react'
 
 import type { ShellNavSection } from '@/lib/shell-navigation'
+import { getTenantPath } from '@/lib/tenant-links'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import {
   Command,
@@ -24,17 +25,40 @@ import {
 /**
  * Paleta de comando do shell (Ctrl+K / Cmd+K).
  *
- * ESCOPO DELIBERADO: a paleta busca as ROTAS do tenant — exatamente as mesmas
- * que a sidebar monta, filtradas pelo mesmo predicado de papel
- * (`buildShellNavigation`). Ela NAO busca dispositivos, softwares ou usuarios
- * no banco: isso seria uma rota de API nova (com paginacao, escopo por tenant
- * e rate limit proprios), nao um item de overhaul visual. Fica registrado
- * aqui como candidato a sprint futura em vez de virar meia-feature.
+ * ESCOPO: a paleta busca DUAS coisas.
+ *
+ * 1. ROTAS do tenant — exatamente as mesmas que a sidebar monta, filtradas
+ *    pelo mesmo predicado de papel (`buildShellNavigation`). Estao em memoria,
+ *    filtram instantaneamente, sem rede.
+ * 2. DISPOSITIVOS por hostname ou IP, via
+ *    `GET /api/tenant/[clientSlug]/devices/search` (Backlog item 13). Consulta
+ *    de rede, com debounce, escopo por tenant e rate limit na rota.
+ *
+ * As duas fontes convivem sem se atrapalhar porque o filtro local do `cmdk`
+ * casa o termo digitado contra o `value` de cada item, e o `value` dos
+ * dispositivos carrega hostname e IP — que sao exatamente os campos pelos
+ * quais o servidor ja casou. Um resultado que veio do servidor nunca some por
+ * causa do filtro local.
  *
  * Por que o atalho e real e nao so um `⌘K` desenhado ao lado do campo: um
  * enfeite que anuncia um atalho inexistente e pior que nao ter enfeite nenhum
  * — promete e nao cumpre.
  */
+
+/** Espera antes de consultar a rota. Abaixo disso a paleta dispararia uma
+ * requisicao por tecla; acima, a lista pareceria travada. */
+const SEARCH_DEBOUNCE_MS = 250
+
+/** Mesmo minimo que o Zod da rota exige. Checado aqui tambem para nem sair
+ * requisicao que a rota ja devolveria vazia. */
+const MIN_SEARCH_LENGTH = 2
+
+type DeviceHit = {
+  id: string
+  hostname: string
+  ip: string | null
+  isServer: boolean
+}
 
 /**
  * Faixa Unicode "Combining Diacritical Marks" (U+0300-U+036F), montada a
@@ -130,8 +154,17 @@ export function useIsMacPlatform() {
  * busca com comportamentos diferentes na mesma tela. O botao tambem mantem o
  * atalho honesto: a tecla anunciada ao lado e a tecla que funciona.
  */
-export function CommandPaletteTrigger({ onOpen }: { onOpen: () => void }) {
+export function CommandPaletteTrigger({
+  onOpen,
+  canSearchDevices = false,
+}: {
+  onOpen: () => void
+  /** Dentro de um tenant a paleta tambem busca dispositivos — o rotulo precisa
+   * dizer isso, senao anuncia menos do que entrega. */
+  canSearchDevices?: boolean
+}) {
   const isMac = useIsMacPlatform()
+  const label = canSearchDevices ? 'Buscar página ou máquina' : 'Buscar página'
 
   // A largura cresce por breakpoint em vez de ficar fixa: no `lg` o header
   // ainda divide 768px com a trilha, o seletor de cliente e o perfil — um
@@ -141,13 +174,13 @@ export function CommandPaletteTrigger({ onOpen }: { onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      aria-label="Buscar página"
+      aria-label={label}
       aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
       className="flex h-9 items-center gap-2 rounded-lg border border-surface-line bg-secondary/50 px-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:w-44 md:justify-between xl:w-60"
     >
       <span className="flex items-center gap-2">
         <Search className="h-4 w-4 shrink-0" />
-        <span className="hidden md:inline">Buscar página...</span>
+        <span className="hidden truncate md:inline">{label}...</span>
       </span>
       <KbdGroup className="hidden md:inline-flex" aria-hidden>
         <Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd>
@@ -161,17 +194,82 @@ export function CommandPalette({
   open,
   onOpenChange,
   sections,
+  tenantSlug,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   sections: ShellNavSection[]
+  /** Ausente fora do contexto de um tenant — sem ele a paleta so busca rotas. */
+  tenantSlug?: string | null
 }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  /**
+   * O resultado carrega o TERMO a que pertence, e nao so a lista.
+   *
+   * Isso e' o que permite derivar tudo o mais sem um unico `setState` no corpo
+   * do efeito — `react-hooks/set-state-in-effect` barra esse padrao neste
+   * repositorio, e com razao: limpar a lista por efeito a cada tecla e' uma
+   * renderizacao em cascata. Com o termo embutido, "estou buscando" e' apenas
+   * "o resultado que tenho nao e' o do termo atual", e "nao tenho resultado"
+   * e' a mesma comparacao. Nenhum estado extra, nenhuma cascata, e a lista
+   * nunca mostra o resultado de um termo que o usuario ja abandonou.
+   */
+  const [deviceResult, setDeviceResult] = useState<{ term: string; items: DeviceHit[] }>({
+    term: '',
+    items: [],
+  })
+
+  const term = search.trim()
+  const shouldSearchDevices = open && Boolean(tenantSlug) && term.length >= MIN_SEARCH_LENGTH
+  const devices = shouldSearchDevices && deviceResult.term === term ? deviceResult.items : []
+  const searchingDevices = shouldSearchDevices && deviceResult.term !== term
+
+  /**
+   * Busca com debounce e cancelamento.
+   *
+   * O `AbortController` nao e' enfeite: sem ele, digitar "SRV-01" dispara seis
+   * requisicoes e a ULTIMA a chegar vence, que nem sempre e' a mais recente —
+   * a lista pisca com o resultado de um termo que o usuario ja abandonou.
+   * Abortar a anterior a cada tecla elimina a corrida.
+   */
+  useEffect(() => {
+    if (!shouldSearchDevices || !tenantSlug) return
+
+    const controller = new AbortController()
+
+    const timer = setTimeout(() => {
+      fetch(
+        `/api/tenant/${encodeURIComponent(tenantSlug)}/devices/search?q=${encodeURIComponent(term)}`,
+        { signal: controller.signal }
+      )
+        .then((response) => (response.ok ? response.json() : { devices: [] }))
+        .then((data: { devices?: DeviceHit[] }) => {
+          setDeviceResult({ term, items: Array.isArray(data.devices) ? data.devices : [] })
+        })
+        .catch(() => {
+          // Abort e' fluxo normal (o usuario digitou de novo), nao falha a
+          // reportar. Falha real de rede tambem nao vira alarme numa paleta de
+          // busca: registra-se o termo com lista vazia, o indicador de busca
+          // sai, e a paleta segue servindo as rotas.
+          if (!controller.signal.aborted) {
+            setDeviceResult({ term, items: [] })
+          }
+        })
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [shouldSearchDevices, term, tenantSlug])
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
-      if (!next) setSearch('')
+      if (!next) {
+        setSearch('')
+        setDeviceResult({ term: '', items: [] })
+      }
       onOpenChange(next)
     },
     [onOpenChange]
@@ -203,13 +301,16 @@ export function CommandPalette({
           <CommandInput
             value={search}
             onValueChange={setSearch}
-            placeholder="Buscar página..."
+            placeholder={tenantSlug ? 'Buscar página, hostname ou IP...' : 'Buscar página...'}
             className="text-[0.9375rem]"
           />
           <CommandList className="max-h-[min(24rem,60vh)] p-1">
             <CommandEmpty className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Nenhuma página com esse nome. Tente &ldquo;máquinas&rdquo;, &ldquo;alertas&rdquo; ou
-              &ldquo;relatórios&rdquo;.
+              {searchingDevices
+                ? 'Buscando dispositivos...'
+                : tenantSlug
+                  ? 'Nenhuma página nem dispositivo com esse nome. Busque por hostname ou IP.'
+                  : 'Nenhuma página com esse nome. Tente “máquinas”, “alertas” ou “relatórios”.'}
             </CommandEmpty>
             {sections.map((section) => (
               <CommandGroup key={section.title} heading={section.title}>
@@ -232,6 +333,39 @@ export function CommandPalette({
                 ))}
               </CommandGroup>
             ))}
+
+            {/* Dispositivos DEPOIS das rotas: navegar e' o uso dominante da
+                paleta, e as rotas respondem sem rede. O grupo so aparece quando
+                ha resultado, para nao criar um cabecalho vazio piscando a cada
+                tecla enquanto o debounce corre. */}
+            {tenantSlug && devices.length > 0 && (
+              <CommandGroup heading="Dispositivos">
+                {devices.map((device) => {
+                  const DeviceIcon = device.isServer ? Server : Monitor
+                  return (
+                    <CommandItem
+                      key={device.id}
+                      // `value` carrega hostname e IP — os mesmos campos pelos
+                      // quais o servidor casou —, entao o filtro local do cmdk
+                      // nunca esconde um resultado que a rota ja devolveu.
+                      value={`${device.hostname} ${device.ip ?? ''}`}
+                      onSelect={() => handleSelect(getTenantPath(tenantSlug, `assets/${device.id}`))}
+                      className="group cursor-pointer gap-3 rounded-lg px-3 py-2.5 data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
+                    >
+                      <DeviceIcon className="h-4 w-4 shrink-0" />
+                      <span className="truncate font-medium">{device.hostname}</span>
+                      {device.ip && (
+                        <span className="data-mono shrink-0 text-xs text-muted-foreground">{device.ip}</span>
+                      )}
+                      <CornerDownLeft
+                        aria-hidden
+                        className="ml-auto h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
+                      />
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
 

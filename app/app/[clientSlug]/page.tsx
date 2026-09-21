@@ -188,7 +188,13 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
   return (
     <div className="space-y-6">
       <div>
-        {/* Titulo fica no cabecalho fixo; aqui so o contexto. */}
+        {/* O cabecalho fixo do shell (components/sidebar.tsx) renderiza apenas
+            breadcrumbs, paleta de comando, seletor de cliente e menu de perfil —
+            nenhum titulo de pagina. Esta era a unica das 12 telas do tenant sem
+            <h1>, o que quebrava a hierarquia semantica e fazia a tela principal
+            comecar um degrau abaixo das listagens. Mesma escala das irmas
+            (computers, servers, storage, ...): text-2xl font-bold. */}
+        <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
         <p className="text-muted-foreground">
           Monitoramento em tempo real dos ativos de TI da empresa <span className="font-medium text-foreground">{tenant.name}</span>.
         </p>
@@ -302,7 +308,7 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-hidden rounded-xl border">
             <div className="overflow-x-auto">
               <TenantRecentDevicesTable devices={recentDevices} />
             </div>

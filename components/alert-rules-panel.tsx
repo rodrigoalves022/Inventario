@@ -43,7 +43,7 @@ function CreateRuleForm({ tenantSlug }: { tenantSlug: string }) {
   const [metric, setMetric] = useState<string>(ALERT_METRICS[0])
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-dashed p-4">
+    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed p-4">
       <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <div className="space-y-1.5">
         <Label htmlFor="name" className="text-xs">Nome da regra</Label>
@@ -164,7 +164,7 @@ export function AlertRulesPanel({ tenantSlug, rules }: { tenantSlug: string; rul
           Nenhuma regra configurada. Sem regras, nada é registrado no histórico abaixo.
         </p>
       ) : (
-        <div className="divide-y rounded-lg border">
+        <div className="divide-y rounded-xl border">
           {rules.map((rule) => (
             <div key={rule.id} className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0 space-y-0.5">

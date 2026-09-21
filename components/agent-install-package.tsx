@@ -31,7 +31,7 @@ export function AgentInstallPackage({
         </a>
       </Button>
 
-      <div className="rounded-lg border border-warning/40 bg-warning/5 p-4">
+      <div className="rounded-xl border border-warning/40 bg-warning/5 p-4">
         <div className="flex gap-3">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div className="min-w-0 flex-1 space-y-3">

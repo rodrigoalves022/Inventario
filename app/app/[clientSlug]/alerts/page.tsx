@@ -54,14 +54,14 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
         </p>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h2 className="mb-4 text-lg font-semibold text-foreground">Regras</h2>
         {canManage ? (
           <AlertRulesPanel tenantSlug={tenant.slug} rules={rules} />
         ) : rules.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhuma regra configurada.</p>
         ) : (
-          <div className="divide-y rounded-lg border">
+          <div className="divide-y rounded-xl border">
             {rules.map((rule) => (
               <div key={rule.id} className="flex items-center justify-between gap-4 p-4">
                 <div className="min-w-0 space-y-0.5">
@@ -85,7 +85,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
         )}
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h2 className="mb-4 text-lg font-semibold text-foreground">Histórico de disparos</h2>
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">

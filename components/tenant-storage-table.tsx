@@ -292,7 +292,7 @@ export function TenantStorageTable({
       </div>
 
       {filteredRows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
           <Search className="h-6 w-6 opacity-30" />
           {devices.length === 0
             ? 'Nenhum dispositivo com discos reportados no cliente selecionado.'

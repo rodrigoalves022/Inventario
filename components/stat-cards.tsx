@@ -7,6 +7,14 @@ import {
   Server,
   Wifi,
 } from 'lucide-react'
+import {
+  KPI_CARD_SHELL_CLASS,
+  KPI_ICON_CHIP_CLASS,
+  KPI_TONE_GLOW_CLASS,
+  KPI_TONE_ICON_CLASS,
+  normalizeKpiTone,
+  type KpiToneInput,
+} from '@/lib/kpi-tone'
 
 interface StatCardProps {
   title: string
@@ -18,7 +26,12 @@ interface StatCardProps {
     value: number
     isPositive: boolean
   }
-  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  /**
+   * Tom do card. `danger` e `default` continuam aceitos como ALIAS LEGADO
+   * (traduzidos por `normalizeKpiTone` para `destructive` e `neutral`) — a
+   * renomeacao nao quebra nenhum chamador existente.
+   */
+  variant?: KpiToneInput
   /** O card que responde "quantos ativos no total" — mesma escala do sistema, um degrau acima. */
   featured?: boolean
   /** Quando presente, o card vira link pra listagem filtrada correspondente. */
@@ -28,78 +41,74 @@ interface StatCardProps {
   valueClassName?: string
 }
 
-/**
- * Tom da variante. Duas mudancas do Overhaul visual, Fase 1:
- *
- * 1. Saiu a barra colorida de 4px em `border-l`. Uma borda colorida grossa num
- *    dos lados e' o adesivo que se cola num card generico para ele parecer
- *    categorizado; a borda de 1px reagindo em TODO o perimetro diz a mesma
- *    coisa e ainda serve de estado de hover. O tom continua legivel em repouso
- *    pela borda tingida e pelo chip do icone.
- * 2. `--surface-glow` aponta para o token da variante, e `surface-interactive`
- *    (app/globals.css) usa a variavel para pintar borda e halo do hover. Assim
- *    o card de alerta brilha ambar e o de falha brilha vermelho, sem um unico
- *    rgba() literal no componente.
- */
-const variantStyles = {
-  default: 'border-surface-line [--surface-glow:var(--color-primary)]',
-  primary: 'border-primary/25 [--surface-glow:var(--color-primary)]',
-  success: 'border-success/25 [--surface-glow:var(--color-success)]',
-  warning: 'border-warning/25 [--surface-glow:var(--color-warning)]',
-  danger: 'border-destructive/25 [--surface-glow:var(--color-destructive)]',
-  info: 'border-info/25 [--surface-glow:var(--color-info)]',
-}
-
-const iconStyles = {
-  default: 'bg-muted text-muted-foreground',
-  primary: 'bg-primary/12 text-primary',
-  success: 'bg-success/12 text-success',
-  warning: 'bg-warning/12 text-warning',
-  danger: 'bg-destructive/12 text-destructive',
-  info: 'bg-info/12 text-info',
-}
-
 function formatPercent(part: number, total: number) {
   if (total <= 0) return '0% do total'
   return `${Math.round((part / total) * 100)}% do total`
 }
 
+/**
+ * Card de KPI das telas de visao geral, /audit e /reports.
+ *
+ * --- Unificacao de anatomia (sprint de correcao da auditoria) ----------------
+ *
+ * Este componente e o `SummaryCard` (components/ui/summary-card.tsx) eram os
+ * DOIS cards de KPI do sistema, com anatomia oposta: aqui o icone ficava a
+ * DIREITA num chip de 40px (48px no `featured`), la ficava a ESQUERDA num chip
+ * de 32px; e o mesmo tom de falha se chamava `danger` aqui e `destructive` la.
+ * Auditoria apontou que a fileira de KPI invertia a leitura ao trocar de tela.
+ *
+ * Tres mudancas, todas retrocompativeis:
+ *
+ * 1. ICONE A ESQUERDA, na anatomia do `SummaryCard` — a que ja era usada em 5
+ *    telas contra 3, e a que nao tinha o defeito de alinhamento.
+ * 2. TOM UNICO por `lib/kpi-tone.ts`. `danger` e `default` viram alias.
+ * 3. CHIP DE TAMANHO FIXO definido no componente, nao pelo chamador. Os call
+ *    sites continuam passando `<Icon className="h-5 w-5" />`; o chip normaliza
+ *    com `[&>svg]:size-4`, entao nenhum arquivo consumidor precisou mudar.
+ *
+ * Alem disso, `surface-interactive` passou a ser CONDICIONAL. Antes era
+ * aplicado incondicionalmente, entao o card "Taxa de disponibilidade" de
+ * /reports — que nao tem `href` — levantava 2px e ganhava halo no hover sem
+ * ser clicavel nem focalizavel, ao lado de tres cards que eram. Card que se
+ * move e nao clica e' promessa falsa.
+ *
+ * A borda tingida por variante (`border-primary/25` etc.) saiu em favor de
+ * `border-surface-line`, que e' a borda da casca compartilhada. O tom continua
+ * legivel pelo chip do icone e pela cor do numero.
+ */
 export function StatCard({ title, value, subtitle, icon, trend, variant = 'default', featured = false, href, valueClassName }: StatCardProps) {
+  const tone = normalizeKpiTone(variant)
   const Comp = href ? Link : 'div'
 
   return (
     <Comp
       href={href as string}
       className={cn(
-        // Mesma casca do SummaryCard (components/ui/summary-card.tsx): mesmo
-        // raio, mesmo padding, mesma transicao, mesma regra de elevacao
-        // (borda de 1px em repouso; sombra + halo so no hover). `h-full flex flex-col
-        // justify-between` separa o card em duas faixas — titulo+icone em cima,
-        // valor+subtitulo embaixo — para que os NUMEROS fiquem na mesma altura
-        // ao longo da fileira mesmo quando os titulos quebram em numero
-        // diferente de linhas ("Taxa de disponibilidade" vs "Status warning").
-        'surface-interactive flex h-full w-full select-none flex-col justify-between gap-3 rounded-xl border bg-card p-4',
-        variantStyles[variant],
-        href && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        // `justify-between` iguala a altura da fileira; o alinhamento dos
+        // NUMEROS vem da ancoragem superior do bloco de rotulo, que ocupa
+        // sempre uma linha.
+        KPI_CARD_SHELL_CLASS,
+        'justify-between gap-3',
+        KPI_TONE_GLOW_CLASS[tone],
+        href && 'surface-interactive cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="mb-2 flex items-center gap-3">
+        {icon && <div className={cn(KPI_ICON_CHIP_CLASS, KPI_TONE_ICON_CLASS[tone])}>{icon}</div>}
         <p className="section-label">{title}</p>
-        {icon && (
-          <div className={cn(
-            'flex shrink-0 items-center justify-center rounded-lg',
-            featured ? 'h-12 w-12' : 'h-10 w-10',
-            iconStyles[variant]
-          )}>
-            {icon}
-          </div>
-        )}
       </div>
       <div className="space-y-1">
         <p
           className={cn(
             'font-bold tabular-nums tracking-tight',
             featured ? 'text-4xl' : 'text-2xl',
+            // NAO cai para KPI_TONE_VALUE_CLASS[tone] de proposito. Aqui o tom
+            // e' decorativo e quem decide se o NUMERO alarma e' o chamador, via
+            // `valueClassName` — ver o card "Em atenção" do dashboard, que so
+            // passa `text-warning` quando a contagem e' maior que zero. Herdar
+            // o tom pintaria um zero de ambar, afirmando alerta onde nao ha.
+            // (`SummaryCard` tinge por tom porque la o tom E' a severidade do
+            // proprio balde que o card conta.)
             valueClassName ?? 'text-card-foreground'
           )}
         >

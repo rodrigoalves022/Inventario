@@ -8,7 +8,7 @@ export default function ServersLoading() {
         <Skeleton className="mt-2 h-4 w-80" />
       </div>
 
-      <div className="rounded-lg border border-border bg-card">
+      <div className="rounded-xl border border-border bg-card">
         <div className="border-b p-4">
           <div className="grid grid-cols-7 gap-4">
             {Array.from({ length: 7 }).map((_, index) => (

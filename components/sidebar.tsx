@@ -548,14 +548,23 @@ export function Header({
       <ShellBreadcrumbs trail={trail} className="min-w-0 flex-1" />
 
       <div className="flex shrink-0 items-center gap-2">
-        {hasPalette && <CommandPaletteTrigger onOpen={() => setOpen(true)} />}
+        {hasPalette && (
+          <CommandPaletteTrigger onOpen={() => setOpen(true)} canSearchDevices={Boolean(tenant)} />
+        )}
         {tenant && switchableClients && switchableClients.length > 1 && (
           <ClientSwitcher current={tenant} clients={switchableClients} />
         )}
         {user && <ProfileMenu user={user} />}
       </div>
 
-      {hasPalette && <CommandPalette open={open} onOpenChange={setOpen} sections={sections} />}
+      {hasPalette && (
+        <CommandPalette
+          open={open}
+          onOpenChange={setOpen}
+          sections={sections}
+          tenantSlug={tenant?.slug ?? null}
+        />
+      )}
     </header>
   )
 }

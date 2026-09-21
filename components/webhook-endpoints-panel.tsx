@@ -57,7 +57,7 @@ function CreateEndpointForm({ tenantSlug }: { tenantSlug: string }) {
   const [copied, setCopied] = useState(false)
 
   return (
-    <div className="space-y-3 rounded-lg border border-dashed p-4">
+    <div className="space-y-3 rounded-xl border border-dashed p-4">
       <form
         action={(formData) => {
           setCopied(false)
@@ -211,7 +211,7 @@ export function WebhookEndpointsPanel({ tenantSlug, endpoints }: { tenantSlug: s
           <Plus className="h-3.5 w-3.5" /> Nenhum webhook cadastrado ainda.
         </p>
       ) : (
-        <div className="divide-y rounded-lg border">
+        <div className="divide-y rounded-xl border">
           {endpoints.map((endpoint) => (
             <EndpointRow key={endpoint.id} tenantSlug={tenantSlug} endpoint={endpoint} />
           ))}

@@ -43,7 +43,7 @@ export function TenantAlertSettingsForm({
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="rounded-lg border bg-card overflow-hidden">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="rounded-xl border bg-card overflow-hidden">
       <CollapsibleTrigger asChild>
         <Button variant="ghost" className="flex w-full items-center justify-between p-4 hover:bg-muted/50 rounded-none h-auto">
           <div className="flex items-center gap-3">

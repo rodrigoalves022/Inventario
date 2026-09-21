@@ -80,7 +80,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold text-foreground">Distribuição de sistemas operacionais</h2>
           <div className="space-y-3">
             {summary.osDistribution.length === 0 ? (
@@ -104,7 +104,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="mb-1 text-lg font-semibold text-foreground">Uso de disco por máquina</h2>
           <p className="mb-4 text-xs text-muted-foreground">
             Quantidade de máquinas por faixa de uso — discos de tamanhos diferentes não se
@@ -141,7 +141,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold text-foreground">Distribuição de RAM</h2>
           <div className="space-y-3">
             {summary.ramDistribution.every((item) => item.count === 0) ? (
@@ -166,7 +166,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold text-foreground">Últimas coletas</h2>
           <div className="space-y-3">
             {logs.length === 0 ? (
