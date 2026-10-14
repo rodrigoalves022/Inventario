@@ -201,9 +201,10 @@ default 90).
 
 | | |
 |---|---|
-| Request | query string `?client=&key=` |
+| Request | query string `?client=&key=` — validados pelo schema compartilhado `provisioningParamsSchema` (`lib/provisioning.ts`, ver §3.6) |
 | 200 | texto plano (script PowerShell), `Content-Disposition: attachment` |
-| 400 | `{ error: 'Parametros client e key sao obrigatorios.' }` |
+| 400 | `{ error: 'Parâmetros client e key ausentes ou fora do formato permitido.' }` — `client`/`key` ausente **ou fora da allowlist** (§3.6); nenhum script no corpo |
+| 500 | `{ error: 'Não foi possível gerar o script de instalação.' }` — URL do servidor (env ou cabeçalhos `x-forwarded-host`/`host`) inválida para interpolação no script; nenhum script no corpo |
 | 429 | `{ error }`, header `Retry-After` |
 
 ### `POST /api/tenant/[clientSlug]/devices/[deviceId]/commands` (enfileirar — sessão de usuário, não agente)
@@ -321,12 +322,21 @@ client?: string.min(2)
 enrollmentKey?: string.min(16)
 ```
 
-### 3.6 `GET /api/agent/bootstrap` — schema inline
+### 3.6 `GET /api/agent/bootstrap` e `GET /api/agent/download-exe` — schema compartilhado
+
+`provisioningParamsSchema` em `lib/provisioning.ts`, importado pelas duas rotas (nenhuma define a
+regex inline). Allowlist estrita: entrada fora do formato é **rejeitada** com `400`, nunca
+sanitizada.
 
 ```ts
-client: string.min(2)
-key: string.min(16)
+client: string.trim().min(2).max(64).regex(/^[a-z0-9-]+$/)
+key: string.trim().regex(/^[a-zA-Z0-9_-]{16,128}$/)
 ```
+
+Defesa em profundidade: `buildBootstrapScript` e `buildProvisioningArtifacts` lançam erro para
+`client`/`key` fora da mesma allowlist e para `serverUrl` não parseável, com protocolo diferente de
+`http`/`https`, ou contendo aspas (ASCII `'`/`"` e U+2018–U+201B), backtick, `$` ou caractere de
+controle (incluindo `\r`/`\n`).
 
 ---
 

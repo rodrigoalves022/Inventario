@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { PROVISIONING_PARAMS_ERROR, provisioningParamsSchema } from '@/lib/provisioning'
 import { getCurrentServerUrl } from '@/lib/server-url'
 import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
 import path from 'path'
@@ -7,22 +7,19 @@ import { promises as fs } from 'fs'
 
 export const runtime = 'nodejs'
 
-const downloadSchema = z.object({
-  client: z.string().trim().min(2),
-  key: z.string().trim().min(16),
-})
-
 export async function GET(req: NextRequest) {
   const limit = rateLimit(`download-exe:${getClientIp(req)}`, { limit: 20, windowMs: 5 * 60 * 1000 })
   if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds)
 
-  const parsed = downloadSchema.safeParse({
+  // Mesmo schema compartilhado do bootstrap (Sprint A1a, achado N1):
+  // client/key fora da allowlist → 400 sem binario no corpo.
+  const parsed = provisioningParamsSchema.safeParse({
     client: req.nextUrl.searchParams.get('client'),
     key: req.nextUrl.searchParams.get('key'),
   })
 
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Parametros client e key sao obrigatorios.' }, { status: 400 })
+    return NextResponse.json({ error: PROVISIONING_PARAMS_ERROR }, { status: 400 })
   }
 
   const serverUrl = await getCurrentServerUrl()

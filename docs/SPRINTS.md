@@ -1756,6 +1756,160 @@ fronteira de quem a encontrou):
 
 ---
 
+## Sprint A1a — Hotfix de segurança no bootstrap do agente
+
+**Status**: Concluída (aceita pelo gerente em 2026-10-14). Plano registrado pelo `sprint-planner` a
+partir do relatório da Sprint A0. Portões: typecheck, lint e build:verify limpos; `npm test` com
+806 testes / 63 arquivos (210 novos em `tests/provisioning-security.test.ts`). Dois achados fora de
+escopo foram para o Backlog (itens 14 e 15).
+
+**Objetivo**: fechar a injeção de PowerShell sem autenticação no `GET /api/agent/bootstrap` (achado
+N1, severidade Alta) e a mesma superfície em `GET /api/agent/download-exe`. Ao final, nenhum valor de
+`client`, `key` ou `serverUrl` fora de uma allowlist estrita chega a ser interpolado no script
+`.ps1`, no comando `cmd.exe` de instalação ou no payload do `.exe`: a entrada inválida é
+**rejeitada** (400, sem script no corpo), nunca "consertada".
+
+### Origem do achado (rastreabilidade)
+
+Relatório da **Sprint A0** (auditoria de segurança, `security-auditor`, verificação independente do
+orquestrador, aprovado pelo gerente), **achado N1 — Alta — injeção de PowerShell sem autenticação**:
+
+- `GET /api/agent/bootstrap` é público (`app/api/agent/bootstrap/route.ts`). O Zod atual é só
+  `client: z.string().trim().min(2)`, `key: z.string().trim().min(16)` (`route.ts:9-12`).
+- O script é montado por `buildBootstrapScript` (`lib/provisioning.ts:37-74`), que interpola
+  `client`/`key`/`server` entre aspas simples. `escapePowerShellSingleQuoted`
+  (`lib/provisioning.ts:7-9`) só dobra a aspa ASCII `'`, mas o PowerShell também trata **U+2018,
+  U+2019, U+201A e U+201B** como aspa simples.
+- Prova por parse (sem execução): um payload com U+2019 na `key` vira comando executável na linha 12
+  do script, **depois** do check de Administrador. O comando oficial de instalação é
+  `irm '<url>' | iex` (`lib/provisioning.ts:32`) e a rota responde `text/plain; charset=utf-8` — ou
+  seja, quem cola o comando de instalação executa o que vier.
+- Mesma superfície, mesmo Zod frouxo: `GET /api/agent/download-exe`
+  (`app/api/agent/download-exe/route.ts:10-13`) embute `client`/`key` no payload do `.exe`. O
+  relatório A0 aprovado propôs a allowlist "em bootstrap e download-exe".
+- Entrada não confiável adicional: o `$server` do script vem de `getCurrentServerUrl()`
+  (`lib/server-url.ts`), que sem env (`INVENTARIO_SERVER_URL`/`APP_URL`/`NEXT_PUBLIC_APP_URL`) usa os
+  cabeçalhos `x-forwarded-host`/`host` e `x-forwarded-proto` (`lib/server-url.ts:40-47`).
+- `installCommand` (`lib/provisioning.ts:33`) interpola `client`/`key` entre aspas duplas de
+  `cmd.exe` — mesma classe de problema, outro interpretador.
+
+Fatos verificados que fundamentam as regras (orquestrador, Sprint A0):
+
+- A chave de instalação é sempre 32 bytes em hex minúsculo = 64 caracteres (`lib/auth.ts:12-23`,
+  `generateSecret`). A regex `^[a-zA-Z0-9_-]{16,128}$` aceita todas as chaves legítimas.
+- Todos os slugs existentes no banco casam com `^[a-z0-9-]+$` e têm de 2 a 64 caracteres (consulta
+  SQL: zero violações). A allowlist de `client` não invalida nenhum tenant real.
+
+### RFs relacionados
+
+- **RF002** — Cadastro de tenant (`createClientAction` gera a `enrollmentKey` que alimenta o
+  bootstrap; o fluxo não pode quebrar).
+- **RF003** — Enrollment de agente (o script de bootstrap e o `.exe` com config embutida são o
+  caminho de instalação que leva ao `POST /api/agent/register`).
+
+### RNs / RNFs relacionados
+
+- **RN005** — só o hash das credenciais é persistido; esta sprint **não** muda o formato da chave nem
+  o modelo de exibição (D3 já ratificado).
+- **RNF002** — validação por schema Zod antes de qualquer efeito colateral; aqui estendida ao
+  conteúdo que vira código executável na máquina do cliente.
+- **RNF003** — princípio de allowlist / defesa em profundidade (validação na rota **e** na função de
+  montagem do script).
+
+### Casos de uso
+
+- `docs/PRODUCT.md` §3.1 (cadastro de tenant → passo de instalação) e §3.2 (enrollment do agente:
+  download via `/api/agent/download-exe` com `client`/`key` na query string, ou script bootstrap).
+- `docs/SPEC.md` §2 (`GET /api/agent/bootstrap`) e §3.6 (schema inline do bootstrap).
+
+### Entidades de banco
+
+Nenhuma alteração de schema. Entidade **lida indiretamente** como referência de formato: `Client`
+(`slug`, `enrollmentKeyHash`). Nenhuma migration, nenhum `db push`, nenhum backup necessário.
+
+### Escopo
+
+| Item | RF/RN relacionado | Caso de uso | Entidade(s) de banco | Origem do achado |
+|---|---|---|---|---|
+| 1 — Schema Zod estrito e **compartilhado** para `client`/`key`, num único módulo importado pelas duas rotas: `client` `/^[a-z0-9-]+$/` (min 2, max 64); `key` `/^[a-zA-Z0-9_-]{16,128}$/`. Aplicado em `app/api/agent/bootstrap/route.ts` **e** `app/api/agent/download-exe/route.ts`. Parâmetro inválido → `400` sem script/binário no corpo | RF003, RNF002 | PRODUCT §3.2; SPEC §2, §3.6 | Client (formato de `slug`) | security-auditor (A0, N1) |
+| 2 — Validação por allowlist em `lib/provisioning.ts` que **lança erro** (rejeita, não sanitiza): `buildBootstrapScript` e `installCommand` recusam `client`/`key` fora da allowlist (cobre `\r`, `\n`, backtick, `$`, aspas de qualquer tipo, caracteres de controle) | RF002, RF003, RNF003 | PRODUCT §3.1, §3.2 | — | security-auditor (A0, N1) |
+| 3 — Validação do `serverUrl` dentro de `buildBootstrapScript`: URL parseável, protocolo `http`/`https`, sem aspas de nenhum tipo (ASCII e U+2018–U+201B), sem backtick, sem `$`, sem quebra de linha ou caractere de controle; inválido → lança erro e a rota responde `400`/`500` sem script | RF003, RNF003 | PRODUCT §3.2 | — | security-auditor (A0, N1 — `lib/server-url.ts:40-47`) |
+| 4 — Segunda camada: `escapePowerShellSingleQuoted` passa a dobrar também U+2018, U+2019, U+201A e U+201B | RNF003 | — | — | security-auditor (A0, N1) |
+| 5 — Testes TDD em `tests/provisioning-security.test.ts` (vermelho primeiro), cobrindo função e rotas | RNF002 | — | — | security-auditor (A0, N1); gerente |
+
+### Desvio registrado em relação ao texto do gerente
+
+O gerente especificou o arquivo de teste como `__tests__/provisioning-security.test.ts`. O
+`vitest.config.ts` só inclui `tests/**/*.test.{ts,tsx}` — nesse caminho o arquivo **nunca rodaria** e
+a suíte ficaria verde sem testar nada. O arquivo deve ser criado em
+**`tests/provisioning-security.test.ts`**. Mudança só de localização; o conteúdo exigido é o mesmo.
+
+### Restrições de compatibilidade
+
+Consumidores de `lib/provisioning.ts` que não podem quebrar: `app/admin/clients/actions.ts`,
+`app/api/agent/bootstrap/route.ts`, `app/api/clients/[id]/credentials/route.ts`. Como as funções
+passam a lançar em entrada inválida, o implementador deve confirmar que os três chamadores só
+recebem slugs/chaves legítimos (gerados pelo próprio sistema) ou tratam o erro sem vazar stack trace.
+
+### Critérios de aceite
+
+- [x] Existe **um único** schema Zod para `client`/`key`, importado por
+      `app/api/agent/bootstrap/route.ts` e por `app/api/agent/download-exe/route.ts` (nenhuma das
+      duas rotas define a regex inline): `client` `/^[a-z0-9-]+$/` com min 2 e max 64; `key`
+      `/^[a-zA-Z0-9_-]{16,128}$/`.
+- [x] `GET /api/agent/bootstrap` responde `400` **sem script no corpo** para cada payload malicioso
+      em `client` e em `key`: `\n`, `\r\n`, aspa ASCII `'`, U+2018, U+2019, U+201A, U+201B, backtick,
+      `$(...)`, `;`, `|`, `&`, NUL e outros caracteres de controle, e `calc.exe` injetado — um caso de
+      teste por payload.
+- [x] `GET /api/agent/download-exe` responde `400` **sem binário no corpo** para o mesmo conjunto de
+      payloads, um caso de teste por payload.
+- [x] `GET /api/agent/bootstrap` e `GET /api/agent/download-exe` respondem `200` com slug real
+      (ex.: `core-ti-expert`) e chave legítima de 64 caracteres hex.
+- [x] `buildBootstrapScript` e `installCommand` **lançam erro** (teste com `toThrow`) para cada
+      payload malicioso em `client`/`key` — rejeição, não sanitização silenciosa.
+- [x] `buildBootstrapScript` **lança erro** para `serverUrl` malicioso: não parseável, protocolo
+      diferente de `http`/`https`, contendo aspa ASCII ou U+2018–U+201B, backtick, `$`, `\r`/`\n` ou
+      caractere de controle.
+- [x] Teste de rota com `serverUrl` malicioso vindo dos cabeçalhos `host`/`x-forwarded-host` (sem env
+      de URL configurada) responde `400`/`500` **sem script no corpo**.
+- [x] `escapePowerShellSingleQuoted` dobra `'`, U+2018, U+2019, U+201A e U+201B (teste unitário por
+      caractere).
+- [x] Teste de não-regressão de formato: uma chave gerada por `generateEnrollmentKey()` passa no
+      schema compartilhado (garante que a allowlist não rejeita chave legítima se o gerador mudar).
+- [x] Testes escritos em `tests/provisioning-security.test.ts` (não em `__tests__/`), e o relatório
+      do implementador mostra a execução **vermelha** antes da correção.
+- [x] Fluxos de `app/admin/clients/actions.ts` e `app/api/clients/[id]/credentials/route.ts`
+      continuam verdes nas suítes existentes.
+- [x] Portão 1: `npm run typecheck` limpo.
+- [x] Portão 2: `npm run lint` limpo.
+- [x] Portão 3: `npm run build:verify` limpo — **não** rodar com o `next dev` em background de pé; o
+      implementador avisa o orquestrador antes do build.
+- [x] Portão 4: `npm test` verde com **mais de 596 testes** (baseline atual: 596 testes / 62
+      arquivos; o total deve subir).
+- [x] Sem commit e sem push.
+
+### Fora de escopo desta sprint
+
+- **N6** — hash do `.exe` verificado no bootstrap (achado separado; sprint própria).
+- **N10** — rate limit por `X-Forwarded-For` (achado separado).
+- **F1–F8 e E\*** do relatório A0 — não tratados aqui.
+- Qualquer UI, `/admin/clients/**` (além de não quebrar `actions.ts`) e `app/users/page.tsx`.
+- Mudança do formato da chave de instalação ou do modelo de exibição da chave (**D3 já
+  ratificado**).
+- Conferência de `client`/`key` contra o banco nas rotas `bootstrap`/`download-exe` — o desenho
+  "validar só no `register`" continua como está (PRODUCT.md §4, "achado de simetria"); esta sprint
+  só restringe o **formato**.
+
+### Documentação que ficará desatualizada (não editada por este plano)
+
+- `docs/SPEC.md` §3.6 descreve o schema do bootstrap como `client: string.min(2)` — passa a estar
+  errado após esta sprint e deve ser atualizado junto da implementação, incluindo o `400` no contrato
+  de `GET /api/agent/bootstrap` (§2).
+- `docs/PRODUCT.md` §4 (contrato de `download-exe`) não menciona `400` por parâmetro fora da
+  allowlist.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -1992,3 +2146,28 @@ por nome — que é o que um operador espera de uma paleta de comando — não f
 **Por que fica pendente**: não é trabalho de UI. Exige rota de API própria com escopo por tenant,
 paginação e rate limit (o mesmo tratamento que `/api/agent/*` recebeu), além de decidir o que um
 `ORG_OPERATOR` pode encontrar por busca. É sprint própria, com auditoria de segurança própria.
+
+---
+
+### 14. `createClientAction` não limita o slug a 64 caracteres — BAIXO (achado da Sprint A1a)
+
+**Achado**: o schema de `app/admin/clients/actions.ts` (linha 19) aceita slug sem `.max(64)`, e o
+slug derivado do nome (`slugifyClientName`, linha 133) também não é cortado. Um nome com mais de 64
+caracteres grava o cliente e só depois `buildProvisioningArtifacts` lança erro pela allowlist da
+A1a; o usuário vê "Erro interno ao criar cliente." com o cliente já criado.
+
+**Por que fica pendente**: `app/admin/clients/**` estava fora dos arquivos liberados da A1a. Nenhum
+slug real é afetado (zero violações no banco na Sprint A0). Correção: `.max(64)` no schema da action
+e corte no slug derivado, com teste.
+
+---
+
+### 15. `installCommand` ainda expande `%VAR%` do cmd.exe no `serverUrl` — BAIXO (achado da Sprint A1a)
+
+**Achado**: `lib/provisioning.ts:128` monta o comando cmd.exe com `-server "${normalizedServerUrl}"`.
+A validação da A1a bloqueia aspas, backtick, `$` e caracteres de controle, mas não `%`; um
+`serverUrl` com `%NOME%` seria expandido pelo cmd.exe.
+
+**Por que fica pendente**: não estava na lista do plano, e `%` aparece em URL legítima com
+percent-encoding. O `serverUrl` vem da configuração do servidor ou do proxy, não de entrada pública.
+Correção: rejeitar `%` no `serverUrl` usado pelo `installCommand`, ou escapá-lo como `%%`.
