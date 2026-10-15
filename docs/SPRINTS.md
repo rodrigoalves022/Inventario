@@ -3330,3 +3330,23 @@ duas consultas do portal, com teste.
 **Por que fica pendente**: decisão do usuário de tirar F4 e N6 da A3. A A4 precisa de RF novo,
 de decisão sobre publicar o binário Linux em `public/`, de um instalador que crie o serviço systemd
 atual (não o script antigo) e de auditoria de segurança do comando gerado.
+
+---
+
+### 20. Affordance de interação global (`cursor: pointer`) e descoberta da gestão de agentes (`/admin/clients/[id]/agents`) — ALTO (Feedback do Usuário em 2026-10-15)
+
+**Origem**: teste manual do usuário na tela de clientes e na rota `/admin/clients/[id]/agents`.
+
+**Achados do Usuário**:
+1. *Descoberta da rota*: na tabela de clientes, o link para a nova tela de agentes estava escondido exclusivamente no número cru da coluna "Agentes" (`0` / `1`). Ninguém esperava que um dígito estático fosse um gatilho de navegação.
+2. *Affordance de cursor*: botões, controles e itens interativos em diversos pontos da aplicação mantinham o cursor de seta padrão do sistema operacional (`cursor: default` herdado do reset do Tailwind CSS v4), sem transmitir feedback tátil ou sensação de elemento clicável ao passar o mouse ("no site fica somente a seta").
+
+**Ações realizadas / Resolução**:
+- **Descoberta**:
+  - Adicionado botão de ação explícito `<Button asChild size="sm" variant="outline">` com rótulo **Agentes** e ícone `Bot` em cada linha da tabela de clientes, entre "Abrir painel" e "Ver credenciais".
+  - A coluna "Agentes" foi transformada em um badge interativo estruturado (`[ 🤖 N ]`) com borda suave, fundo em `--secondary`, efeito hover em `--primary` e `cursor-pointer`.
+- **Affordance global de cursor**:
+  - Adicionada regra global em `app/globals.css` restaurando `cursor: pointer` para `button:not(:disabled)`, `[role="button"]:not([aria-disabled="true"]):not([disabled])`, `[type="button"]`, `[type="submit"]`, `[type="reset"]`, `a[href]`, `select`, `input[type="checkbox"]`, `input[type="radio"]`, `label[for]` e `summary`.
+  - Incluído `cursor-pointer` explícito em `buttonVariants` (`components/ui/button.tsx`) e no `CheckboxPrimitive.Root` (`components/ui/checkbox.tsx`).
+- **Testes**: suíte atualizada em `tests/clients-panel-agents.test.tsx` com novo teste para o botão de ação e preservação de todos os 970 testes verdes.
+

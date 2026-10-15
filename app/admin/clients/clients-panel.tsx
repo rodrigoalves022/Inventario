@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Eye, Loader2, X } from 'lucide-react'
+import { ArrowUpRight, Bot, Eye, Loader2, X } from 'lucide-react'
 import {
   initialProvisioningState,
   type ProvisioningActionState,
@@ -449,16 +449,17 @@ export function ClientsPanel({
                 <tr key={client.id} className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}>
                   <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>{client.name}</td>
                   <td className={TABLE_CELL_CLASS}>
-                    {/* RN020: so AgentAuth ativos. O numero leva a lista de
-                        agentes do cliente, com menos peso que "Abrir painel". */}
+                    {/* RN020: so AgentAuth ativos. Leva a lista de agentes do
+                        cliente com affordance clara (badge com icone e hover). */}
                     <Link
                       href={`/admin/clients/${client.id}/agents`}
                       aria-label={`${client.activeAgentCount} ${
                         client.activeAgentCount === 1 ? 'agente ativo' : 'agentes ativos'
                       } de ${client.name}: ver agentes`}
-                      className="rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-surface-line bg-secondary/50 px-2 py-0.5 text-xs font-medium text-foreground transition-all hover:border-primary/40 hover:bg-secondary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer group"
                     >
-                      {client.activeAgentCount}
+                      <Bot className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-primary" />
+                      <span>{client.activeAgentCount}</span>
                     </Link>
                   </td>
                   <td className={TABLE_CELL_CLASS}>
@@ -475,13 +476,19 @@ export function ClientsPanel({
                   </td>
                   <td className={TABLE_CELL_CLASS}>
                     {/* Hierarquia: "Abrir painel" e a acao principal da linha
-                        (unica com preenchimento); consultar e rotacionar a
-                        chave vem depois, com menos peso. */}
+                        (unica com preenchimento); consultar agentes, credenciais e
+                        rotacionar a chave vem depois, com menos peso. */}
                     <div className="flex flex-wrap gap-2">
                       <Button asChild size="sm" variant="secondary">
                         <Link href={getTenantBasePath(client.slug)}>
                           <ArrowUpRight className="h-4 w-4" />
                           Abrir painel
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/clients/${client.id}/agents`}>
+                          <Bot className="h-4 w-4" />
+                          Agentes
                         </Link>
                       </Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => handleViewCredentials(client)}>

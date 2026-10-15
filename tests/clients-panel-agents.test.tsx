@@ -93,6 +93,14 @@ describe('ClientsPanel — link para os agentes do cliente', () => {
     expect(filled).toHaveLength(1)
     expect(filled[0]?.textContent).toMatch(/Abrir painel/)
   })
+
+  it('exibe botao de acao "Agentes" explicito na linha do cliente', () => {
+    renderPanel([buildClient({ id: 'c-1', name: 'Alfa' })])
+
+    const row = rowOf('Alfa')
+    const agentButton = within(row).getByRole('link', { name: /^Agentes$/i })
+    expect(agentButton.getAttribute('href')).toBe('/admin/clients/c-1/agents')
+  })
 })
 
 describe('ClientsPanel — revogacao em massa na rotacao (N4/RN019)', () => {
