@@ -67,6 +67,13 @@ const { clientsBySlug, clientsById, agentAuths, fakePrisma } = vi.hoisted(() => 
       findFirst: vi.fn(async () => null),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'org-legacy', ...data })),
     },
+    // Sprint A3, item 11: o registro grava AgentAuth e AuditLog
+    // (agent_auth.register) na mesma $transaction. A auditoria em si e
+    // coberta por tests/agent-register-audit.test.ts.
+    auditLog: {
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => data),
+    },
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(fakePrisma)),
   }
 
   return { clientsBySlug, clientsById, agentAuths, fakePrisma }

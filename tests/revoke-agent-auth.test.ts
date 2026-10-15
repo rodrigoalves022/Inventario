@@ -58,6 +58,23 @@ const { clients, agentAuths, auditLogs, sessionRef, fakePrisma } = vi.hoisted(()
         if (agentAuth) Object.assign(agentAuth, data)
         return agentAuth
       }),
+      // Sprint A3, item 8: a revogacao passou a usar updateMany condicionado a
+      // isActive: true (idempotencia sem corrida) e a expirar comandos e
+      // resolver eventos na mesma transacao. Os efeitos sao cobertos por
+      // tests/revoke-agent-auth-effects.test.ts; aqui so o necessario para os
+      // testes de isolamento e de regressao continuarem rodando.
+      updateMany: vi.fn(async ({ where, data }: { where: { id: string; isActive?: boolean }; data: Partial<FakeAgentAuth> }) => {
+        const agentAuth = agentAuths.get(where.id)
+        if (!agentAuth || (where.isActive !== undefined && agentAuth.isActive !== where.isActive)) return { count: 0 }
+        Object.assign(agentAuth, data)
+        return { count: 1 }
+      }),
+    },
+    agentCommand: {
+      updateMany: vi.fn(async () => ({ count: 0 })),
+    },
+    alertEvent: {
+      updateMany: vi.fn(async () => ({ count: 0 })),
     },
     auditLog: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {

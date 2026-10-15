@@ -37,7 +37,7 @@ sequenceDiagram
         API-->>Agent: 401 "Chave de provisionamento inválida"
     else válido
         API->>API: generateApiKey() → { plaintext, hash }
-        API->>DB: INSERT AgentAuth { apiKeyHash: hash, clientId }
+        API->>DB: $transaction: INSERT AgentAuth { apiKeyHash: hash, clientId }<br/>+ INSERT AuditLog("agent_auth.register", ator nulo, { name, via })
         API-->>Agent: 201 { apiKey: plaintext, client, message }
         Note over Agent: apiKey persistida localmente — nunca mais transita em claro depois disso
     end
@@ -57,8 +57,10 @@ sequenceDiagram
 
     Agent->>API: POST body (X-Api-Key)
     API->>DB: SELECT AgentAuth WHERE apiKeyHash = hash(X-Api-Key)
-    alt key ausente/inválida/revogada/cliente inativo
-        API-->>Agent: 401 ou 403
+    alt key ausente/inválida
+        API-->>Agent: 401
+    else key revogada ou cliente inativo
+        API-->>Agent: 403
     else autenticado
         API->>API: rate limit checkin:(agentAuthId) — 10 / 5min
         API->>API: agentCheckinSchema.safeParse(body)

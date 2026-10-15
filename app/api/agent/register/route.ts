@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { ensureLegacyClient, findClientByIdentifier, getLegacyEnrollmentKey } from '@/lib/clients'
 import { generateApiKey, hasValidAdminSecret, hashSecret } from '@/lib/auth'
 import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
+import { recordAuditLog } from '@/lib/audit-log'
 
 const registerSchema = z.object({
   name: z.string().trim().min(3, 'O campo "name" é obrigatório (mínimo 3 caracteres).'),
@@ -61,12 +62,33 @@ export async function POST(req: NextRequest) {
     }
 
     const { plaintext, hash } = await generateApiKey()
-    const agentAuth = await prisma.agentAuth.create({
-      data: {
-        name,
-        apiKeyHash: hash,
-        clientId: client.id,
-      },
+    const registeredClientId = client.id
+    // Sprint A3, item 11 (RF031). O registro grava `agent_auth.register` na
+    // mesma transacao da credencial. Ator nulo: quem chama e o instalador, nao
+    // um usuario. `via` diz qual porta liberou o registro. Nenhum segredo
+    // (enrollmentKey, apiKey ou hash) entra no metadata.
+    const agentAuth = await prisma.$transaction(async (tx: Pick<typeof prisma, 'agentAuth' | 'auditLog'>) => {
+      const created = await tx.agentAuth.create({
+        data: {
+          name,
+          apiKeyHash: hash,
+          clientId: registeredClientId,
+        },
+      })
+
+      await recordAuditLog(
+        {
+          action: 'agent_auth.register',
+          targetType: 'agent_auth',
+          targetId: created.id,
+          clientId: registeredClientId,
+          actor: null,
+          metadata: { name, via: isAdmin ? 'admin_secret' : 'enrollment_key' },
+        },
+        tx
+      )
+
+      return created
     })
 
     return NextResponse.json(

@@ -61,7 +61,9 @@ beforeEach(() => {
 })
 
 describe('getClients — contagem de AgentAuth ativos para o dialogo de rotacao', () => {
-  it('cliente com 2 credenciais ativas e 1 revogada: activeAgentCount = 2 (agentCount da coluna segue 3)', async () => {
+  // Sprint A3, item 6 (N12/RN020): a coluna "Agentes" passou a mostrar
+  // activeAgentCount, e agentCount (com revogados) saiu do tipo por ficar sem uso.
+  it('cliente com 2 credenciais ativas e 1 revogada: activeAgentCount = 2 (agentCount com revogados nao e mais exposto)', async () => {
     const { getClients } = await import('@/app/admin/clients/queries')
     clients.push({ id: 'c1', name: 'Teste A0 Rotação', slug: 'teste-a0-rotacao', organizationId: 'org-a' })
     agentAuths.push(
@@ -74,7 +76,7 @@ describe('getClients — contagem de AgentAuth ativos para o dialogo de rotacao'
 
     expect(rows).toHaveLength(1)
     expect(rows[0]?.activeAgentCount).toBe(2)
-    expect(rows[0]?.agentCount).toBe(3)
+    expect(rows[0]).not.toHaveProperty('agentCount')
   })
 
   it('cliente sem credencial ativa: activeAgentCount = 0', async () => {

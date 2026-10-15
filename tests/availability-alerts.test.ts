@@ -16,6 +16,8 @@ type FakeDevice = {
   updatedAt: Date
   logs: Array<{ coletadoEm: Date }>
   disks: Array<{ espacoLivreGb: number | null }>
+  /** AgentAuth.isActive do device (Sprint A3, item 9). Padrao: true. */
+  agentAuthActive?: boolean
 }
 
 type FakeAlertEvent = {
@@ -37,9 +39,14 @@ const { devices, alertEvents, fakePrisma } = vi.hoisted(() => {
 
   const fakePrisma = {
     device: {
-      findMany: vi.fn(async ({ where }: { where: { clientId: string } }) =>
+      findMany: vi.fn(async ({ where }: { where: { clientId: string; agentAuth?: { isActive?: boolean } } }) =>
         [...devices.values()]
           .filter((device) => device.clientId === where.clientId)
+          .filter(
+            (device) =>
+              where.agentAuth?.isActive === undefined ||
+              (device.agentAuthActive ?? true) === where.agentAuth.isActive
+          )
           .map((device) => ({
             id: device.id,
             hostname: device.hostname,
@@ -324,5 +331,61 @@ describe('reconcileAvailabilityEvents — webhook e configuracao do tenant', () 
 
     expect(alertEvents).toHaveLength(1)
     expect(alertEvents[0].deviceId).toBe('d-a')
+  })
+})
+
+// Sprint A3, item 9 (decisao 1 do usuario). Uma maquina com AgentAuth
+// revogado nunca mais coleta: sem o filtro, ela passaria do alertOfflineHours
+// e abriria um device_offline com webhook no proximo check-in de qualquer
+// outra maquina do cliente (alerta fantasma criado pela propria revogacao).
+describe('reconcileAvailabilityEvents — AgentAuth revogado (alerta fantasma)', () => {
+  it('device de AgentAuth revogado e sem coleta alem do limiar nao abre AlertEvent nem dispara webhook', async () => {
+    seedDevice({ id: 'd-revogado', clientId: 'client-a', updatedAt: hoursAgo(300), agentAuthActive: false })
+
+    await reconcileAvailabilityEvents({
+      clientId: 'client-a',
+      clientName: 'Cliente A',
+      clientSlug: 'cliente-a',
+      settings: settings({
+        alertOfflineHours: 24,
+        alertWebhookEnabled: true,
+        alertWebhookUrl: 'https://hooks.example.com/alert',
+      }),
+      checkedInDeviceId: 'd-other',
+    })
+
+    expect(alertEvents).toHaveLength(0)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('o device ativo do mesmo cliente continua sendo avaliado', async () => {
+    seedDevice({ id: 'd-revogado', clientId: 'client-a', updatedAt: hoursAgo(300), agentAuthActive: false })
+    seedDevice({ id: 'd-ativo', clientId: 'client-a', updatedAt: hoursAgo(30), agentAuthActive: true })
+
+    await reconcileAvailabilityEvents({
+      clientId: 'client-a',
+      clientName: 'Cliente A',
+      clientSlug: 'cliente-a',
+      settings: settings({ alertOfflineHours: 24 }),
+      checkedInDeviceId: 'd-other',
+    })
+
+    expect(alertEvents).toHaveLength(1)
+    expect(alertEvents[0]).toMatchObject({ deviceId: 'd-ativo', metric: 'device_offline' })
+  })
+
+  it('a consulta de devices filtra agentAuth.isActive = true, alem do clientId', async () => {
+    seedDevice({ id: 'd-ativo', clientId: 'client-a', updatedAt: hoursAgo(1) })
+
+    await reconcileAvailabilityEvents({
+      clientId: 'client-a',
+      clientName: 'Cliente A',
+      clientSlug: 'cliente-a',
+      settings: settings({ alertOfflineHours: 24 }),
+      checkedInDeviceId: 'd-ativo',
+    })
+
+    const args = fakePrisma.device.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    expect(args.where).toEqual({ clientId: 'client-a', agentAuth: { isActive: true } })
   })
 })

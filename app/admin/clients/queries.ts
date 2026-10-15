@@ -7,13 +7,11 @@ export type ClientListRow = {
   slug: string
   isActive: boolean
   createdAt: string
-  /** Todas as credenciais AgentAuth do cliente, revogadas inclusive (coluna "Agentes"). */
-  agentCount: number
   /**
-   * Credenciais AgentAuth com isActive: true. E o numero de maquinas que
-   * continuam fazendo check-in depois de uma rotacao da chave de instalacao
-   * (a rotacao nao toca AgentAuth). Mesmo criterio de
-   * app/api/clients/[id]/status/route.ts.
+   * Credenciais AgentAuth com isActive: true. Alimenta a coluna "Agentes"
+   * (RN020, Sprint A3: revogados nao contam) e o dialogo de rotacao (maquinas
+   * que continuam fazendo check-in se a rotacao nao revogar os agentes).
+   * Mesmo criterio de app/api/clients/[id]/status/route.ts.
    */
   activeAgentCount: number
 }
@@ -30,11 +28,6 @@ export async function getClients(user: PermissionUser): Promise<ClientListRow[]>
       slug: true,
       isActive: true,
       createdAt: true,
-      _count: {
-        select: {
-          agents: true,
-        },
-      },
     },
   })
 
@@ -55,7 +48,73 @@ export async function getClients(user: PermissionUser): Promise<ClientListRow[]>
     slug: client.slug,
     isActive: client.isActive,
     createdAt: client.createdAt.toISOString(),
-    agentCount: client._count.agents,
     activeAgentCount: activeByClient.get(client.id) ?? 0,
   }))
+}
+
+/**
+ * Uma instalacao de agente do cliente (Sprint A3, RF029). A identidade da
+ * linha e o `id` do AgentAuth; `name` e `hostname` sao so exibicao (duas
+ * linhas de mesmo nome sao uma reinstalacao).
+ */
+export type ClientAgentRow = {
+  id: string
+  name: string
+  isActive: boolean
+  createdAt: string
+  revokedAt: string | null
+  /** O AgentAuth tem Device (ja fez check-in e a maquina nao foi excluida). */
+  hasDevice: boolean
+  hostname: string | null
+  agentVersion: string | null
+  /**
+   * CollectionLog mais recente, com fallback em Device.updatedAt (mesmo padrao
+   * de lib/tenant-device-rows.ts). Null sem Device. AgentCheckLog nao serve:
+   * so grava em erro.
+   */
+  lastCollectionAt: string | null
+}
+
+/**
+ * Todos os AgentAuth (ativos e revogados) de UM cliente. O chamador ja
+ * autorizou o cliente com canManageTenant; o escopo aqui e so o clientId dele
+ * (RNF004). Ativos primeiro, depois os mais recentes (decisao 6 do usuario).
+ */
+export async function getClientAgents(clientId: string): Promise<ClientAgentRow[]> {
+  const agents = await prisma.agentAuth.findMany({
+    where: { clientId },
+    orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
+    select: {
+      id: true,
+      name: true,
+      isActive: true,
+      createdAt: true,
+      revokedAt: true,
+      device: {
+        select: {
+          hostname: true,
+          agentVersion: true,
+          updatedAt: true,
+          logs: { orderBy: { coletadoEm: 'desc' }, take: 1, select: { coletadoEm: true } },
+        },
+      },
+    },
+  })
+
+  return agents.map((agent) => {
+    const device = agent.device
+    const lastCollectionAt = device ? (device.logs[0]?.coletadoEm ?? device.updatedAt) : null
+
+    return {
+      id: agent.id,
+      name: agent.name,
+      isActive: agent.isActive,
+      createdAt: agent.createdAt.toISOString(),
+      revokedAt: agent.revokedAt ? agent.revokedAt.toISOString() : null,
+      hasDevice: Boolean(device),
+      hostname: device?.hostname ?? null,
+      agentVersion: device?.agentVersion ?? null,
+      lastCollectionAt: lastCollectionAt ? lastCollectionAt.toISOString() : null,
+    }
+  })
 }

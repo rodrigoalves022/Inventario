@@ -44,6 +44,9 @@
 | RF026 | Webhook Endpoints por Tenant | `WebhookEndpoint` (1:N a partir de `Client`, `onDelete: Cascade`): um tenant pode cadastrar múltiplos endpoints, cada um com sua própria lista de `events` (catálogo fechado de 6 eventos — `device.offline`/`device.online`/`device.low_disk`/`device.disk_ok`/`device.warning`/`device.recovered`, `lib/webhook-endpoints.ts`) e um `secret` próprio (256 bits, gerado no servidor, nunca aceito de formulário). Cada disparo é assinado com HMAC-SHA256 do corpo (header `X-Webhook-Signature`), fire-and-forget (timeout 4s), nunca bloqueia o check-in nem a reconciliação de alertas. Coexiste sem alteração com o mecanismo RF016 (`Client.alertWebhookUrl`, único URL sem assinatura) — são dois mecanismos paralelos, não uma substituição. Guardado por `canManageTenantAlerts` (`app/app/[clientSlug]/settings`). |
 | RF027 | Persistência da versão do agente | `Device.agentVersion` (`String?`), populado a partir de `body.agentVersion` no check-in (`app/api/agent/checkin/route.ts`) — o mesmo campo que já alimentava a decisão de `updateAvailable` (RF024), agora também persistido por dispositivo. Exibido no card de saúde do dispositivo (`DeviceHealth.agentVersion`, `components/device-detail-tabs.tsx`). Nulo para dispositivos que nunca fizeram check-in depois da migration que introduziu o campo. |
 | RF028 | Descoberta de dispositivos na rede | Varredura **opt-in** (`Client.discoveryEnabled`, default `false`) da sub-rede /24 da interface primária de cada agente, a cada 6h (`agent-go/internal/collectors/discovery`): probe TCP em 22/80/443/445/515/631/9100 **mais** um GET SNMPv2c real em UDP/161 (`sysDescr` `.1.3.6.1.2.1.1.1.0`, `sysName` `.1.3.6.1.2.1.1.5.0`), MAC lido da tabela ARP do SO, classificação em catálogo fechado (`PRINTER`, `SWITCH`, `ROUTER`, `NAS`, `ACCESS_POINT`, `UNKNOWN`) espelhado em `lib/schemas/agent-discovery.ts`. Ingestão em `POST /api/agent/discovery` (`X-Api-Key`, `agentDiscoverySchema`), `upsert` em `DiscoveredDevice` por `(clientId, ip)` preservando `firstSeenAt`. Exibição filtrável por tipo e busca por IP/hostname/MAC em `/app/[clientSlug]/network`, seção "Dispositivos Descobertos na Rede". São dispositivos **sem** agente instalado: `DiscoveredDevice` não tem relação alguma com `Device` — é um censo de rede, não inventário. Sem ICMP/ping (exigiria raw socket): host com todas as portas sondadas fechadas e sem SNMP fica invisível, limitação aceita. |
+| RF029 | Agentes por cliente | `/admin/clients/[id]/agents` (Sprint A3) lista todos os `AgentAuth` do cliente, ativos primeiro e revogados depois, na mesma tabela (`getClientAgents`, `app/admin/clients/queries.ts`). A identidade da linha é o `agentAuthId` (exibido curto, com o id completo no `title`); `AgentAuth.name` e `Device.hostname` são só exibição. Colunas: nome, hostname, versão (`Device.agentVersion`), registrado em (`AgentAuth.createdAt`), última coleta (`CollectionLog.coletadoEm` mais recente, com fallback em `Device.updatedAt`; "—" sem `Device`), estado (RN018) e revogado em (`AgentAuth.revokedAt`). Guard próprio da página: carrega o `Client` e aplica `canManageTenant(user, client)`; inexistente e sem permissão recebem o mesmo `notFound()`. Acesso pelo número da coluna "Agentes" de `/admin/clients`. |
+| RF030 | Revogação de agente | Botão "Revogar" nas linhas não revogadas de RF029, com confirmação (`AlertDialog`). `revokeAgentAuthAction` (`app/admin/clients/actions.ts`, `canManageTenant`) faz, numa só transação: `AgentAuth.isActive = false` e `revokedAt`; `AgentCommand` `pending`/`running` da credencial → `expired`; `AlertEvent` abertos do `Device` da credencial → `resolvedAt`, **sem** webhook; um `AuditLog` `agent_auth.revoke`. Irreversível (reinstalar cria credencial nova). Idempotente: credencial já revogada não muda `revokedAt` nem audita de novo. `Device` e histórico não são apagados. |
+| RF031 | Auditoria do registro de agente | `POST /api/agent/register` grava `AuditLog` `agent_auth.register` na mesma transação do `AgentAuth`, com ator nulo (quem chama é o instalador), `targetId` = id do `AgentAuth`, `clientId` do cliente e `metadata: { name, via }`, onde `via` é `enrollment_key` ou `admin_secret`. Nenhum segredo (`enrollmentKey`, `apiKey`, hash) no `metadata`. Erros (`400`/`401`/`403`/`404`/`429`) não auditam; resposta `201` inalterada. |
 
 ### 1.2 Requisitos Não Funcionais (RNF)
 
@@ -82,10 +85,13 @@
 | RN012 | `Disk.criptografia` tem 3 estados (`"on"`/`"off"`/`"unknown"`) — mesmo princípio de "não apurado ≠ desativado" usado em toda a postura de segurança, cujos campos são todos `Boolean?`. |
 | RN013 | Ao agregar hardware/disco de um parque heterogêneo, o sistema sempre conta quantas máquinas caem em cada faixa/valor exato — nunca soma valores absolutos de máquinas diferentes num único número (padrão de `lib/reports/device-report.ts`, já violado e corrigido mais de uma vez no histórico do projeto). |
 | RN014 | Editar `AssetRecord` usa `canManageAssetRecord`, que delega a `canOperateTenant` — mais permissivo que `canManageTenant`: `ORG_OPERATOR` também pode editar patrimônio, por ser dado operacional e não credencial. |
-| RN015 | Criar `Client` usa um guard próprio (`hasClientsAdminAccess` = `isPlatformAdmin \|\| isOrgAdmin`), independente de `canManageTenant` — decisão de conta (quem pode existir), não de operação sobre um tenant já existente. **Exceção**: rotacionar a `enrollmentKey` de um `Client` já existente (`rotateEnrollmentKeyAction`) não é criação/edição de conta — é emissão de credencial para um tenant já existente, mesma natureza de `GET /api/clients/[id]/credentials` — por isso usa `canManageTenant(user, client)` (exige `organizationId` igual ao do ator), não `hasClientsAdminAccess`. |
+| RN015 | Criar `Client` usa um guard próprio (`hasClientsAdminAccess` = `isPlatformAdmin \|\| isOrgAdmin`), independente de `canManageTenant` — decisão de conta (quem pode existir), não de operação sobre um tenant já existente. **Exceção**: rotacionar a `enrollmentKey` de um `Client` já existente (`rotateEnrollmentKeyAction`) não é criação/edição de conta — é emissão de credencial para um tenant já existente, mesma natureza de `GET /api/clients/[id]/credentials` — por isso usa `canManageTenant(user, client)` (exige `organizationId` igual ao do ator), não `hasClientsAdminAccess`. O mesmo vale para **revogar** credenciais de agente de um `Client` existente, individual (`revokeAgentAuthAction`, RF030) ou em massa na rotação (RN019), e para a página `/admin/clients/[id]/agents` (RF029): todas usam `canManageTenant(user, client)`. |
 | RN016 | Toda operação sobre `WebhookEndpoint` (criar, editar, ativar/desativar, e a consulta interna que decide para quem disparar um evento) é sempre escopada por `clientId` derivado do contexto de tenant da sessão (`getTenantContext`/`requireTenantContext`) — nunca de um `clientId` recebido como input de formulário. `secret` é gerado no servidor (`crypto.randomBytes(32)`), nunca aceito de input do usuário, e nunca devolvido em texto pleno fora do instante de criação (mascarado nas demais exibições). Guardado por `canManageTenantAlerts`, o mesmo guard de RF014(a) — ver nota de auditoria de segurança da Sprint 11 em `docs/SPRINTS.md` sobre a adequação desse guard para uma superfície que envolve enviar dados de dispositivos a uma URL externa escolhida pelo usuário. |
 
 | RN017 | A varredura de descoberta de rede (RF028) é **opt-in por tenant e desligada por padrão** (`Client.discoveryEnabled @default(false)`). O gate que vale é **server-side e fail-closed**: `POST /api/agent/discovery` responde `202 { ok: false, reason: 'discovery_disabled' }` **sem gravar nada** quando o flag está desligado, quando o `Client` não é encontrado, e `202 { reason: 'agent_without_client' }` quando o `AgentAuth` não tem `clientId` (agente legado) — `DiscoveredDevice.clientId` é `NOT NULL`, nunca existe linha órfã. O flag também viaja na resposta do check-in (`discoveryEnabled: boolean`) para o agente não gastar um ciclo de varredura inútil, mas isso é **otimização, nunca autorização**: o agente mantém o valor só em memória de processo, com default `false` a cada início, e um agente adulterado que varra mesmo assim não consegue persistir nada. Ligar/desligar o flag exige `canManageTenantAlerts` e grava `AuditLog` (`tenant.discovery_enabled`/`tenant.discovery_disabled`) **apenas na transição**, não a cada submit do formulário. |
+| RN018 | Estado de uma instalação de agente (Sprint A3), derivado sem coluna nova por `getAgentAuthState` (`app/admin/clients/agent-state.ts`), nesta precedência: **Revogado** (`AgentAuth.isActive = false`; mostra `revokedAt`); **Bloqueado pelo cliente** (credencial ativa e `Client.isActive = false`, que `lib/auth.ts` recusa com `403`); **Registrado, sem coleta** (ativa e sem `Device`: ainda não fez o primeiro check-in, ou o `Device` foi excluído e o próximo check-in o recria); **Ativo** (ativa e com `Device`). |
+| RN019 | A rotação da `enrollmentKey` pode **opcionalmente** revogar todos os `AgentAuth` ativos do cliente (checkbox "Revogar também os N agentes ativos", desmarcado por padrão, ausente quando N = 0; campo `revokeActiveAgents` validado por Zod). Marcado: troca de chave e revogações na **mesma transação**, com os efeitos de RF030 em cada credencial, um `agent_auth.revoke` por credencial com `metadata.via = 'rotation'` e `revokedCount` no `credentials.rotate`. Desmarcado: a rotação não toca `AgentAuth` (ADR 0005). |
+| RN020 | A contagem "Agentes" de `/admin/clients` mostra só `AgentAuth` ativos (`activeAgentCount`). `GET /api/clients` não mudou: `_count.agents` segue contando revogados (ver §8.2). |
 
 ---
 
@@ -106,8 +112,8 @@
   - **Emitir novo pacote** (rotação da `enrollmentKey` de um `Client` já existente):
     - **Ator**: quem tem `canManageTenant` sobre o cliente (`PLATFORM_ADMIN`, ou `ORG_ADMIN` da mesma organização).
     - **Pré-condição**: `Client` existente e visível em `/admin/clients`.
-    - **Fluxo**: (1) ator clica em "Emitir novo pacote" na linha do cliente; (2) um diálogo de confirmação informa quantas máquinas já registradas (`AgentAuth` com `isActive: true`) continuam funcionando e que instaladores, comandos e pacotes antigos param de funcionar para máquinas novas; (3) "Cancelar" fecha sem alterar nada; (4) "Confirmar" chama `rotateEnrollmentKeyAction`, que gera chave nova, grava `enrollmentKeyHash` e `activeProvisioningKeyEnc` e registra `credentials.rotate` no `AuditLog`; (5) a tela exibe o pacote novo com o aviso de revisar os instaladores antigos.
-    - **Exceções**: ator sem `canManageTenant` ou cliente inexistente — a action devolve erro e a tela exibe a mensagem; nada é gravado. A rotação **não** revoga `AgentAuth` já emitidos (ver ADR 0005).
+    - **Fluxo**: (1) ator clica em "Emitir novo pacote" na linha do cliente; (2) um diálogo de confirmação informa quantas máquinas já registradas (`AgentAuth` com `isActive: true`) continuam funcionando e que instaladores, comandos e pacotes antigos param de funcionar para máquinas novas; com ao menos um agente ativo, o diálogo traz o checkbox desmarcado "Revogar também os N agentes ativos" (RN019); (3) "Cancelar" fecha sem alterar nada; (4) "Confirmar" chama `rotateEnrollmentKeyAction`, que gera chave nova, grava `enrollmentKeyHash` e `activeProvisioningKeyEnc` e registra `credentials.rotate` no `AuditLog` (com o checkbox marcado, na mesma transação, revoga os ativos conforme RN019); (5) a tela exibe o pacote novo com o aviso de revisar os instaladores antigos.
+    - **Exceções**: ator sem `canManageTenant` ou cliente inexistente — a action devolve erro e a tela exibe a mensagem; nada é gravado. Sem o checkbox marcado, a rotação **não** revoga `AgentAuth` já emitidos (ver ADR 0005).
 - **Pós-condição**: `Client` ativo, `enrollmentKeyHash` e `activeProvisioningKeyEnc` gravados, pronto para receber o primeiro agente.
 - **Exceções**: nome duplicado ou dados inválidos são rejeitados antes da escrita.
 
@@ -120,10 +126,10 @@
   2. Executa o agente com a `enrollmentKey` do tenant.
   3. Agente chama `POST /api/agent/register` com `{ name, client, enrollmentKey }`.
   4. Sistema valida a chave: hash da `enrollmentKey` recebida contra `Client.enrollmentKeyHash`, **ou** `X-Admin-Secret` como caminho alternativo de provisionamento.
-  5. Sistema cria `AgentAuth` com `apiKeyHash` novo, vinculado ao `Client`.
+  5. Sistema cria `AgentAuth` com `apiKeyHash` novo, vinculado ao `Client`, e grava `agent_auth.register` no `AuditLog` na mesma transação (RF031).
   6. Resposta `201` devolve a `apiKey` em texto claro — única vez em que ela trafega assim; o agente persiste localmente (Windows: protegida por DPAPI).
 - **Fluxos alternativos**: cliente não encontrado (`404`), cliente desativado (`403`), chave ausente ou inválida (`401`).
-- **Pós-condição**: `AgentAuth` criado. `Device` ainda **não** existe — nasce no primeiro check-in bem-sucedido.
+- **Pós-condição**: `AgentAuth` criado e `AuditLog` `agent_auth.register` gravado (ator nulo, `metadata: { name, via }`, sem segredo). `Device` ainda **não** existe — nasce no primeiro check-in bem-sucedido.
 - **Exceções**: rate limit de 15 tentativas/5min por IP na rota de registro.
 
 ### 3.3 Check-in do agente
@@ -141,7 +147,7 @@
   8. Grava `CollectionLog` e responde `200` com indicação de atualização de versão disponível.
 - **Fluxos alternativos**: JSON malformado ou schema inválido — não altera nenhuma tabela de inventário, apenas grava `AgentCheckLog` com o motivo e responde `400`.
 - **Pós-condição**: estado do `Device` reflete exatamente o payload recebido; nenhum campo de `AssetRecord` é tocado, por construção.
-- **Exceções**: chave inválida/revogada (`401`/`403`); rate limit excedido (`429`, header `Retry-After`).
+- **Exceções**: chave ausente ou inválida: `401`; chave revogada: `403` (a cada requisição, sem cache); cliente desativado: `403`; rate limit excedido (`429`, header `Retry-After`). O agente trata `401` e `403` como erro de autenticação, desiste da tentativa e segue no loop do serviço, sem se registrar de novo.
 
 ### 3.4 Visualização do dashboard
 
@@ -266,6 +272,21 @@ Dois fluxos distintos, com guards diferentes:
 - **Fluxos alternativos**: com o flag desligado (o padrão), o agente sequer varre — e se varrer (versão desatualizada, binário adulterado), a rota descarta o payload com `202` sem gravar. Host que não responde a nenhuma porta nem a SNMP não entra no inventário (não há ping). MAC ausente do cache ARP fica `null`, nunca inventado.
 - **Pós-condição**: uma linha de `DiscoveredDevice` por `(clientId, ip)` com `lastSeenAt` atualizado; nenhuma alteração em `Device` ou em qualquer tabela de inventário.
 - **Exceções**: payload fora do schema (IP não-IPv4, `deviceType` fora do catálogo fechado, array acima de 512, `snmpSysDescr` acima de 1024) recebe `400` e nada é gravado; pânico durante a varredura é contido por `recover()` no agente (geral e por worker) e nunca derruba o serviço nem o ciclo de check-in.
+
+### 3.12 Gerenciar agentes do cliente
+
+- **Ator**: `PLATFORM_ADMIN`, ou `ORG_ADMIN` da organização dona do cliente (`canManageTenant`).
+- **Pré-condição**: `Client` existente.
+- **Fluxo principal**:
+  1. Ator clica no número da coluna "Agentes" da linha do cliente em `/admin/clients`.
+  2. `/admin/clients/[id]/agents` carrega o `Client`, aplica `canManageTenant(user, client)` e lista os `AgentAuth` do cliente (RF029), ativos primeiro, com o estado de RN018.
+  3. Ator clica em "Revogar" na linha de uma instalação não revogada.
+  4. Um diálogo de confirmação diz que a revogação é imediata e irreversível, que o serviço segue instalado e é recusado a cada ciclo, que máquina e histórico não são apagados, que comandos pendentes são cancelados e que reinstalar cria registro novo; se for o último agente ativo, avisa que o cliente fica sem máquina reportando.
+  5. "Cancelar" fecha sem alterar nada e devolve o foco ao botão "Revogar" da linha.
+  6. "Confirmar" chama `revokeAgentAuthAction` (RF030); o resultado é anunciado em região `role="status"` e recebe o foco.
+- **Fluxos alternativos**: cliente sem nenhum `AgentAuth` — estado vazio explica que nenhum agente se registrou com a chave do cliente e leva ao pacote de instalação ("Ver credenciais" em `/admin/clients`). Revogar todos de uma vez: pela rotação da chave (RN019, UC 3.1).
+- **Pós-condição**: credencial revogada; o próximo check-in dela recebe `403`; a máquina sai das listas de máquinas do tenant (`getTenantDeviceWhere`), mas o histórico de alertas continua em `/app/[clientSlug]/alerts`.
+- **Exceções**: cliente de outra organização ou inexistente: `notFound()`, mesma resposta; credencial já revogada: a action responde sem erro e não grava nada (idempotente); erro interno: mensagem de erro anunciada na mesma região `role="status"`.
 
 ---
 
@@ -458,6 +479,7 @@ Validada linha a linha contra `lib/permissions.ts` e `proxy.ts`. **4 papéis con
 | Configurar `AlertRule` / limiares / webhook | ✅ | ✅ (mesma org) | ❌ | ❌ | `canManageTenantAlerts` → delega a `canManageTenant` |
 | Ver `AuditLog` do tenant | ✅ | ✅ (mesma org) | ❌ | ❌ | `canViewTenantAudit` → delega a `canManageTenant` |
 | Excluir ativo (`Device`) | ✅ | ✅ (mesma org) | ❌ | ❌ | `canDeleteTenantAsset` → delega a `canManageTenant` |
+| Listar e revogar `AgentAuth` (`/admin/clients/[id]/agents`, revogação em massa na rotação) | ✅ | ✅ (mesma org) | ❌ | ❌ | `canManageTenant` |
 | Ver navegação administrativa (sidebar) | ✅ | ✅ | ✅ | ❌ | `canViewTenantAdminNavigation` — só visibilidade, não acesso a dado |
 | Acessar `/portal/*` (somente leitura) | ❌ | ❌ | ❌ | ✅ (próprio cliente) | `isClientViewer` + `getPortalContext()` |
 
@@ -503,7 +525,7 @@ junto com a entrada de `/api/agent/discovery` na Sprint 14). A maior parte da ap
 
 ### 8.2 Rotas de conta e administração
 
-**`GET/POST /api/clients`** — `GET`: `200` → `{ id, name, slug, isActive, createdAt, _count: { agents } }[]`, ordenado por nome; `401` se não `PLATFORM_ADMIN`. `POST`: request `{ name: string (min 3), slug?: string (min 3, regex ^[a-z0-9-]+$) }`; `201` → `{ id, name, slug, enrollmentKey, message }` (gera par plaintext/hash da chave e persiste o pacote de provisionamento criptografado em transação); `400` payload inválido; `409` slug já existe.
+**`GET/POST /api/clients`** — `GET`: `200` → `{ id, name, slug, isActive, createdAt, _count: { agents } }[]`, ordenado por nome (`_count.agents` conta **todos** os `AgentAuth`, revogados inclusive; a coluna "Agentes" de `/admin/clients` usa só os ativos, RN020); `401` se não `PLATFORM_ADMIN`. `POST`: request `{ name: string (min 3), slug?: string (min 3, regex ^[a-z0-9-]+$) }`; `201` → `{ id, name, slug, enrollmentKey, message }` (gera par plaintext/hash da chave e persiste o pacote de provisionamento criptografado em transação); `400` payload inválido; `409` slug já existe.
 
 **`GET /api/clients/[id]/status`** — `200` → `{ clientSlug, agentCount, device: { id, hostname, lastSeenAt } | null }`; `401` sem sessão; `404` cliente inexistente ou fora da organização do ator (mesma resposta para os dois casos, evita enumeração). Usado em polling pelo wizard `/admin/clients/novo`.
 

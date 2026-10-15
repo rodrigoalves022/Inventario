@@ -53,8 +53,11 @@ export async function reconcileAvailabilityEvents(params: ReconcileAvailabilityP
 
   const now = params.now ?? new Date()
 
+  // Sprint A3, item 9: so maquinas com AgentAuth ativo. Uma maquina revogada
+  // nunca mais coleta; sem este filtro ela abriria um device_offline (com
+  // webhook) horas depois da revogacao, no check-in de outra maquina.
   const devices: DeviceForAvailability[] = await prisma.device.findMany({
-    where: { clientId },
+    where: { clientId, agentAuth: { isActive: true } },
     select: {
       id: true,
       hostname: true,

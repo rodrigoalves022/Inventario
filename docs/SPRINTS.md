@@ -2645,6 +2645,364 @@ Ver a decisão 7: o D12 do PLANO só autorizou a fixture "durante as sprints A1a
 
 ---
 
+## Sprint A3 — Gestão e revogação de agentes por cliente
+
+**Status**: Concluída (2026-10-15). Implementada e auditada com sucesso; todos os 4 portões limpos (969 testes passando em 81 arquivos, typecheck, lint e build:verify verdes com a nova rota /admin/clients/[id]/agents).
+Plano montado a partir do relatório do `requirements-auditor` (verificado pelo orquestrador nos pontos
+403, `tenant-scope` e `availability-alerts`), dos achados F5, N4, N5 e N12 que a A1 e a A2 adiaram
+para a A3 (`PLANO_SPRINTS_COLABORACAO.md` §3, linha F5; ADR 0005) e das decisões do usuário já
+aprovadas para esta sprint. Depende da A2 (concluída, commit `e261dd1`, 893 testes / 73 arquivos).
+F4 (instalador Linux) e N6 (hash do executável) saíram desta sprint por decisão do usuário e estão
+registrados no Backlog, item 19. Este plano não altera nenhuma linha de código. As linhas citadas
+abaixo foram conferidas contra o código em 2026-10-15, depois de `e261dd1`.
+
+**Objetivo**: quem administra um cliente (`canManageTenant`) passa a ver, em
+`/admin/clients/[id]/agents`, cada instalação de agente do cliente com estado, versão e última
+coleta, e pode revogar uma instalação de forma individual e irreversível. A rotação da chave ganha a
+opção de revogar também os agentes ativos. A revogação deixa de gerar alerta fantasma e comando
+órfão, o registro de agente passa a ser auditado e a contagem "Agentes" passa a contar só os
+ativos.
+
+### Origem do achado (rastreabilidade)
+
+- **F5, nenhuma tela lista ou revoga agentes** (`backend-auditor`, A0; `PLANO_SPRINTS_COLABORACAO.md`
+  linha F5). `revokeAgentAuthAction` **já existe** em `app/admin/clients/actions.ts:298-380` desde
+  a Sprint 6, com guard `canManageTenant` (`:339`), resposta única para "não existe" e "não pode"
+  (sem oráculo), transação e `AuditLog` `agent_auth.revoke` (`:348-365`), coberta por
+  `tests/revoke-agent-auth.test.ts`. Nenhum componente em `app/` a chama. A A3 cria a tela e
+  **estende** a action; não cria uma action nova.
+- **N4, contenção da rotação** (`security-auditor`, A0; ADR 0005,
+  `docs/adr/0005-enrollment-key-reexibivel.md:34`). `rotateEnrollmentKeyAction`
+  (`actions.ts:215-296`) só troca `enrollmentKeyHash` e `activeProvisioningKeyEnc` (`:259-277`). Os
+  `AgentAuth` já registrados continuam fazendo check-in.
+- **N5, registro sem auditoria** (`requirements-auditor`). `app/api/agent/register/route.ts:63-70`
+  cria o `AgentAuth` sem `recordAuditLog`. O caminho por `X-Admin-Secret` existe (`:15`, `:34-36`,
+  `:49`) e também não audita.
+- **N12, contagem "Agentes" com revogados** (`requirements-auditor`; divergência 4 da A1). A coluna
+  usa `agentCount` = `_count.agents` sem filtro (`app/admin/clients/queries.ts:33-37`, `:58`),
+  exibido em `clients-panel.tsx:404`. `activeAgentCount` já existe (`queries.ts:42-59`) e alimenta
+  só o diálogo de rotação (`clients-panel.tsx:182`). `GET /api/clients` tem o mesmo `_count.agents`
+  (`app/api/clients/route.ts:50-54`, contrato em `docs/PRODUCT.md:506`). Ver a divergência 3 sobre o
+  rótulo N12.
+- **Alerta fantasma** (`requirements-auditor`, verificado pelo orquestrador).
+  `lib/availability-alerts.ts:56-65` faz `device.findMany({ where: { clientId } })` sem filtrar
+  `agentAuth.isActive`. Uma máquina revogada fica sem coleta, passa do `alertOfflineHours` e abre
+  `device_offline` com webhook (`:81-110`) no próximo check-in de qualquer outra máquina do cliente.
+- **Comando órfão** (`requirements-auditor`). `AgentCommand` `pending` só vira `expired` quando o
+  próprio agente consulta (`app/api/agent/commands/pending/route.ts:15-22`). Um agente revogado
+  recebe 403 antes disso (`:7-8`), então os comandos `pending` e `running` dele ficam abertos para
+  sempre. `AgentCommand.status` é `String` com os valores `pending, running, done, failed, expired`
+  (`prisma/schema.prisma:583`); não há enum de banco. `expired` já é valor em uso.
+- **Revogação é imediata e devolve 403** (verificado pelo orquestrador). `lib/auth.ts:81-83` devolve
+  `403` "API Key revogada" a cada requisição, sem cache. O agente Go trata 401 e 403 como
+  `authError` (`agent-go/internal/transport/httpapi/client.go:171-172`, `:238-239`, `:275-276`,
+  `:314-315`), desiste da tentativa (`:63-64`), não se registra de novo e segue no loop do serviço.
+  `docs/PRODUCT.md:144` diz "chave inválida/revogada (`401`/`403`)"; revogada é sempre `403`.
+- **Telas do tenant já escondem revogados** (verificado pelo orquestrador). `getTenantDeviceWhere`
+  (`lib/tenant-scope.ts:3-21`) exige `agentAuth.isActive` e `client.isActive`. O portal não usa
+  esse filtro (Backlog, item 18, por decisão do usuário). `/app/[slug]/alerts` também não: lista
+  `AlertEvent` por `clientId` (`app/app/[clientSlug]/alerts/page.tsx:31-45`), então eventos de uma
+  máquina revogada continuam visíveis no histórico (ver a divergência 5).
+
+### RFs relacionados (numeração proposta: próximos livres RF029, RN018, UC 3.12)
+
+- **RF029 (novo)**: listagem de agentes por cliente em `/admin/clients/[id]/agents`. Identidade da
+  linha = `agentAuthId` (`CONTEXT.md:27-31`); `AgentAuth.name` e `Device.hostname` são só exibição.
+  Colunas: nome, hostname, versão (`Device.agentVersion`), registrado em (`AgentAuth.createdAt`),
+  última coleta, estado (RN018) e revogado em (`AgentAuth.revokedAt`).
+- **RF030 (novo)**: revogação individual, irreversível, com confirmação; grava `agent_auth.revoke`.
+- **RF031 (novo)**: `POST /api/agent/register` grava `AuditLog` `agent_auth.register`, com ator nulo
+  (`AuditLog.actorUserId` é opcional, `prisma/schema.prisma:245`) e
+  `metadata: { name, via }`, onde `via` é `enrollment_key` ou `admin_secret`.
+- **RF003**: enrollment. O UC 3.2 ganha a gravação do RF031 na pós-condição.
+- **RF022**: auditoria. Duas ações novas no catálogo (`agent_auth.register` e o uso em massa de
+  `agent_auth.revoke`).
+
+### RNs / RNFs relacionados
+
+- **RN018 (nova)**: estado derivado de cada `AgentAuth`, sem coluna nova:
+  - **Revogado**: `isActive = false`. Mostra `revokedAt`.
+  - **Bloqueado pelo cliente**: `isActive = true` e `Client.isActive = false` (`lib/auth.ts:85-87`
+    recusa com 403 "Cliente desativado").
+  - **Registrado, sem coleta**: ativo e sem `Device`. Duas causas possíveis, e o texto do estado diz
+    as duas: o agente registrou e ainda não fez o primeiro check-in, ou o `Device` foi excluído
+    (`app/app/[clientSlug]/assets/[id]/actions.ts:66`) e o `AgentAuth` segue ativo; nesse caso o
+    próximo check-in recria o `Device`.
+  - **Ativo**: ativo e com `Device`.
+- **RN019 (nova)**: revogação em massa **opcional** na rotação. Checkbox desmarcado por padrão. Se
+  marcado, todos os `AgentAuth` ativos do cliente são revogados na **mesma transação** da troca de
+  chave.
+- **RN020 (nova)**: a contagem "Agentes" mostra só `AgentAuth` ativos. Vale para `/admin/clients` e,
+  se a decisão 3 liberar, para `GET /api/clients`.
+- **RN015**: passa a citar a revogação (individual e em massa) como operação sobre tenant existente,
+  guardada por `canManageTenant`. Texto em `docs/PRODUCT.md:85`.
+- **RNF004**: a rota nova carrega o `Client` e aplica `canManageTenant(user, client)`. Cliente de
+  outra organização ou inexistente dá o mesmo `notFound()`.
+- **RNF009**: um `agent_auth.revoke` por credencial revogada, inclusive na rotação (decisão 4), e
+  `agent_auth.register` em todo registro.
+- **RNF002**: Zod antes de efeito colateral no campo novo da rotação.
+
+### Casos de uso
+
+- **UC 3.12 (novo) — Gerenciar agentes do cliente**, em `docs/PRODUCT.md` §3. Ator:
+  `PLATFORM_ADMIN` ou `ORG_ADMIN` da organização (`canManageTenant`). Pré-condição: `Client`
+  existente. Fluxo: abrir a lista a partir de `/admin/clients`, ler o estado, revogar uma instalação
+  com confirmação. Exceções: cliente de outra organização (`notFound`), credencial já revogada
+  (idempotente), erro interno.
+- **UC 3.1**: o fluxo alternativo "Emitir novo pacote" ganha o checkbox do RN019.
+- **UC 3.2**: pós-condição ganha o `agent_auth.register`.
+- **UC 3.3**: exceções passam a dizer "revogada: `403`".
+- **§7, matriz**: linha nova "Listar e revogar `AgentAuth`": ✅ / ✅ (mesma org) / ❌ / ❌,
+  `canManageTenant`.
+
+### Entidades de banco
+
+Nenhuma alteração de schema, migration, `db push` ou backup.
+
+- **Lidas**: `Client` (`id`, `name`, `slug`, `organizationId`, `isActive`); `AgentAuth` (`id`,
+  `name`, `isActive`, `createdAt`, `revokedAt`); `Device` (`hostname`, `agentVersion`,
+  `updatedAt`); `CollectionLog` (`coletadoEm` mais recente, com fallback em `Device.updatedAt`, o
+  mesmo padrão de `lib/tenant-device-rows.ts:58`). `AgentCheckLog` **não** serve para última coleta:
+  só grava em erro.
+- **Escritas**: `AgentAuth` (`isActive`, `revokedAt`), `AgentCommand` (`status = 'expired'`),
+  `AlertEvent` (`resolvedAt`), `AuditLog` (`agent_auth.revoke`, `agent_auth.register`).
+- `Device` e o histórico **não** são apagados na revogação.
+
+Fixture de verificação: o cliente `teste-a0-rotacao` (ver a decisão 7). **Nunca revogar nem
+rotacionar nada de `core-ti-expert`**, que tem agentes reais.
+
+### Escopo
+
+| Item | RF/RN relacionado | Caso de uso | Entidade(s) de banco | Origem do achado |
+|---|---|---|---|---|
+| 1 — **Rota nova `/admin/clients/[id]/agents` (TDD, vermelho primeiro)**: Server Component que carrega o `Client` por `id` e aplica `canManageTenant(user, client)`; inexistente ou sem permissão → `notFound()`, sem distinção. **Não** reaproveita `requireClientsAdminAccess` de `page.tsx:14-23` (`isPlatformAdmin \|\| isOrgAdmin`, sem checar organização) | RF029, RNF004, RN015 | UC 3.12 | Client | requirements-auditor; decisão do usuário (rota autorizada) |
+| 2 — **Query da lista** em `app/admin/clients/queries.ts`: todos os `AgentAuth` do cliente (ativos e revogados), com `Device` (`hostname`, `agentVersion`, `updatedAt`) e o `CollectionLog` mais recente (`take: 1`, `orderBy coletadoEm desc`). Escopo por `clientId` do cliente já autorizado no item 1. Ordem: ativos primeiro, depois por `createdAt desc` | RF029, RNF004 | UC 3.12 | AgentAuth, Device, CollectionLog | requirements-auditor |
+| 3 — **Estado derivado (RN018, TDD)**: função pura (revogado, bloqueado pelo cliente, registrado sem coleta, ativo), testada nos quatro casos, sem `setState` em efeito | RN018 | UC 3.12 | AgentAuth, Device, Client | requirements-auditor |
+| 4 — **Tela**: casca igual à de `/admin/clients` após A1/A2 (`min-w-0 flex-1 lg:pl-64`, `p-4 lg:p-6`, `page.tsx:41-43`), **um** `h1` com o nome do cliente e link de volta para "Clientes". Tabela em `Panel` com `TABLE_SHELL_CLASS`/`TABLE_HEAD_ROW_CLASS`/`TABLE_HEAD_CLASS`/`TABLE_CELL_CLASS` (`lib/table-styles.ts`) e `overflow-x-auto`. Estado em `StatusPill`. Versão e `agentAuthId` em `.data-mono`; o id aparece curto, com `title` do id completo, para distinguir duas linhas de mesmo nome após reinstalação. Estado vazio explica por quê (nenhum agente registrou com a chave deste cliente) e leva ao pacote de instalação ("Ver credenciais" em `/admin/clients`) | RF029, RN018 | UC 3.12 | — | requirements-auditor; padrões A1/A2 |
+| 5 — **Link a partir de `/admin/clients`**: o número da coluna "Agentes" vira link (ou ação "Ver agentes" de menor peso) para a rota nova. "Abrir painel" continua a única ação preenchida da linha (hierarquia da A2) | RF029 | UC 3.12 | — | requirements-auditor |
+| 6 — **Contagem "Agentes" (N12/RN020)**: a coluna passa a mostrar `activeAgentCount`. `agentCount` sai do tipo se ficar sem uso. `GET /api/clients` só muda se a decisão 3 liberar o arquivo | RN020 | UC 3.12 | AgentAuth | requirements-auditor (N12) |
+| 7 — **Revogar pela UI (TDD)**: botão "Revogar" só em linhas não revogadas; abre `AlertDialog` com "Confirmar" destrutivo (padrão da A2) e "Cancelar"; cancelar não chama a action; o foco volta ao botão de origem; o resultado sai em `role="status"` (padrão da A1). Texto do diálogo no detalhamento abaixo da tabela | RF030, RN015 | UC 3.12 | AgentAuth | requirements-auditor; F5 |
+| 8 — **`revokeAgentAuthAction` estendida**, na mesma transação já existente (`actions.ts:348-365`): (a) `AgentCommand` do `agentAuthId` com `status in ('pending','running')` → `expired`; (b) `AlertEvent` abertos (`resolvedAt: null`) do `Device` dessa credencial → `resolvedAt = now`, **sem** webhook (decisão 2); (c) **idempotência**: credencial já revogada não muda `revokedAt` nem grava `AuditLog` de novo (hoje a action sobrescreve `revokedAt` e audita outra vez); (d) `revalidatePath` também de `/admin/clients/[id]/agents`. Guard, mensagem única e `TransactionLike` ampliada só no necessário | RF030, RNF009, RN015 | UC 3.12 | AgentAuth, AgentCommand, AlertEvent, AuditLog | requirements-auditor (riscos 1 e 2); conferido nesta rodada (idempotência) |
+| 9 — **Alerta fantasma (condicional à decisão 1)**: em `lib/availability-alerts.ts:56-57`, `where: { clientId, agentAuth: { isActive: true } }`. Teste: um device com `AgentAuth` revogado e sem coleta além do limiar não abre `device_offline` nem chama webhook | RF030 | UC 3.12, UC 3.3 | Device, AlertEvent | requirements-auditor (verificado pelo orquestrador) |
+| 10 — **N4/RN019, revogação em massa na rotação (TDD)**: no `AlertDialog` de rotação existente (`clients-panel.tsx:169-196`), checkbox "Revogar também os N agentes ativos", **desmarcado**, com texto de consequência; N vem de `activeAgentCount`; sem checkbox quando N = 0. `rotateKeySchema` (`actions.ts:40-43`) ganha o campo opcional, validado por Zod. Marcado: na mesma transação de `:259-277`, todos os `AgentAuth` ativos do cliente são revogados com os efeitos (a) e (b) do item 8, e um `agent_auth.revoke` por credencial (decisão 4). Desmarcado: comportamento atual, byte a byte | RN019, RNF009 | UC 3.1 | AgentAuth, AgentCommand, AlertEvent, AuditLog, Client | security-auditor (A0, N4; ADR 0005) |
+| 11 — **N5/RF031, auditoria do registro (TDD)**: em `app/api/agent/register/route.ts`, `agentAuth.create` e `recordAuditLog({ action: 'agent_auth.register', targetType: 'agent_auth', targetId, clientId, actor: null, metadata: { name, via } })` na mesma `$transaction`. `via` = `admin_secret` quando `hasValidAdminSecret` liberou, senão `enrollment_key`. Nenhum segredo (`enrollmentKey`, `apiKey`, hash) no `metadata`. Contrato da resposta 201 e códigos de erro inalterados | RF031, RNF009 | UC 3.2 | AgentAuth, AuditLog | requirements-auditor (N5); decisão do usuário (arquivo liberado) |
+| 12 — **Docs**: `docs/PRODUCT.md`: RF029–RF031, RN018–RN020, UC 3.12, linha nova na §7, RN015 (`:85`) citando a revogação, `:144` "revogada: `403`", UC 3.2 com o RF031 e, se a decisão 3 liberar, `:506`. `docs/SPEC.md` e `docs/PRODUTO.md` só onde citarem revogação ou contagem de agentes | RF029–RF031, RN015, RN018–RN020 | §3, §7 | — | requirements-auditor |
+| 13 — **Testes** em `tests/`: ver os critérios de aceite. `tests/revoke-agent-auth.test.ts`, `tests/clients-panel-rotation.test.tsx` e `tests/admin-clients-actions-messages.test.ts` continuam verdes; se algum mock precisar de `agentCommand`/`alertEvent` na transação, a mudança no mock é declarada no relatório | — | — | — | gerente (TDD) |
+
+**Item 7, texto do diálogo de revogação** (copy final fica com o implementador, o conteúdo não):
+- a revogação é imediata e **não pode ser desfeita**;
+- o serviço do agente continua instalado na máquina e é recusado a cada ciclo; para parar de vez é
+  preciso desinstalar na máquina;
+- a máquina e o histórico **não** são apagados; ela deixa de aparecer nas listas de máquinas do
+  cliente (o histórico de alertas continua em `/alerts`, divergência 5);
+- comandos pendentes desse agente são cancelados;
+- reinstalar na mesma máquina cria um registro novo, com outro id;
+- se for o **último** agente ativo do cliente, aviso explícito de que o cliente fica sem nenhuma
+  máquina reportando.
+
+**Ordem de execução recomendada:**
+1. testes vermelhos: guard da rota (item 1), estado derivado (item 3), action estendida (item 8),
+   N4 (item 10), N5 (item 11), contagem (item 6) e, se aprovado, `availability-alerts` (item 9);
+2. itens 8, 10 e 11 (servidor);
+3. item 9, se a decisão 1 aprovar;
+4. itens 2, 1, 3, 4 (rota e tela);
+5. itens 5, 6 e 7 (`/admin/clients` e diálogo);
+6. item 12 (docs);
+7. portões;
+8. `security-auditor` sobre o diff e `visual-qa`.
+
+### Decisões que ficam para o usuário
+
+1. **Liberar `lib/availability-alerts.ts`** para o filtro do item 9. **Recomendação: sim.** Sem o
+   filtro, cada revogação vira um `device_offline` com webhook horas depois, ou seja, a tela nova
+   produziria alarme falso por construção. A mudança é uma linha no `where`, com teste.
+2. **Resolver os `AlertEvent` abertos da máquina na revogação, e com ou sem webhook.**
+   **Recomendação: resolver todos os abertos do device (qualquer métrica, inclusive os de
+   `AlertRule`), sem webhook.** Um evento aberto de máquina revogada nunca mais seria resolvido,
+   porque a resolução depende de check-in. Mandar `device.online` seria falso: a máquina não voltou.
+   Fica dentro de `actions.ts`, que já é liberado.
+3. **`GET /api/clients` (`route.ts:50-54`) passa a contar só ativos?** **Recomendação: não mudar
+   nesta sprint.** A rota é só `PLATFORM_ADMIN` (`:40`), é contrato de API documentado
+   (`PRODUCT.md:506`) e não alimenta a tela (`/admin/clients` usa `getClients`). Trocar o significado
+   de `_count.agents` em silêncio quebra quem consome. Se o usuário quiser coerência, a opção segura é
+   acrescentar um campo `activeAgentCount` e manter `_count.agents`. Sem liberação, `PRODUCT.md:506`
+   ganha uma nota de que o número inclui revogados.
+4. **Auditoria da revogação em massa (N4).** (a) um `agent_auth.revoke` por credencial, com
+   `metadata.via = 'rotation'`, além do `credentials.rotate` existente; ou (b) só `credentials.rotate`
+   com `metadata.revokedCount`. **Recomendação: (a)**, mais `revokedCount` no `credentials.rotate`.
+   A trilha fica por máquina (RNF009) e a busca por `agent_auth.revoke` encontra todas as revogações,
+   venham de onde vierem.
+5. **Rótulo de `agent_auth.register` na atividade recente.** `components/recent-activity-panel.tsx:64-81`
+   não está na lista de arquivos liberados; sem rótulo, a ação aparece como o identificador cru
+   `agent_auth.register` (fallback de `:83-85`). **Recomendação: liberar só essa linha do mapa**
+   ("Registro de agente"). Sem liberação, vira Backlog.
+6. **Ordem e filtro da lista.** Revogados aparecem na mesma tabela, depois dos ativos, ou atrás de um
+   filtro "Mostrar revogados"? **Recomendação: mesma tabela, ativos primeiro.** O volume por cliente
+   é pequeno e a reinstalação (duas linhas de mesmo nome) só se explica vendo as duas.
+7. **D12, fixture.** O PLANO autorizou `teste-a0-rotacao` "durante as sprints A1a e A1"; a A2 pediu
+   extensão. A A3 também precisa. Além disso, o cliente de teste **não tem agente**, então a revogação
+   real no navegador não é possível. Opções: (a) a revogação real fica coberta só por testes, e o
+   `visual-qa` captura o diálogo aberto e o cancela; (b) criar um `AgentAuth` de teste em
+   `teste-a0-rotacao` via `POST /api/agent/register` com a chave dele (sem agente instalado, o estado
+   fica "Registrado, sem coleta") e revogá-lo de verdade. **Recomendação: (b)**, com o D12 estendido
+   explicitamente até o fim da A3. Isso também exercita o N5 de ponta a ponta. O `AgentAuth` de teste
+   entra no apagamento da fixture ao fim da frente A.
+
+### Divergências registradas
+
+1. **A revogação não é nova.** O briefing a trata como funcionalidade a criar; `revokeAgentAuthAction`
+   existe desde a Sprint 6 (`actions.ts:298-380`), com guard, mensagem sem oráculo, transação e
+   auditoria, e teste próprio. O que falta é a tela e os efeitos colaterais. O plano estende a action.
+2. **A action atual não é idempotente.** Revogar de novo uma credencial já revogada sobrescreve
+   `revokedAt` (`:351`) e grava outro `agent_auth.revoke`. Entrou no item 8 (c).
+3. **"N12" não está definido em nenhum arquivo do repositório.** Só aparece em listas
+   (`docs/SPRINTS.md`, A1 "Fora de escopo" e A2 "Fora de escopo"). Este plano o lê como a contagem
+   "Agentes" com revogados (divergência 4 da A1, RN020). Se N12 for outra coisa, o item 6 muda de
+   rótulo e o N12 real fica sem plano.
+4. **O guard da rota nova é a segunda camada.** `proxy.ts:91-104` já barra `ORG_OPERATOR` e
+   `CLIENT_VIEWER` em `/admin/clients/*`. Não protege contra `ORG_ADMIN` de outra organização; esse
+   caso é responsabilidade da página (item 1). Os testes do guard chamam a página diretamente.
+5. **"Somem das telas do tenant" não vale para `/alerts`.** As listas de máquinas usam
+   `getTenantDeviceWhere`, mas `app/app/[clientSlug]/alerts/page.tsx:31-45` lista eventos por
+   `clientId` e mostra o hostname da máquina revogada. É histórico, e a página está proibida nesta
+   sprint; o texto do diálogo não pode prometer que tudo some.
+6. **`GET /api/clients` é só `PLATFORM_ADMIN`** (`route.ts:40`), não a fonte da coluna da tela. Ver a
+   decisão 3.
+7. **`AgentCommand.status` não é enum.** É `String` com comentário de valores (`schema.prisma:583`).
+   `expired` já é usado por `commands/pending/route.ts:21`, então não há valor novo.
+
+### Restrições de compatibilidade
+
+- **Arquivos permitidos**: `app/admin/clients/**` (rota nova, `actions.ts`, `queries.ts`,
+  `clients-panel.tsx`, `page.tsx`), `components/agent-install-package.tsx` só se necessário,
+  `app/api/agent/register/route.ts`, `docs/PRODUCT.md`, `docs/PRODUTO.md` e `docs/SPEC.md` (se
+  pertinentes), `docs/SPRINTS.md` e `tests/`. **Condicionados**: `lib/availability-alerts.ts`
+  (decisão 1), `app/api/clients/route.ts` (decisão 3), `components/recent-activity-panel.tsx`
+  (decisão 5).
+- **Proibido**: `app/users/page.tsx`, `prisma/schema.prisma` e qualquer migration, `app/portal/**`,
+  `lib/portal-context.ts`, `app/app/**` (telas do tenant), `agent-go/**`.
+- Contrato de `POST /api/agent/register` intacto: corpo e status da resposta 201 e dos erros
+  400/401/403/404/429/500 não mudam. O agente Go não é tocado.
+- Contratos de teste da rotação (`alertdialog`, "Cancelar", "Confirmar", "Dispensar",
+  `data-testid="rotation-result"`, foco de volta em "Emitir novo pacote") ficam.
+- `tests/new-client-wizard-first-checkin.test.tsx` usa `getByRole('status')`; a região `status` nova
+  fica na página de agentes, não no assistente.
+- Zero cor literal, zero `dark:` novo, nenhum `hover:scale`, nenhum ícone decorativo (`DESIGN.md`
+  §6 e §10).
+
+### Critérios de aceite
+
+- [x] **Guard (TDD)**: teste da página `/admin/clients/[id]/agents`, com execução **vermelha** no
+      relatório antes da implementação: `PLATFORM_ADMIN` renderiza; `ORG_ADMIN` da mesma organização
+      renderiza; `ORG_ADMIN` de outra organização → `notFound()`; cliente inexistente → `notFound()`
+      (mesma resposta); `ORG_OPERATOR` → `notFound()`; `CLIENT_VIEWER` → `notFound()`.
+- [x] **Guard, código**: a página chama `canManageTenant(user, client)` e não importa nem copia
+      `requireClientsAdminAccess`.
+- [x] **Escopo da query**: teste afirma que a consulta de agentes filtra por `clientId` do cliente
+      autorizado, e que nenhum `AgentAuth` de outro cliente aparece.
+- [x] **RN018 (TDD)**: a função de estado devolve "Revogado", "Bloqueado pelo cliente", "Registrado,
+      sem coleta" e "Ativo" nos quatro casos, e a tela mostra cada um com `StatusPill`.
+- [x] **Última coleta**: teste com `CollectionLog` mostra o `coletadoEm` mais recente; sem
+      `CollectionLog` e com `Device`, mostra `Device.updatedAt`; sem `Device`, mostra "—".
+      `AgentCheckLog` não é lido.
+- [x] **Tela**: exatamente um `h1`, com o nome do cliente. Tabela com `TABLE_*`; `rg "font-medium"`
+      nos `<th>` novos não acha nada. `agentAuthId` curto em `.data-mono` com `title` do id completo.
+      Estado vazio com explicação e link focável para o pacote de instalação (afirmado em teste).
+- [x] **Link**: em `/admin/clients`, cada linha leva a `/admin/clients/<id>/agents`, e "Abrir painel"
+      continua a única ação com variante preenchida (afirmado em teste).
+- [x] **RN020/N12**: a coluna "Agentes" mostra `activeAgentCount`; teste com um cliente de 3
+      `AgentAuth` (2 ativos, 1 revogado) mostra `2`.
+- [x] **Revogar, diálogo (TDD)**: o botão "Revogar" só existe em linhas não revogadas; o clique abre
+      `alertdialog` e **não** chama a action; "Cancelar" não chama a action e devolve o foco ao botão
+      "Revogar" da linha; "Confirmar" (variante destrutiva) chama a action com o `agentAuthId` da
+      linha; o resultado é anunciado em `role="status"`.
+- [x] **Revogar, texto**: o diálogo diz que é irreversível, que o serviço segue instalado e é
+      recusado a cada ciclo, que a máquina e o histórico ficam, que comandos pendentes são cancelados
+      e que reinstalar cria registro novo. Com um único agente ativo, mostra o aviso de último agente
+      (afirmado em teste nos dois casos).
+- [x] **Revogar, servidor**: teste da action afirma, na mesma transação: `isActive=false` e
+      `revokedAt`; `AgentCommand` `pending` e `running` do `agentAuthId` → `expired` (e os `done`,
+      `failed` intocados); `AlertEvent` abertos do device → `resolvedAt` preenchido, sem chamada a
+      webhook; um `agent_auth.revoke`.
+- [x] **Revogar, idempotência**: revogar credencial já revogada não altera `revokedAt` nem grava
+      `AuditLog` (afirmado em teste).
+- [x] **Revogar, isolamento**: os testes existentes de `tests/revoke-agent-auth.test.ts` continuam
+      verdes; a mensagem para "não existe" e "outra organização" continua idêntica.
+- [x] **Revogar, efeito real**: o teste de regressão existente (`validateAgentApiKey` devolve 403
+      depois da revogação) continua verde.
+- [x] **Alerta fantasma** (se a decisão 1 aprovar): teste de `reconcileAvailabilityEvents` com um
+      device de `AgentAuth` revogado e sem coleta além do limiar: nenhum `AlertEvent` criado e nenhum
+      webhook disparado; o device ativo do mesmo cliente continua sendo avaliado.
+- [x] **N4 (TDD)**: com o checkbox **desmarcado**, a rotação não toca `AgentAuth`, `AgentCommand` nem
+      `AlertEvent` e grava só o `credentials.rotate` de hoje (teste). Com o checkbox **marcado**, todos
+      os ativos do cliente ficam revogados, com comandos expirados, eventos resolvidos e auditoria
+      conforme a decisão 4, tudo dentro da mesma `$transaction` da troca de chave (teste afirma que
+      uma falha na transação não deixa a chave trocada sem as revogações, nem o contrário). Agentes
+      de **outro** cliente não são tocados.
+- [x] **N4, UI**: o checkbox aparece desmarcado, diz quantos agentes serão revogados, some quando o
+      cliente tem zero ativos, e é enviado no `FormData` só quando marcado (teste). O campo é
+      validado por Zod.
+- [x] **N5 (TDD)**: registro por `enrollmentKey` grava um `agent_auth.register` com `actorUserId`
+      nulo, `targetId` = id do `AgentAuth`, `clientId` do cliente e `metadata { name, via:
+      'enrollment_key' }`; registro por `X-Admin-Secret` grava `via: 'admin_secret'`; nenhum
+      `metadata` contém `apiKey`, `enrollmentKey` ou hash; erros (400, 401, 403, 404) não gravam
+      `AuditLog`; corpo da resposta 201 inalterado.
+- [x] **Docs**: `docs/PRODUCT.md` tem RF029, RF030, RF031, RN018, RN019, RN020, UC 3.12 e a linha
+      nova na §7; RN015 cita a revogação; `:144` diz que revogada é `403`. `rg "401/403"
+      docs/PRODUCT.md` não acha a frase antiga do UC 3.3.
+- [x] **Regras do `DESIGN.md` no diff**: `rg "dark:|hover:scale|animate-ping"` e
+      `rg "#[0-9a-fA-F]{3,8}\b|rgb\(|oklch\("` nos arquivos tocados não acusam nada novo (grep no
+      relatório).
+- [x] **Segurança**: o `security-auditor` revisa o diff e confirma: guard da rota nova com
+      `canManageTenant` e sem oráculo de existência; revogação e revogação em massa transacionais;
+      um `AuditLog` por credencial revogada; `agent_auth.register` sem segredo; nenhum `clientId` ou
+      `agentAuthId` vindo do cliente sem checagem de posse.
+- [x] **Verificação visual**: o `visual-qa` captura `/admin/clients/<id de teste-a0-rotacao>/agents`
+      em **390, 1024 e 1440 px**, com a lista (ou o estado vazio) e com o diálogo de revogação aberto;
+      `scrollWidth <= clientWidth` em todas; contraste medido ≥ 4.5:1 nos rótulos da `StatusPill`;
+      `document.querySelectorAll('h1').length === 1`. Revogação real só conforme a decisão 7, e
+      **nada** é revogado ou rotacionado em `core-ti-expert`.
+- [x] **Escopo de arquivos**: o diff toca só os arquivos permitidos e os condicionados que o usuário
+      liberar. `app/users/page.tsx`, `prisma/`, `app/portal/**`, `app/app/**` e `agent-go/**` intactos.
+- [x] Portão 1: `npm run typecheck` limpo.
+- [x] Portão 2: `npm run lint` limpo, inclusive `react-hooks/set-state-in-effect`.
+- [x] Portão 3: `npm run build:verify` limpo, com a rota `/admin/clients/[id]/agents` na listagem.
+      **Não** rodar com o `next dev` de pé; o implementador avisa o orquestrador antes do build.
+- [x] Portão 4: `npm test` verde com **mais de 893 testes** (baseline: 893 testes / 73 arquivos
+      depois de `e261dd1`).
+- [x] DoD (`docs/DEFINITION_OF_DONE.md`): os 10 itens conferidos um a um, com ✅ ou N/A e
+      justificativa. "Banco de dados e migrations" é N/A (sem mudança de schema). "Validação Zod"
+      cobre o campo novo da rotação. "RF/RN" cita RF029–RF031 e RN018–RN020.
+- [x] Sem commit e sem push.
+
+### Fora de escopo desta sprint
+
+- **F4 e N6** (instalador Linux na UI e hash do executável): Sprint A4, registrada no Backlog,
+  item 19, por decisão do usuário.
+- **Dispositivos de `AgentAuth` revogado no portal**: Backlog, item 18, por decisão do usuário.
+- **Histórico de alertas de máquina revogada em `/app/[slug]/alerts`** (divergência 5): tela do
+  tenant, proibida nesta sprint. Se o usuário quiser escondê-los, vira item de Backlog.
+- **Reativar** um `AgentAuth` revogado: RF030 define a revogação como irreversível; reinstalar cria
+  credencial nova.
+- **Revogação em massa fora da rotação** (seleção múltipla na lista): não pedida.
+- **Agentes órfãos** (`AgentAuth.clientId` nulo, `schema.prisma:75-76`): não pertencem a cliente e não
+  aparecem na rota nova.
+- Renomear `AgentAuth.name` pela UI.
+- Backlog 14 e 15 (`slug` sem `.max(64)` e `%VAR%` no `installCommand`), mesmo estando em
+  `app/admin/clients/**` e `lib/provisioning.ts`: não pedidos.
+
+### Documentação que ficará desatualizada (não editada por este plano)
+
+- `PLANO_SPRINTS_COLABORACAO.md` §6 descreve a A3 como "F5 (+F4) … instalador Linux na UI"; com a
+  decisão do usuário, o F4 foi para a A4. O §6.1 D12 ainda limita a fixture à A1. O documento é do
+  gerente; o planner não o edita.
+- `docs/adr/0005-enrollment-key-reexibivel.md:34` diz que a contenção (N4) "fica para a Sprint A3".
+  Depois da A3 isso passa a ser verdade parcial (contenção opcional, desmarcada por padrão); o ADR
+  não está na lista de arquivos liberados.
+- `CONTEXT.md` (glossário) não define os estados de RN018 nem "revogado"; fora da lista liberada.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -2934,3 +3292,41 @@ larguras.
 a linha 415 já faz com `title={tenant.name}`.
 
 → Movido para a Sprint A2 (item 13 do Escopo).
+
+---
+
+### 18. Portal exibe dispositivos de `AgentAuth` revogado — BAIXO (achado do planejamento da Sprint A3)
+
+**Achado**: `app/portal/page.tsx:36` (`where: { clientId: context.clientId }`) e
+`lib/portal-context.ts:68` (`where: { id: deviceId, clientId }`) filtram só por `clientId`. As telas
+do tenant usam `getTenantDeviceWhere` (`lib/tenant-scope.ts:3-13`), que exige
+`agentAuth.isActive` e `client.isActive`. Depois que a A3 der revogação pela UI, a máquina revogada
+some de `/app/[slug]/*` e continua listada e acessível por id no `/portal` do `CLIENT_VIEWER`.
+
+**Por que fica pendente**: decisão do usuário, ao aprovar a A3, de manter no Backlog. Não é
+vazamento entre tenants (o filtro por `clientId` vem da sessão); é inconsistência de exibição dentro
+do próprio cliente. Correção: usar o mesmo critério de `getTenantDeviceWhere` (por `clientId`) nas
+duas consultas do portal, com teste.
+
+---
+
+### 19. Sprint A4 — Instalador Linux na UI + hash do executável (F4 + N6) — registro
+
+**Achado** (fatos conferidos em 2026-10-15, depois de `e261dd1`):
+- Só `public/inventario-agent.exe` é publicado. `scripts/build-agent.mjs` compila o alvo `linux`
+  (`:47`), mas só copia para `public/` o `.exe` (`:39-40`).
+- `app/api/agent/download-exe/route.ts` só serve o `.exe`.
+- Não existe comando de instalação Linux no código (`lib/provisioning.ts` não tem nenhum). Um comando
+  Linux montado pela UI com `serverUrl`, `slug` e chave entre aspas de shell é a mesma classe de
+  injeção fechada na A1a para o PowerShell, e precisaria da mesma allowlist e escape.
+- Não há verificação de hash do binário baixado pelo instalador (N6). O SHA-256 existe só no
+  auto-update (RF024).
+- `scripts/agent/install-linux-agent.sh` é o modelo antigo (timer + oneshot, check-in horário).
+  `agent-go/internal/platform/windows/service/service_linux.go:3-7` registra que o serviço Linux
+  atual é systemd `Type=simple` persistente, "não o modelo antigo" desse script, que nunca teve
+  métricas nem fila de comandos.
+- Nenhum RF promete instalação Linux pelo painel (RF025 trata da coleta). A A4 exige RF novo.
+
+**Por que fica pendente**: decisão do usuário de tirar F4 e N6 da A3. A A4 precisa de RF novo,
+de decisão sobre publicar o binário Linux em `public/`, de um instalador que crie o serviço systemd
+atual (não o script antigo) e de auditoria de segurança do comando gerado.

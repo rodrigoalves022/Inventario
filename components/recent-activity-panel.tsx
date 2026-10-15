@@ -68,6 +68,7 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   'device.delete': 'Exclusão de máquina',
   'client.create': 'Criação de cliente',
   'agent_auth.revoke': 'Revogação de agente',
+  'agent_auth.register': 'Registro de agente',
   'alert_rule.create': 'Criação de regra de alerta',
   'alert_rule.delete': 'Exclusão de regra de alerta',
   'command.enqueue': 'Comando remoto enfileirado',

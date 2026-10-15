@@ -40,6 +40,12 @@ const createClientSchema = z.object({
 const rotateKeySchema = z.object({
   serverUrl: serverUrlSchema,
   clientId: requiredString('Cliente não informado.').trim().min(1, 'Cliente não informado.'),
+  // Sprint A3, item 10 (RN019). Checkbox "Revogar tambem os agentes ativos":
+  // o painel so envia o campo quando marcado, com o valor 'true'. Ausente =
+  // comportamento anterior da rotacao, sem tocar AgentAuth.
+  revokeActiveAgents: z
+    .literal('true', { errorMap: () => ({ message: 'Opção de revogação dos agentes inválida.' }) })
+    .optional(),
 })
 
 const revokeAgentAuthSchema = z.object({
@@ -77,8 +83,47 @@ async function hasClientsAdminAccess() {
 type TransactionLike = {
   client: typeof prisma.client
   agentAuth: typeof prisma.agentAuth
+  agentCommand: typeof prisma.agentCommand
+  alertEvent: typeof prisma.alertEvent
   auditLog: typeof prisma.auditLog
   $executeRaw: typeof prisma.$executeRaw
+}
+
+/**
+ * Efeitos colaterais da revogacao de AgentAuth (Sprint A3, item 8), sempre
+ * dentro da transacao de quem revoga:
+ *
+ * - AgentCommand `pending`/`running` vira `expired`. So o proprio agente
+ *   expira comando vencido (ao consultar /api/agent/commands/pending), e um
+ *   agente revogado recebe 403 antes disso: sem este passo o comando ficaria
+ *   aberto para sempre.
+ * - AlertEvent aberto do Device da credencial e resolvido, de qualquer
+ *   metrica, SEM webhook (decisao 2 do usuario). A resolucao normal depende de
+ *   check-in, que nao vai mais acontecer; e mandar `device.online` seria
+ *   falso, porque a maquina nao voltou.
+ *
+ * Os ids ja chegam autorizados (canManageTenant sobre o cliente dono).
+ */
+async function applyRevocationEffects(
+  db: Pick<TransactionLike, 'agentCommand' | 'alertEvent'>,
+  agentAuthIds: string[],
+  now: Date
+) {
+  if (agentAuthIds.length === 0) return
+
+  await db.agentCommand.updateMany({
+    where: { agentAuthId: { in: agentAuthIds }, status: { in: ['pending', 'running'] } },
+    data: { status: 'expired' },
+  })
+
+  await db.alertEvent.updateMany({
+    where: { resolvedAt: null, device: { agentAuthId: { in: agentAuthIds } } },
+    data: { resolvedAt: now },
+  })
+}
+
+function clientAgentsPath(clientId: string) {
+  return `/admin/clients/${clientId}/agents`
 }
 
 async function persistActiveProvisioningKey(
@@ -223,6 +268,7 @@ export async function rotateEnrollmentKeyAction(
     const parsed = rotateKeySchema.safeParse({
       serverUrl: formData.get('serverUrl'),
       clientId: formData.get('clientId'),
+      revokeActiveAgents: formData.get('revokeActiveAgents') ?? undefined,
     })
 
     if (!parsed.success) {
@@ -256,13 +302,61 @@ export async function rotateEnrollmentKeyAction(
 
     const { plaintext, hash } = await generateEnrollmentKey()
     const actor = getSessionAuditActor(user)
-    await prisma.$transaction(async (tx: TransactionLike) => {
+    const revokeActiveAgents = parsed.data.revokeActiveAgents === 'true'
+    // Troca de chave e revogacao em massa (RN019) na MESMA transacao: uma
+    // falha em qualquer parte nao deixa a chave trocada sem as revogacoes,
+    // nem o contrario.
+    const revokedCount = await prisma.$transaction(async (tx: TransactionLike) => {
       await tx.client.update({
         where: { id: client.id },
         data: { enrollmentKeyHash: hash },
       })
 
       await persistActiveProvisioningKey(tx, client.id, plaintext)
+
+      let revoked: number | null = null
+      if (revokeActiveAgents) {
+        const now = new Date()
+        const activeAgents = await tx.agentAuth.findMany({
+          where: { clientId: client.id, isActive: true },
+          select: { id: true, name: true },
+        })
+        // Revoga uma a uma, condicionado a isActive: true, e so segue com as
+        // que esta transacao de fato revogou. Uma revogacao individual que
+        // fizer commit entre o findMany e aqui deixa count 0 e nao ganha um
+        // segundo agent_auth.revoke nem entra no revokedCount.
+        const revokedAgents: typeof activeAgents = []
+        for (const agent of activeAgents) {
+          const { count } = await tx.agentAuth.updateMany({
+            where: { id: agent.id, clientId: client.id, isActive: true },
+            data: { isActive: false, revokedAt: now },
+          })
+          if (count > 0) revokedAgents.push(agent)
+        }
+        const ids = revokedAgents.map((agent) => agent.id)
+
+        if (ids.length > 0) {
+          await applyRevocationEffects(tx, ids, now)
+
+          // Decisao 4: um agent_auth.revoke por credencial (a trilha fica por
+          // maquina e a busca por agent_auth.revoke acha todas as revogacoes).
+          for (const agent of revokedAgents) {
+            await recordAuditLog(
+              {
+                action: 'agent_auth.revoke',
+                targetType: 'agent_auth',
+                targetId: agent.id,
+                clientId: client.id,
+                actor,
+                metadata: { agentAuthName: agent.name, clientSlug: client.slug, via: 'rotation' },
+              },
+              tx
+            )
+          }
+        }
+        revoked = ids.length
+      }
+
       await recordAuditLog(
         {
           action: 'credentials.rotate',
@@ -270,15 +364,26 @@ export async function rotateEnrollmentKeyAction(
           targetId: client.id,
           clientId: client.id,
           actor,
-          metadata: { clientSlug: client.slug },
+          // Desmarcado: metadata identico ao de antes da Sprint A3.
+          metadata: revoked === null ? { clientSlug: client.slug } : { clientSlug: client.slug, revokedCount: revoked },
         },
         tx
       )
+
+      return revoked
     })
 
     revalidatePath('/admin/clients')
+    revalidatePath(clientAgentsPath(client.id))
 
-    return buildState('Chave de instalação rotacionada. Revise os instaladores antigos.', {
+    const message =
+      revokedCount && revokedCount > 0
+        ? `Chave de instalação rotacionada e ${
+            revokedCount === 1 ? '1 agente revogado' : `${revokedCount} agentes revogados`
+          }. Reinstale o agente nessas máquinas com o pacote novo.`
+        : 'Chave de instalação rotacionada. Revise os instaladores antigos.'
+
+    return buildState(message, {
       clientId: client.id,
       clientName: client.name,
       clientSlug: client.slug,
@@ -345,11 +450,19 @@ export async function revokeAgentAuthAction(
 
     const client = agentAuth.client
     const actor = getSessionAuditActor(user)
-    await prisma.$transaction(async (tx: TransactionLike) => {
-      await tx.agentAuth.update({
-        where: { id: agentAuth.id },
-        data: { isActive: false, revokedAt: new Date() },
+    const revoked = await prisma.$transaction(async (tx: TransactionLike) => {
+      const now = new Date()
+      // Idempotencia (Sprint A3, item 8c): so revoga o que ainda esta ativo.
+      // O filtro isActive: true no proprio UPDATE evita corrida entre dois
+      // cliques; credencial ja revogada mantem o revokedAt original e nao
+      // ganha um segundo agent_auth.revoke.
+      const { count } = await tx.agentAuth.updateMany({
+        where: { id: agentAuth.id, isActive: true },
+        data: { isActive: false, revokedAt: now },
       })
+      if (count === 0) return false
+
+      await applyRevocationEffects(tx, [agentAuth.id], now)
 
       await recordAuditLog(
         {
@@ -362,13 +475,15 @@ export async function revokeAgentAuthAction(
         },
         tx
       )
+      return true
     })
 
     revalidatePath('/admin/clients')
+    revalidatePath(clientAgentsPath(client.id))
 
     return {
       error: null,
-      message: 'Credencial de agente revogada.',
+      message: revoked ? 'Credencial de agente revogada.' : 'Credencial de agente já estava revogada.',
     }
   } catch (error) {
     console.error('[clients/revoke-agent-auth] Erro:', error)

@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { AgentInstallPackage } from '@/components/agent-install-package'
 import { getTenantBasePath } from '@/lib/tenant-links'
 import {
@@ -39,8 +40,10 @@ type ClientRow = {
   slug: string
   isActive: boolean
   createdAt: string
-  agentCount: number
-  /** AgentAuth com isActive: true: maquinas que seguem funcionando depois da rotacao. */
+  /**
+   * AgentAuth com isActive: true. Coluna "Agentes" (RN020: revogados nao
+   * contam) e maquinas que seguem funcionando depois de uma rotacao sem revogacao.
+   */
   activeAgentCount: number
 }
 
@@ -152,19 +155,30 @@ function machinesThatKeepWorking(count: number) {
   return `${count} máquinas já registradas continuam funcionando: elas usam a própria credencial, que a rotação não altera.`
 }
 
+/** Rotulo do checkbox de RN019: quantos agentes ativos serao revogados. */
+function revokeActiveAgentsLabel(count: number) {
+  return count === 1 ? 'Revogar também o agente ativo' : `Revogar também os ${count} agentes ativos`
+}
+
 function RotateConfirmDialog({
   client,
   open,
+  revokeActiveAgents,
+  onRevokeActiveAgentsChange,
   onOpenChange,
   onConfirm,
   onCloseAutoFocus,
 }: {
   client: ClientRow | null
   open: boolean
+  revokeActiveAgents: boolean
+  onRevokeActiveAgentsChange: (checked: boolean) => void
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
   onCloseAutoFocus: (event: Event) => void
 }) {
+  const activeAgentCount = client?.activeAgentCount ?? 0
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent onCloseAutoFocus={onCloseAutoFocus}>
@@ -179,11 +193,36 @@ function RotateConfirmDialog({
                 antes desta rotação param de funcionar para instalar em máquinas novas.
               </p>
               <p className="font-medium text-foreground">
-                {machinesThatKeepWorking(client?.activeAgentCount ?? 0)}
+                {revokeActiveAgents
+                  ? 'Nenhuma máquina já registrada continua funcionando: as credenciais ativas serão revogadas junto com a chave.'
+                  : machinesThatKeepWorking(activeAgentCount)}
               </p>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {/* Sprint A3, RN019 (N4): contencao opcional, desmarcada por padrao.
+            Sem agente ativo nao ha o que revogar, entao o controle nao aparece. */}
+        {activeAgentCount > 0 ? (
+          <div className="flex items-start gap-3 rounded-lg border border-surface-line p-3">
+            <Checkbox
+              id="rotate-revoke-active-agents"
+              className="mt-0.5"
+              checked={revokeActiveAgents}
+              onCheckedChange={(checked) => onRevokeActiveAgentsChange(checked === true)}
+              aria-describedby="rotate-revoke-active-agents-help"
+            />
+            <div className="space-y-1 text-sm">
+              <label htmlFor="rotate-revoke-active-agents" className="font-medium text-foreground">
+                {revokeActiveAgentsLabel(activeAgentCount)}
+              </label>
+              <p id="rotate-revoke-active-agents-help" className="text-muted-foreground">
+                Marcado, as máquinas já registradas param de enviar dados no próximo ciclo e só voltam
+                reinstalando o agente com o pacote novo. Comandos pendentes são cancelados; máquinas e
+                histórico não são apagados. A revogação não pode ser desfeita.
+              </p>
+            </div>
+          </div>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           {/* Acao destrutiva (invalida os instaladores emitidos): estilo
@@ -210,6 +249,8 @@ export function ClientsPanel({
   // para o conteudo nao sumir durante a animacao de fechamento.
   const [rotateTarget, setRotateTarget] = useState<ClientRow | null>(null)
   const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
+  // RN019: volta a desmarcado a cada abertura do dialogo (no handler do clique).
+  const [revokeActiveAgents, setRevokeActiveAgents] = useState(false)
   // O botao "X" dispensa o resultado exibido. Estado derivado: guarda a
   // referencia dispensada em vez de copiar `rotateState` para outro estado.
   // Uma rotacao nova devolve outro objeto e volta a aparecer.
@@ -231,6 +272,10 @@ export function ClientsPanel({
     const formData = new FormData()
     formData.set('serverUrl', serverUrl)
     formData.set('clientId', rotateTarget.id)
+    // So vai no FormData quando marcado; ausente = rotacao sem revogacao.
+    if (revokeActiveAgents && rotateTarget.activeAgentCount > 0) {
+      formData.set('revokeActiveAgents', 'true')
+    }
     rotationConfirmedRef.current = true
     setRotateDialogOpen(false)
     closeCredentials()
@@ -331,6 +376,8 @@ export function ClientsPanel({
       <RotateConfirmDialog
         client={rotateTarget}
         open={rotateDialogOpen}
+        revokeActiveAgents={revokeActiveAgents}
+        onRevokeActiveAgentsChange={setRevokeActiveAgents}
         onOpenChange={setRotateDialogOpen}
         onConfirm={confirmRotation}
         onCloseAutoFocus={handleRotateDialogCloseAutoFocus}
@@ -401,7 +448,19 @@ export function ClientsPanel({
               {sortedClients.map((client) => (
                 <tr key={client.id} className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}>
                   <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>{client.name}</td>
-                  <td className={TABLE_CELL_CLASS}>{client.agentCount}</td>
+                  <td className={TABLE_CELL_CLASS}>
+                    {/* RN020: so AgentAuth ativos. O numero leva a lista de
+                        agentes do cliente, com menos peso que "Abrir painel". */}
+                    <Link
+                      href={`/admin/clients/${client.id}/agents`}
+                      aria-label={`${client.activeAgentCount} ${
+                        client.activeAgentCount === 1 ? 'agente ativo' : 'agentes ativos'
+                      } de ${client.name}: ver agentes`}
+                      className="rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {client.activeAgentCount}
+                    </Link>
+                  </td>
                   <td className={TABLE_CELL_CLASS}>
                     <StatusPill
                       tone={client.isActive ? 'success' : 'neutral'}
@@ -436,6 +495,7 @@ export function ClientsPanel({
                         disabled={rotatePending}
                         onClick={(event) => {
                           rotateTriggerRef.current = event.currentTarget
+                          setRevokeActiveAgents(false)
                           setRotateTarget(client)
                           setRotateDialogOpen(true)
                         }}
