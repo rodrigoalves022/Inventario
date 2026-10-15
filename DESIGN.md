@@ -52,8 +52,8 @@ Quando um componente precisa variar a cor de um efeito por tom, ele **aponta uma
 variável para um token** — nunca escreve a cor:
 
 ```tsx
-// components/stat-cards.tsx
-success: 'border-success/25 [--surface-glow:var(--color-success)]'
+// lib/kpi-tone.ts (KPI_TONE_GLOW_CLASS)
+success: '[--surface-glow:var(--color-success)]'
 ```
 
 ### 2.2 Paleta
@@ -214,7 +214,7 @@ No sistema, a escolha é a **borda**:
 | Superfície | Em repouso |
 |---|---|
 | Card (`components/ui/card.tsx`) | `bg-card border border-surface-line rounded-xl` — sem sombra |
-| Card de KPI (`SummaryCard`, `StatCard`) | idem, `p-4`, `rounded-xl` |
+| Card de KPI (`KpiCard`) | idem, `px-5 py-4`, `rounded-xl` |
 | Casca de tabela (`TABLE_SHELL_CLASS`) | `rounded-xl border border-surface-line bg-card` |
 | Pílula de status | borda tingida no tom, `bg-<tom>/10` — sem sombra |
 

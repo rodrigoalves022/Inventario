@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { signOut } from 'next-auth/react'
 import type { AppRole } from '@/lib/permissions'
 import { getPermissionUser } from '@/lib/permissions'
@@ -273,6 +273,34 @@ function getFleetStatus(
   return { tone: 'warning', label: 'Coleta atrasada' }
 }
 
+/**
+ * `lg` do Tailwind (64rem = 1024px): a partir dele a sidebar e coluna fixa;
+ * abaixo, drawer. Assinatura por `useSyncExternalStore` (mesmo padrao de
+ * `components/ui/use-mobile.tsx`, que mede outro breakpoint): sem
+ * efeito+setState e sem mismatch de hidratacao.
+ */
+const DESKTOP_QUERY = '(min-width: 1024px)'
+
+function subscribeDesktop(onStoreChange: () => void) {
+  if (typeof window.matchMedia !== 'function') return () => {}
+  const mql = window.matchMedia(DESKTOP_QUERY)
+  mql.addEventListener('change', onStoreChange)
+  return () => mql.removeEventListener('change', onStoreChange)
+}
+
+function getDesktopSnapshot() {
+  return typeof window.matchMedia === 'function' ? window.matchMedia(DESKTOP_QUERY).matches : true
+}
+
+/**
+ * No servidor nao ha largura: assume coluna fixa (sidebar alcancavel). No
+ * celular, a hidratacao re-renderiza com o valor real e o aside fechado vira
+ * `inert` logo em seguida.
+ */
+function getDesktopServerSnapshot() {
+  return true
+}
+
 export function Sidebar({
   tenant,
   user,
@@ -324,14 +352,61 @@ export function Sidebar({
     setMobileOpen(false)
   }
 
+  // Backlog 16: abaixo de `lg`, o drawer fechado so saia da tela por
+  // `-translate-x-full` e continuava no Tab ("Fechar menu" e todos os links,
+  // fora da tela). `inert` tira o aside fechado do Tab e da arvore de
+  // acessibilidade sem mexer no visual, entao a animacao de saida continua.
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktopSnapshot, getDesktopServerSnapshot)
+  const drawerHidden = !isDesktop && !mobileOpen
+
+  const openButtonRef = useRef<HTMLButtonElement | null>(null)
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  // So devolve o foco a "Abrir menu" quando o usuario fechou o drawer (Esc,
+  // "Fechar menu" ou o fundo); fechar por navegacao nao rouba o foco.
+  const restoreFocusRef = useRef(false)
+
+  function closeDrawer() {
+    restoreFocusRef.current = true
+    setMobileOpen(false)
+  }
+
+  // Foco: ao abrir, entra no drawer; ao fechar, volta a "Abrir menu" (que e
+  // desmontado enquanto o drawer esta aberto, por isso depois do commit).
+  useEffect(() => {
+    if (mobileOpen) {
+      closeButtonRef.current?.focus()
+      return
+    }
+    if (restoreFocusRef.current) {
+      restoreFocusRef.current = false
+      openButtonRef.current?.focus()
+    }
+  }, [mobileOpen])
+
+  // Esc fecha o drawer aberto. O setState acontece no handler do evento, nao
+  // no corpo do efeito.
+  useEffect(() => {
+    if (!mobileOpen) return
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      restoreFocusRef.current = true
+      setMobileOpen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [mobileOpen])
+
   const permissionUser = getPermissionUser({ role: user?.role ?? null })
   const sections = buildShellNavigation(tenant, permissionUser)
   const fleet = getFleetStatus(lastCollectionAt, now)
+  const userLabel = user?.name || user?.email || 'Sessão'
+  const tenantUserLine = `${userLabel}${user?.role ? ` · ${ROLE_LABELS[user.role]}` : ''}`
 
   return (
     <>
       {!mobileOpen && (
         <button
+          ref={openButtonRef}
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Abrir menu"
@@ -344,7 +419,7 @@ export function Sidebar({
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[3px] lg:hidden"
-          onClick={() => setMobileOpen(false)}
+          onClick={closeDrawer}
           aria-hidden="true"
         />
       )}
@@ -361,6 +436,7 @@ export function Sidebar({
         claro que a tela que ele serve.
       */}
       <aside
+        inert={drawerHidden}
         className={cn(
           'fixed top-0 left-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar/80 backdrop-blur-md transition-transform duration-300 ease-out',
           'lg:translate-x-0',
@@ -372,10 +448,12 @@ export function Sidebar({
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <Monitor className="h-5 w-5 text-primary-foreground" />
             </div>
-            <h1 className="flex-1 text-sm font-semibold text-sidebar-foreground">Inventário TI</h1>
+            {/* Marca, nao titulo de pagina: o h1 e de cada pagina (E3, Sprint A2). */}
+            <p className="flex-1 text-sm font-semibold text-sidebar-foreground">Inventário TI</p>
             <button
+              ref={closeButtonRef}
               type="button"
-              onClick={() => setMobileOpen(false)}
+              onClick={closeDrawer}
               aria-label="Fechar menu"
               className="-mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:hidden"
             >
@@ -415,9 +493,8 @@ export function Sidebar({
                   <p className="truncate text-sm font-semibold text-sidebar-foreground" title={tenant.name}>
                     {tenant.name}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {user?.name || user?.email || 'Sessão'}
-                    {user?.role ? ` · ${ROLE_LABELS[user.role]}` : ''}
+                  <p className="truncate text-xs text-muted-foreground" title={tenantUserLine}>
+                    {tenantUserLine}
                   </p>
                 </div>
 
@@ -444,8 +521,8 @@ export function Sidebar({
                       {user ? getInitials(user) : '??'}
                     </div>
                     <div className="min-w-0 flex-1 text-left">
-                      <p className="truncate text-sm font-medium text-sidebar-foreground">
-                        {user?.name || user?.email || 'Sessão'}
+                      <p className="truncate text-sm font-medium text-sidebar-foreground" title={userLabel}>
+                        {userLabel}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         {user?.role ? ROLE_LABELS[user.role] : 'Sem permissões'}

@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { AgentInstallPackage } from '@/components/agent-install-package'
 import { getTenantBasePath } from '@/lib/tenant-links'
 import { cn } from '@/lib/utils'
@@ -27,28 +28,45 @@ type ClientStatus = {
 
 const STEPS = ['Dados do cliente', 'Instalação', 'Primeira máquina'] as const
 
-function Stepper({ current }: { current: number }) {
+/**
+ * `current` e o passo em foco (aria-current="step"). `finished` marca o
+ * ultimo passo como concluido (maquina conectada, N13): ele continua sendo o
+ * atual, mas mostra o Check e o texto "concluído" como os anteriores.
+ * Estado derivado das props, sem efeito.
+ */
+function Stepper({ current, finished }: { current: number; finished: boolean }) {
   return (
-    <ol className="flex items-center gap-2 text-sm">
+    <ol aria-label="Etapas" className="flex items-center gap-2 text-sm">
       {STEPS.map((label, index) => {
-        const done = index < current
         const active = index === current
+        const done = index < current || (active && finished)
         return (
-          <li key={label} className="flex items-center gap-2">
+          <li key={label} aria-current={active ? 'step' : undefined} className="flex items-center gap-2">
             <span
+              aria-hidden="true"
               className={cn(
                 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors',
                 done && 'border-primary bg-primary text-primary-foreground',
-                active && 'border-primary text-primary',
+                active && !done && 'border-primary text-primary',
                 !done && !active && 'border-border text-muted-foreground'
               )}
             >
               {done ? <Check className="h-3.5 w-3.5" /> : index + 1}
             </span>
-            <span className={cn('hidden sm:inline', active ? 'font-medium text-foreground' : 'text-muted-foreground')}>
+            {/* Abaixo de `sm` o rotulo sai da tela mas fica no texto do <li>:
+                o leitor de tela ouve o nome do passo em qualquer largura. */}
+            <span
+              className={cn(
+                'sr-only sm:not-sr-only',
+                active ? 'font-medium text-foreground' : 'text-muted-foreground'
+              )}
+            >
               {label}
             </span>
-            {index < STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-border sm:w-10" />}
+            {done && <span className="sr-only">, concluído</span>}
+            {index < STEPS.length - 1 && (
+              <span aria-hidden="true" className="mx-1 h-px w-6 bg-border sm:w-10" />
+            )}
           </li>
         )
       })}
@@ -168,18 +186,15 @@ function FirstCheckinPanel({ checkin, clientSlug }: { checkin: FirstCheckin; cli
   const registered = !device && (status?.agentCount ?? 0) > 0
 
   return (
-    <div
+    <Panel
       role="status"
-      className={cn(
-        'rounded-xl border p-6 transition-colors',
-        device ? 'border-emerald-500/40 bg-emerald-500/5' : 'bg-card'
-      )}
+      className={cn('p-6 transition-colors', device && 'border-success/40 bg-success/5')}
     >
       {device ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15">
-              <Check className="h-4 w-4 text-emerald-600" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-success/15">
+              <Check className="h-4 w-4 text-success" />
             </span>
             <div>
               <p className="font-medium">{device.hostname} conectou</p>
@@ -240,7 +255,7 @@ function FirstCheckinPanel({ checkin, clientSlug }: { checkin: FirstCheckin; cli
           )}
         </div>
       )}
-    </div>
+    </Panel>
   )
 }
 
@@ -260,59 +275,60 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
             Clientes
           </Link>
         </Button>
-        <Stepper current={step} />
+        <h1 className="text-2xl font-bold text-foreground">Novo cliente</h1>
+        <Stepper current={step} finished={connected} />
       </div>
 
       {/* ---------- Passo 1 ---------- */}
       {!pkg && (
-        <form action={formAction} className="space-y-6 rounded-xl border bg-card p-6">
-          <div>
-            <h2 className="text-lg font-semibold">Dados do cliente</h2>
-            <p className="text-sm text-muted-foreground">
-              O instalador é gerado já configurado para este cliente.
-            </p>
-          </div>
+        <Panel>
+          <PanelHeader
+            title="Dados do cliente"
+            description="O instalador é gerado já configurado para este cliente."
+          />
+          <PanelBody>
+            <form action={formAction} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome da empresa</Label>
+                <Input id="name" name="name" required minLength={3} placeholder="Acme Indústria Ltda" autoFocus />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome da empresa</Label>
-            <Input id="name" name="name" required minLength={3} placeholder="Acme Indústria Ltda" autoFocus />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="serverUrl">Endereço do servidor</Label>
+                <Input id="serverUrl" name="serverUrl" required defaultValue={serverUrl} />
+                <p className="text-xs text-muted-foreground">
+                  É o endereço que as máquinas do cliente vão usar para enviar o inventário. Precisa ser
+                  acessível a partir da rede delas.
+                </p>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="serverUrl">Endereço do servidor</Label>
-            <Input id="serverUrl" name="serverUrl" required defaultValue={serverUrl} />
-            <p className="text-xs text-muted-foreground">
-              É o endereço que as máquinas do cliente vão usar para enviar o inventário. Precisa ser
-              acessível a partir da rede delas.
-            </p>
-          </div>
+              {state.error && (
+                <p
+                  role="alert"
+                  className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                >
+                  {state.error}
+                </p>
+              )}
 
-          {state.error && (
-            <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {state.error}
-            </p>
-          )}
-
-          <SubmitButton />
-        </form>
+              <SubmitButton />
+            </form>
+          </PanelBody>
+        </Panel>
       )}
 
       {/* ---------- Passo 2 ---------- */}
       {pkg && (
         <div className="space-y-6">
-          <div className="rounded-xl border bg-card p-6 space-y-5">
-            <div>
-              <h2 className="text-lg font-semibold">
-                Instale o agente em uma máquina de {pkg.clientName}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Baixe e execute como administrador. O instalador já vem com a chave embutida — não é
-                preciso digitar nada.
-              </p>
-            </div>
-
-            <AgentInstallPackage pkg={pkg} keyIsFresh />
-          </div>
+          <Panel>
+            <PanelHeader
+              title={`Instale o agente em uma máquina de ${pkg.clientName}`}
+              description="Baixe e execute como administrador. O instalador já vem com a chave embutida — não é preciso digitar nada."
+            />
+            <PanelBody>
+              <AgentInstallPackage pkg={pkg} keyIsFresh />
+            </PanelBody>
+          </Panel>
 
           {/* ---------- Passo 3 ---------- */}
           <FirstCheckinPanel checkin={checkin} clientSlug={pkg.clientSlug} />

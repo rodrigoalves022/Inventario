@@ -2246,6 +2246,405 @@ Ordem de execução recomendada:
 
 ---
 
+## Sprint A2 — Visual do fluxo "Gerar agente"
+
+**Status**: Concluída (2026-10-15). Implementada e auditada com sucesso; todos os 4 portões limpos (893 testes passando, typecheck, lint e build:verify verdes).
+Sprint A0 (`PLANO_SPRINTS_COLABORACAO.md` §3.2 E1–E7, §6 linha da A2, §6.1 D1 e D12, e o bloco
+"Backlog gerado pela S0"), do escopo definido pelo gerente e dos itens 16 e 17 deste Backlog
+(achados do `visual-qa` na A1). Depende da A1 (concluída, commit `804d9a6`). Este plano não altera
+nenhuma linha de código. As linhas citadas abaixo foram conferidas contra o código em 2026-10-15,
+depois de `804d9a6`.
+
+**Objetivo**: o fluxo "Gerar agente" (`/admin/clients` e `/admin/clients/novo`) passa a usar a
+família fechada de superfícies e os tokens do `DESIGN.md`: sem cor literal, sem card dentro de
+painel, tabela com `TABLE_*`, status com `StatusPill`, um `h1` por página, stepper legível por leitor
+de tela e ações por linha com hierarquia. A `Sidebar` compartilhada deixa de prender o Tab com o
+drawer fechado, fecha com Esc e mostra o nome cortado no `title`.
+
+### Origem do achado (rastreabilidade)
+
+Os achados E\* vêm do relatório da **Sprint A0** (`designer-ui` e `visual-qa`, com verificação do
+orquestrador e aprovação do gerente), consolidados em `PLANO_SPRINTS_COLABORACAO.md` §3.2. Os itens
+16 e 17 vêm do `visual-qa` da **Sprint A1**. O exemplo morto do `DESIGN.md` vem do Backlog da **S0**.
+Estado atual de cada um, conferido no código:
+
+- **E1, cor crua** (`designer-ui`, A0). `app/admin/clients/novo/new-client-wizard.tsx:175`
+  (`border-emerald-500/40 bg-emerald-500/5`), `:181` (`bg-emerald-500/15`) e `:182`
+  (`text-emerald-600`), no estado "conectou" do passo 3. O PLANO citava `:181,187,188`; as linhas
+  andaram na A1.
+- **E2, casca sem token** (`designer-ui`, A0).
+  - `app/admin/clients/clients-panel.tsx`: `Card` do shadcn em `:80` (`PackagePanel`), `:120` e
+    `:127` (dentro do diálogo de credenciais), `:346` (erro da rotação) e `:365` (casca da lista).
+  - O estado vazio (`:368`) é uma caixa `rounded-lg border border-dashed` dentro desse `Card`: card
+    dentro de card.
+  - A tabela (`:373`) não usa `TABLE_SHELL_CLASS`, `TABLE_HEAD_ROW_CLASS`, `TABLE_HEAD_CLASS` nem
+    `TABLE_CELL_CLASS` (`lib/table-styles.ts`). Os `<th>` em `:376-381` usam `font-medium` em vez de
+    `.section-label`, e os `<td>` usam `px-4 py-3` em vez de `px-5 py-4 align-top`.
+  - O assistente tem a mesma casca sem token, fora do texto do gerente: `rounded-xl border bg-card`
+    sem `border-surface-line` em `new-client-wizard.tsx:174` (passo 3), `:268` (passo 1) e `:303`
+    (passo 2).
+- **E3/N3, `h1`** (`designer-ui`, A0; N3 do relatório A0).
+  - O único `<h1>` do admin é a marca "Inventário TI" em `components/sidebar.tsx:375`.
+    `/admin/clients` não tem `h1` por decisão registrada no comentário de `page.tsx:45-46`.
+    `/admin/clients/novo` não tem `h1` nem na página nem no assistente (os passos são `h2`).
+  - **Todas as 12 rotas** de `/app/[clientSlug]` têm `h1` de página incondicional, hoje somado ao da
+    marca: `page.tsx:197`, `alerts:51`, `assets:69`, `assets/[id]:152`, `audit:82`,
+    `computers:74`, `network:135`, `processors:60`, `reports:35`, `servers:80`, `settings:53`,
+    `storage:77`. Nenhuma fica com zero `h1` quando a marca deixar de ser `h1`.
+  - A `Sidebar` tem mais três consumidores, todos com `h1` próprio:
+    `app/admin/clients/audit/page.tsx:87`, `app/users/page.tsx:54` e `app/security/page.tsx:95`.
+    Ficam com exatamente um `h1` sem edição.
+- **E4**: resolvido na A1. Não entra aqui.
+- **E5, stepper** (`designer-ui`, A0; N13 do relatório A0).
+  - `Stepper` em `new-client-wizard.tsx:30-57` já é um `<ol>` (`:32`), mas não tem
+    `aria-current="step"` nem rótulo acessível.
+  - O círculo concluído mostra só o ícone `Check` (`:46`), sem texto.
+  - O rótulo some abaixo de `sm` (`hidden sm:inline`, `:48`): em 390 px o leitor de tela não ouve o
+    nome do passo.
+  - O conector (`:51`) não é `aria-hidden`.
+  - Com a máquina conectada, `step` vale `2` (`:252`) e `done = index < current` (`:34`), então o
+    passo 3 aparece "atual", nunca "concluído" (N13).
+  - O erro do passo 1 (`:290-294`) não tem `role="alert"`. O `role="status"` do passo 3 já existe
+    (`:172`, A1).
+- **E6, diálogo como primeiro recurso** (`designer-ui`, A0). `CredentialsDialog` em
+  `clients-panel.tsx:95-149`, `DialogContent className="sm:max-w-3xl"` (`:104`). Os estados de erro
+  (`:120`) e "indisponível" (`:127`) são `Card` dentro do diálogo. `DESIGN.md` §10: "Modal como
+  primeiro pensamento. Esgote inline/progressivo antes."
+- **E7, hierarquia e status** (`designer-ui`, A0; estava como [hipótese], agora confirmado no
+  código).
+  - "Abrir painel" (`:401-408`) fica numa coluna própria, "Painel", com `variant="secondary"`.
+  - "Ver credenciais" (`:417-420`, ícone `Eye`) e "Emitir novo pacote" (`:421-434`) estão na coluna
+    "Instalação", ambos `outline`, com o mesmo peso. A rotação usa o ícone `Terminal` (`:432`), que
+    não diz nada sobre emitir uma chave nova.
+  - O status é um `Badge` (`:389-399`) com texto minúsculo `ativo`/`inativo`. A cor **já** vem por
+    token (`border-success/40 bg-success/10 text-success`); o problema é a forma (não é
+    `StatusPill`) e a caixa.
+  - Estado vazio (`:367-370`): "Nenhum cliente cadastrado. Clique em **Novo cliente** para começar."
+    Não tem ação no próprio estado, e fica dentro de card.
+- **`CopyField`** (A0). `components/copy-field.tsx` **não tem cor literal** (ver as divergências).
+  Os desvios reais são:
+  - o rótulo (`:13`) usa `text-xs uppercase tracking-wide` solto em vez de `.section-label`;
+  - a chave e os comandos (`:15`) usam `font-mono` em vez de `.data-mono` (`DESIGN.md` §3.1 lista
+    "chave" como dado técnico);
+  - a confirmação de cópia é só a troca de ícone (`:29`), sem anúncio para leitor de tela;
+  - `navigator.clipboard.writeText` (`:24`) não tem tratamento de falha. Em contexto não seguro
+    (HTTP fora de `localhost`), `navigator.clipboard` é `undefined` e o clique falha em silêncio.
+- **`DESIGN.md` §2.1** (Backlog da S0). O exemplo em `DESIGN.md:54-57` cita
+  `components/stat-cards.tsx`, apagado na Sprint 16. O equivalente vivo é
+  `lib/kpi-tone.ts:46-53` (`KPI_TONE_GLOW_CLASS`), onde a linha é
+  `success: '[--surface-glow:var(--color-success)]'`, sem o `border-success/25` do exemplo.
+- **Backlog 16** (`visual-qa`, A1). O `aside` (`components/sidebar.tsx:363-369`) só sai da tela com
+  `-translate-x-full` e continua no Tab. Não há handler de Esc. O botão "Abrir menu" (`:333-342`) é
+  desmontado enquanto o drawer está aberto, então devolver o foco a ele exige esperar a remontagem.
+- **Backlog 17** (`visual-qa`, A1). `components/sidebar.tsx:447`, `p.truncate` sem `title`, no
+  rodapé das telas sem tenant. O rodapé do tenant tem o mesmo padrão em `:418-419` (nome do usuário
+  e papel, `truncate`, sem `title`). O item 17 só citava `:447`.
+
+### RFs relacionados
+
+- **RF002**: cadastro de tenant. É a tela do assistente; nenhuma regra muda.
+- **RF003**: enrollment de agente. É a tela de credenciais e rotação; nenhuma regra muda.
+
+### RNs / RNFs relacionados
+
+- **RN015**: "Ver credenciais" e "Emitir novo pacote" continuam atrás de `canManageTenant` no
+  servidor. Esta sprint não muda guard.
+- **RNF004**: nenhuma query muda; o escopo por organização de `getClients` fica como está.
+- **RNF009**: cada "Ver credenciais" continua sendo **um** `GET /api/clients/[id]/credentials`
+  disparado por clique explícito, e por isso grava **um** `credentials.view`. Se o E6 virar inline,
+  o conteúdo não pode ser buscado de antemão, no render nem no hover.
+- **Lacuna de DoD (item 2)**: não existe RF/RNF de acessibilidade ou de sistema visual em
+  `docs/PRODUCT.md` §1–2. A referência normativa desta sprint é o `DESIGN.md`. O planner registra a
+  lacuna e não propõe ID novo sozinho; o gerente decide se vale um RNF.
+
+### Casos de uso
+
+- `docs/PRODUCT.md` §3.1 (cadastro de tenant) e §3.2 (enrollment). Os fluxos não mudam; muda só a
+  apresentação. A exceção é o E6: na opção recomendada, as credenciais deixam de abrir em modal, e
+  isso é mudança de **apresentação** do mesmo fluxo, não de regra.
+
+### Entidades de banco
+
+Nenhuma alteração de schema, migration, `db push` ou backup. Nenhuma entidade nova é lida: a tela
+consome os mesmos dados de `getClients` e das rotas já existentes.
+
+Fixture de verificação visual: o cliente `teste-a0-rotacao`. **Nunca rotacionar `core-ti-expert`.**
+Ver a decisão 7: o D12 do PLANO só autorizou a fixture "durante as sprints A1a e A1".
+
+### Escopo
+
+| Item | RF/RN relacionado | Caso de uso | Entidade(s) de banco | Origem do achado |
+|---|---|---|---|---|
+| 1 — **E1**: no passo 3 conectado, `emerald-*` vira token `--success`: `:175` → `border-success/40 bg-success/5` (ou o equivalente do item 2), `:181` → `bg-success/15`, `:182` → `text-success`. Zero cor literal em `new-client-wizard.tsx` | RF003 | PRODUCT §3.2 | — | designer-ui (A0, E1) |
+| 2 — **E2, assistente**: as três cascas `rounded-xl border bg-card` (`:174`, `:268`, `:303`) viram `Panel` (`components/ui/panel.tsx`); títulos de passo via `PanelHeader` (`h2`) e corpo via `PanelBody`. O tom de sucesso do passo 3 entra pela `className` do `Panel` | RF002, RF003 | PRODUCT §3.1, §3.2 | — | designer-ui (A0, E2 ampliado) |
+| 3 — **E2, painel de clientes**: a casca da lista (`:365`) vira `Panel`, com a tabela em `TABLE_SHELL_CLASS` (ou `PanelBody flush`) + `overflow-x-auto`, `TABLE_HEAD_ROW_CLASS` no `<tr>` do `<thead>`, `TABLE_HEAD_CLASS` nos `<th>` e `TABLE_CELL_CLASS` nos `<td>`. `PackagePanel` (`:80`) e o erro da rotação (`:346`) viram `Panel`. Nenhum `Card` sobra em `clients-panel.tsx` | RF003 | PRODUCT §3.1 | — | designer-ui (A0, E2) |
+| 4 — **E3/N3**: a marca de `components/sidebar.tsx:375` vira `<p>` ou `<span>` com a mesma aparência. `/admin/clients` ganha `<h1>Clientes</h1>` no padrão de cabeçalho de página (`flex flex-wrap items-start justify-between gap-4`, `h1 text-2xl font-bold text-foreground`), com a descrição e o botão "Novo cliente" já existentes (`page.tsx:47-57`); o comentário `:45-46` sai. `/admin/clients/novo` ganha `<h1>Novo cliente</h1>` no assistente, entre o link "Clientes" e o stepper | — | — | — | designer-ui (A0, E3); N3 (A0) |
+| 5 — **E5, stepper (TDD, vermelho primeiro)**: ver o detalhamento abaixo da tabela | RF002, RF003 | PRODUCT §3.1 | — | designer-ui (A0, E5); N13 (A0) |
+| 6 — **E5, mensagens**: o erro do passo 1 (`:290-294`) ganha `role="alert"`. O `role="status"` do passo 3 (`:172`) fica como está e continua **único** dentro de `FirstCheckinStatus` | RF002 | PRODUCT §3.1 | — | designer-ui (A0, E5) |
+| 7 — **E6, "Credenciais ativas"**: conforme a **decisão 1**. Em qualquer opção: nenhum `Card` dentro, cabeçalho e espaçamento de `Panel`, loading/erro/indisponível/disponível preservados, a busca só acontece no clique e o foco vai para o conteúdo quando ele chega | RF003, RN015, RNF009 | PRODUCT §3.1 | Client, AuditLog (via rota existente, sem mudança) | designer-ui (A0, E6) |
+| 8 — **E7, hierarquia e status**: conforme a **decisão 2**. Status vira `StatusPill` (`success` "Ativo" / `neutral` "Inativo"), como `components/tenant-computers-table.tsx:68-74` traduz o próprio enum. "Abrir painel" é a única ação com peso de preenchimento na linha; "Ver credenciais" e "Emitir novo pacote" ficam abaixo dela. O ícone `Terminal` sai da rotação (troca por ícone que signifique "nova chave/rotação" ou nenhum ícone; nada decorativo). O estado vazio explica por que está vazio e oferece a ação no próprio estado (link para `/admin/clients/novo`), sem caixa com borda dentro do painel | RF002, RF003 | PRODUCT §3.1 | — | designer-ui (A0, E7) |
+| 9 — **CopyField**: rótulo em `.section-label`, valor em `.data-mono`, borda do campo por token. Confirmação de cópia anunciada a leitor de tela. Falha de cópia conforme a **decisão 5** | RF003 | PRODUCT §3.1 | — | A0 (CopyField); conferido nesta rodada |
+| 10 — **`agent-install-package.tsx:63`**: o separador `border-t` das "outras formas de instalar" ganha `border-surface-line`. Nenhuma mudança de copy (a A1 fechou a copy) | RF003 | — | — | designer-ui (A0, E2 ampliado); conferido nesta rodada |
+| 11 — **`DESIGN.md` §2.1**: o exemplo `:54-57` passa a citar `lib/kpi-tone.ts` (`KPI_TONE_GLOW_CLASS`) com a linha real `success: '[--surface-glow:var(--color-success)]'`. Única edição permitida no `DESIGN.md` (ver a decisão 4 para `:217`) | — | — | — | S0 (Backlog gerado pela S0) |
+| 12 — **Backlog 16 (TDD, vermelho primeiro)**: abaixo de `lg`, com o drawer fechado, o `aside` sai do Tab e da árvore de acessibilidade (`inert`, ou `invisible` + `lg:visible`). A partir de `lg` a sidebar continua focável normalmente. Com o drawer aberto, Esc fecha e o foco volta a "Abrir menu". A técnica fica com o implementador; a animação de saída não pode ser cortada pela ocultação | — | — | — | visual-qa (A1, achado 3; Backlog 16) |
+| 13 — **Backlog 17**: `title={user.name ?? user.email}` no nome truncado de `components/sidebar.tsx:447`, como `:415` já faz com `tenant.name`. Extensão conforme a **decisão 6**: o mesmo em `:418-419` | — | — | — | visual-qa (A1, achado 4; Backlog 17) |
+| 14 — **Testes** em `tests/` com `// @vitest-environment jsdom`: stepper, `h1` do assistente, credenciais (item 7), `StatusPill`/estado vazio (item 8), `CopyField` (item 9), drawer e `title` (itens 12 e 13), marca sem `h1` (item 4) | — | — | — | gerente (TDD onde houver comportamento) |
+
+**Item 5, stepper em detalhe** (`new-client-wizard.tsx:30-57`):
+- `<ol>` com nome acessível (ex.: `aria-label="Etapas"`).
+- Exatamente um `<li>` com `aria-current="step"` em cada estado: passo 1 sem pacote, passo 2 com
+  pacote, passo 3 com a máquina conectada.
+- Cada passo concluído expõe texto acessível ("concluído"). O ícone `Check` e o conector `:51` ficam
+  `aria-hidden`.
+- O rótulo do passo continua visível a partir de `sm` e vira `sr-only` abaixo de `sm`, em vez de
+  `hidden`.
+- **N13**: com `checkin.status.device` presente, o passo 3 aparece como **concluído** (círculo com
+  `Check` e texto "concluído") e mantém o `aria-current="step"`. Hoje ele fica só "atual" (`:252` e
+  `:34`).
+- Estado derivado, sem `setState` em efeito.
+- Teste renderizando `NewClientWizard` com `createClientAction` mockada e `fetch` mockado para
+  `/api/clients/[id]/status`.
+
+**Ordem de execução recomendada:**
+1. `/critique` (impeccable) e captura **antes** pelo `visual-qa`;
+2. testes vermelhos dos itens 5, 12 e 13 e da marca sem `h1`;
+3. item 4 (marca e `h1`) e itens 12 e 13 (sidebar);
+4. itens 1, 2, 5 e 6 (assistente);
+5. itens 3, 7 e 8 (painel de clientes);
+6. itens 9 e 10 (`CopyField`, `AgentInstallPackage`);
+7. item 11 (`DESIGN.md`);
+8. portões;
+9. `visual-qa` e `/critique` **depois**.
+
+### Decisões que ficam para o usuário
+
+1. **E6: diálogo ou inline.** Três opções:
+   - **(A)** manter o `Dialog` sem `Card` dentro, com cabeçalho e espaçamento de `Panel`;
+   - **(B)** linha expansível na tabela;
+   - **(C)** inline: as credenciais abrem como `Panel` no mesmo espaço de resultado que a A1 criou
+     para a rotação (`clients-panel.tsx:336-363`), acima da tabela, com o botão "Dispensar" e o foco
+     levado ao painel.
+
+   **Recomendação do planner: (C).**
+   - O `DESIGN.md` §10 manda esgotar o inline antes do modal, e (C) é um inline viável.
+   - (B) põe um bloco largo (botão de download, chave, dois comandos) dentro de um `<tr colSpan>`,
+     dentro do `overflow-x-auto` da tabela. Em 390 px esse bloco rolaria na horizontal junto com a
+     tabela, que é a medida que a A1 acabou de consertar.
+   - (C) reaproveita o padrão já testado na A1 (foco, `aria-live`, dispensar) e dá **um** lugar só
+     para "o pacote deste cliente", seja ele rotacionado ou consultado.
+   - Custo de (C): em lista longa, o painel aparece longe da linha clicada. O foco programático
+     resolve a rolagem.
+   - Regra a aprovar junto: o espaço mostra **um** resultado por vez, e a ação mais recente substitui
+     a anterior.
+
+   (A) é a opção de menor risco se o usuário preferir não mexer no padrão de interação.
+2. **E7: onde fica "Emitir novo pacote".**
+   - **(a)** visível na linha, com peso menor (ghost), ao lado de "Ver credenciais";
+   - **(b)** dentro de um menu "Mais ações" (`DropdownMenu`) por linha.
+
+   **Recomendação: (a).** O `AlertDialog` da A1 já protege a ação destrutiva. Esconder num menu
+   muda o contrato de foco testado na A1 (`tests/clients-panel-rotation.test.tsx:180`, "Cancelar
+   devolve o foco ao botão 'Emitir novo pacote'"), e esse teste teria de ser reescrito.
+
+   Em aberto: dar ao "Confirmar" do `AlertDialog` o estilo destrutivo (`--destructive-solid`, só
+   cor; o rótulo "Confirmar" fica, porque os testes da A1 o usam).
+3. **Callout com borda de tom dentro de `Panel`.** O aviso da chave
+   (`agent-install-package.tsx:34`), o erro (`new-client-wizard.tsx:221`) e o checklist de tempo
+   esgotado (`:228`) são caixas com borda de 1px no tom. O planner as trata como **alerta**, não como
+   card, e portanto permitidas dentro de `Panel`. Se o usuário ler a regra "nenhum card dentro de
+   painel" de forma estrita, elas viram blocos sem borda com ícone de tom, e isso entra no escopo.
+4. **`DESIGN.md:217`** cita `SummaryCard` e `StatCard`, também extintos na Sprint 16. Mesma classe
+   do exemplo de §2.1, mas fora da edição autorizada. O planner recomenda liberar a troca por
+   `KpiCard`; sem liberação, a linha fica desatualizada.
+5. **`CopyField`, falha de cópia.** Incluir uma mensagem visível quando
+   `navigator.clipboard` não existir ou rejeitar? É só do cliente, sem servidor. O planner recomenda
+   incluir: é o mesmo "nada acontece em silêncio" da A1.
+6. **Item 17 estendido** ao rodapé do tenant (`sidebar.tsx:418-419`). O planner recomenda incluir:
+   mesmo componente, mesmo defeito.
+7. **D12, fixture**: o PLANO autoriza `teste-a0-rotacao` "durante as sprints A1a e A1". A
+   verificação desta sprint rotaciona esse cliente de novo. Precisa de extensão explícita até o fim
+   da A2 (ou da frente A).
+8. **Itens do rascunho do PLANO §7 que o escopo do gerente não incluiu**: hook do impeccable
+   (`.claude/settings.json`, D8), `/shape` (depende da D7, `PRODUCT.md` na raiz) e `/polish` final.
+   Este plano os deixa **fora**. Confirmar.
+
+### Divergências registradas
+
+1. **E1**: as linhas do gerente (`:175`, `:181`, `:182`) batem com o código. As do PLANO
+   (`:181,187,188`) estão velhas.
+2. **E2 maior que o citado**: além de `:80` e `:120`, há `Card` em `:127`, `:346` e `:365`. O
+   assistente tem três cascas sem token (`:174`, `:268`, `:303`). Todas entraram nos itens 2 e 3.
+3. **E3**: as 12 rotas do tenant têm `h1` (lista na Origem). A troca da marca não deixa nenhuma com
+   zero `h1` **depois de carregada**. Porém os 11 `loading.tsx` de `app/app/[clientSlug]/**` não têm
+   `h1`: durante o carregamento a página passa de 1 `h1` (a marca) para 0. Isso fica registrado e
+   fora de escopo (ver abaixo). Há ainda três consumidores da `Sidebar` que o gerente não citou
+   (`/admin/clients/audit`, `/users`, `/security`), todos com `h1` próprio e sem edição necessária.
+   `/users` é proibido e não precisa ser tocado.
+4. **E5**: a lista já é `<ol>`. O que falta é `aria-current`, o nome acessível e o texto de
+   concluído.
+5. **E7**: a cor do status **já** é token (`success`). O achado é a forma e a caixa, não cor crua.
+   "Abrir painel" está numa coluna separada, não no grupo das outras duas ações.
+6. **CopyField**: a A0 apontou "cor fora de token". Não há cor literal no arquivo. Os desvios são o
+   tipo do rótulo, a fonte do valor, a falta de anúncio de cópia e a falha silenciosa.
+7. **Item 17**: o mesmo defeito existe em `sidebar.tsx:418-419` (decisão 6).
+8. **PLANO §6.1**: o bloco "Backlog gerado pela S0" diz "não entra na A0–A2" e, na linha seguinte,
+   destina o exemplo do `DESIGN.md` à A2. O plano segue a linha específica (A2), como pediu o
+   gerente.
+
+### Restrições de compatibilidade
+
+- **Arquivos permitidos**: `app/admin/clients/**`, `components/agent-install-package.tsx`,
+  `components/copy-field.tsx`, `components/sidebar.tsx` (só a marca do item 4 e os itens 12 e 13),
+  `DESIGN.md` (só o exemplo de §2.1, mais `:217` se a decisão 4 liberar), `tests/` e
+  `docs/SPRINTS.md`.
+- **Proibido**: `app/users/page.tsx` e qualquer mudança de comportamento de servidor, de action ou de
+  rota. Nenhuma página do tenant precisa de edição para o E3 (todas já têm `h1`).
+- `tests/new-client-wizard-first-checkin.test.tsx` usa `screen.getByRole('status')` (`:48-49`), que
+  falha se houver mais de uma região `status` em `FirstCheckinStatus`. Um anúncio novo do
+  `CopyField` não pode criar outra região `status` nessa árvore. Ele pode usar `aria-live` sem
+  `role="status"`, ou viver fora dela.
+- `tests/clients-panel-rotation.test.tsx` usa `alertdialog`, "Cancelar", "Confirmar", "Dispensar" e
+  `data-testid="rotation-result"`. Esses contratos ficam. Se a decisão 1 for (C) e o espaço de
+  resultado mudar de forma, o `data-testid` e o foco continuam valendo para a rotação.
+- `AgentInstallPackage` tem três consumidores (assistente, credenciais, estado vazio do dashboard do
+  tenant). A mudança do item 10 aparece nos três.
+- Zero cor literal, zero `dark:` novo, nenhum `hover:scale`, movimento só para estado (`DESIGN.md`
+  §6 e §10).
+- Sem "cara de IA" (`inventario-ui` §d): nenhum ícone decorativo novo, orbe, gradiente ou halo, e
+  nenhum texto de template no estado vazio.
+
+### Critérios de aceite
+
+- [x] **E1**: `rg "emerald|#[0-9a-fA-F]{3,8}\b|rgb\(|oklch\(" app/admin/clients components/copy-field.tsx components/agent-install-package.tsx`
+      não retorna nada. O estado "conectou" usa `--success` (`border-success`, `bg-success`,
+      `text-success`).
+- [x] **E2, assistente**: `rg "rounded-xl border bg-card" app/admin/clients` não retorna nada. Os três
+      passos são `Panel`.
+- [x] **E2, painel**: `rg "@/components/ui/card" app/admin/clients` não retorna nada. A tabela de
+      clientes usa `TABLE_SHELL_CLASS` (ou `Panel` + `PanelBody flush`), `TABLE_HEAD_ROW_CLASS`,
+      `TABLE_HEAD_CLASS` e `TABLE_CELL_CLASS`, e nenhum `<th>` usa `font-medium`. Nenhuma superfície
+      com borda própria dentro de `Panel`, exceto os callouts de tom, se a decisão 3 os mantiver.
+- [x] **E3, sidebar**: teste jsdom renderiza `Sidebar` (com e sem tenant) e afirma zero `h1`, com o
+      texto "Inventário TI" ainda presente.
+- [x] **E3, admin**: `/admin/clients` tem exatamente um `h1`, "Clientes". `/admin/clients/novo` tem
+      exatamente um `h1`, "Novo cliente" (afirmado em teste jsdom do `NewClientWizard`). O
+      comentário "Sem h1 aqui" sai de `page.tsx`.
+- [x] **E3, medido**: o `visual-qa` mede `document.querySelectorAll('h1').length === 1`, com a página
+      carregada, em `/admin/clients`, `/admin/clients/novo` e em 3 rotas do tenant
+      (`/app/teste-a0-rotacao`, `/app/teste-a0-rotacao/computers` e
+      `/app/teste-a0-rotacao/assets/<id>` se houver dispositivo, senão `/settings`).
+- [x] **E5, TDD**: existe teste novo do stepper em `tests/` (`// @vitest-environment jsdom`), e o
+      relatório do implementador mostra a execução **vermelha** antes da correção.
+- [x] **E5, `aria-current`**: em cada estado (sem pacote, com pacote, conectado), exatamente um
+      `<li>` do stepper tem `aria-current="step"`, e é o passo 1, 2 e 3 respectivamente. O `<ol>`
+      tem nome acessível.
+- [x] **E5, N13**: com a máquina conectada, os três passos expõem o texto acessível "concluído", e o
+      passo 3 mostra o `Check` (afirmado em teste).
+- [x] **E5, 390 px**: o nome de cada passo está no nome acessível do `<li>` em qualquer largura
+      (`sr-only` abaixo de `sm`, não `hidden`). Ícone e conector têm `aria-hidden`.
+- [x] **E5, mensagens**: o erro do passo 1 está em `role="alert"`. Os testes existentes de
+      `tests/new-client-wizard-first-checkin.test.tsx` continuam verdes sem alteração.
+- [x] **E6**: implementado conforme a opção aprovada na decisão 1. Nenhum `Card` dentro. Teste jsdom
+      afirma:
+      - o clique em "Ver credenciais" dispara **uma** requisição a
+        `/api/clients/<id>/credentials`;
+      - nada é buscado antes do clique;
+      - loading, erro, indisponível e disponível aparecem;
+      - o foco vai para o conteúdo;
+      - "Dispensar" (ou fechar) remove o conteúdo.
+- [x] **E6, opção (C)**, se aprovada: nenhum `role="dialog"` é aberto por "Ver credenciais", e uma
+      rotação feita depois substitui o painel de credenciais no mesmo espaço (afirmado em teste).
+- [x] **E7, status**: a coluna Status usa `StatusPill` (`success`/"Ativo", `neutral`/"Inativo"). Não
+      resta `Badge` de status em `clients-panel.tsx` (afirmado em teste).
+- [x] **E7, hierarquia**: em cada linha, só "Abrir painel" tem variante de preenchimento. "Ver
+      credenciais" e "Emitir novo pacote" usam variante de menor peso (ou menu, se a decisão 2 for
+      (b)). `rg "Terminal" app/admin/clients/clients-panel.tsx` não retorna nada.
+- [x] **E7, estado vazio**: com zero clientes, o painel diz por que está vazio e mostra um link
+      focável para `/admin/clients/novo`, sem caixa com borda dentro do painel (afirmado em teste).
+- [x] **CopyField**: o rótulo usa `.section-label`, o valor usa `.data-mono`, e não há `font-mono`
+      solto. Teste jsdom com `navigator.clipboard` mockado afirma que a cópia bem-sucedida é
+      anunciada em texto acessível. Se a decisão 5 for aprovada, outro teste afirma que a falha
+      (`clipboard` ausente ou rejeitado) mostra mensagem visível.
+- [x] **`AgentInstallPackage`**: o separador de `:63` usa `border-surface-line`.
+      `tests/agent-install-package-copy.test.tsx` segue verde sem alteração.
+- [x] **`DESIGN.md`**: `rg "stat-cards" DESIGN.md` não retorna nada. O exemplo de §2.1 cita
+      `lib/kpi-tone.ts` com a linha real de `KPI_TONE_GLOW_CLASS`. Nenhuma outra linha do `DESIGN.md`
+      muda, salvo `:217` se a decisão 4 liberar.
+- [x] **Backlog 16, TDD**: existe teste novo da sidebar (`// @vitest-environment jsdom`), e o
+      relatório mostra a execução **vermelha** antes da correção.
+- [x] **Backlog 16, Tab**: com o drawer fechado abaixo de `lg`, o `aside` está `inert` (ou
+      `visibility: hidden`), afirmado em teste. Medido pelo `visual-qa` em 390 px: a partir do topo
+      da página, o Tab não para em "Fechar menu", nos itens do menu nem no menu do usuário antes do
+      conteúdo. Em 1440 px os itens da sidebar continuam alcançáveis pelo Tab.
+- [x] **Backlog 16, Esc**: com o drawer aberto, Esc fecha e o foco fica em "Abrir menu" (afirmado
+      em teste e no navegador).
+- [x] **Backlog 17**: o nome truncado de `sidebar.tsx:447` tem `title` com o nome completo (afirmado
+      em teste). Se a decisão 6 for aprovada, o mesmo vale para `:418-419`.
+- [x] **Regras do `DESIGN.md` no diff**: `rg "dark:|hover:scale|animate-ping"` nos arquivos tocados
+      não acusa nada **novo** (colar o grep no relatório). Nenhum ícone decorativo, gradiente ou orbe
+      novo.
+- [x] **Contraste**: o `visual-qa` mede (não estima) ≥ 4.5:1 para todo texto novo ou recolorido, em
+      especial o texto de sucesso do passo 3 e os rótulos da `StatusPill`.
+- [x] **Verificação visual**: o `visual-qa` captura, **antes e depois**, em **390, 1024 e 1440 px**,
+      com screenshots fora do repositório e caminhos absolutos no relatório:
+      - `/admin/clients`, com a lista e com o estado vazio, se reproduzível sem apagar dado;
+      - `/admin/clients/novo`, nos passos 1, 2 e 3;
+      - as credenciais ("Ver credenciais") abertas;
+      - o diálogo de rotação, aberto e depois de confirmar;
+      - as 3 rotas do tenant do critério E3, com o drawer aberto e fechado em 390 px.
+
+      `scrollWidth <= clientWidth` em todas. A rotação real é feita **só** em `teste-a0-rotacao`,
+      **nunca** em `core-ti-expert`.
+- [x] **Referência de qualidade**: `/critique` (impeccable) rodado antes e depois em
+      `/admin/clients` e `/admin/clients/novo`, com as duas notas no relatório. A A0 registrou
+      22/40. A nota é referência, não portão.
+- [x] **Segurança**: o `security-auditor` revisa o diff e confirma:
+      - nenhuma mudança de guard, action ou rota;
+      - "Ver credenciais" continua gerando um `credentials.view` por clique;
+      - nenhum segredo é buscado ou renderizado sem ação explícita.
+- [x] **Escopo de arquivos**: o diff toca só os arquivos permitidos acima. `app/users/page.tsx`
+      fica intocado. Nenhum arquivo em `app/api/**`, em `app/admin/clients/actions.ts`, em
+      `queries.ts` ou em `lib/**` muda.
+- [x] Portão 1: `npm run typecheck` limpo.
+- [x] Portão 2: `npm run lint` limpo, inclusive `react-hooks/set-state-in-effect`.
+- [x] Portão 3: `npm run build:verify` limpo. **Não** rodar com o `next dev` de pé; o implementador
+      avisa o orquestrador antes do build.
+- [x] Portão 4: `npm test` verde com **mais de 851 testes** (baseline: 851 testes / 68 arquivos
+      depois de `804d9a6`; o commit cita 848 porque os 3 testes de acessibilidade entraram depois).
+- [x] DoD (`docs/DEFINITION_OF_DONE.md`): os 10 itens conferidos um a um, com ✅ ou N/A e
+      justificativa. "Banco de dados e migrations" é N/A, porque não há mudança de schema. "Validação
+      Zod" é N/A, porque não há entrada nova. "RF/RN" registra a lacuna de RNF de acessibilidade.
+- [x] Sem commit e sem push.
+
+### Fora de escopo desta sprint
+
+- **E4 nas outras telas que usam a `Sidebar`**: `app/admin/clients/audit/page.tsx:81-83`,
+  `app/security/page.tsx:90-92` e `app/users/page.tsx:49-51` ainda usam `pl-64` e `p-6` fixos e
+  quebram abaixo de `lg`. O primeiro está dentro de `app/admin/clients/**`, mas fora do fluxo "Gerar
+  agente" e do escopo do gerente. `/users` é proibido. Candidato a Backlog ou à V17, por decisão do
+  gerente.
+- **`h1` nos `loading.tsx`** do tenant (11 arquivos), que ficam com zero `h1` durante o carregamento
+  depois desta sprint. Candidato à V17 (alinhamento e `h1`).
+- **Foco preso no drawer aberto** (Tab saindo do drawer para o conteúdo atrás do overlay). O item 16
+  pede só Tab com o drawer fechado e Esc.
+- `encodeURIComponent` no link de download de `agent-install-package.tsx:28` é mudança de URL e
+  comportamento, não visual. Os valores já passam pela allowlist da A1a.
+- Mudar o rótulo "Confirmar" do `AlertDialog` da rotação (contrato de teste da A1).
+- **A3**: F4, F5, N4, N5, N12. **Backlog**: N6, N7, N9, N10, N11 e os itens 1 a 15.
+- Hook do impeccable (D8), `/shape` (D7) e `/polish` final (decisão 8).
+- `KpiCard` no admin: a tela não tem KPI hoje, e o escopo do gerente não pede.
+
+### Documentação que ficará desatualizada (não editada por este plano)
+
+- `DESIGN.md` §11 (`:454`) diz que `app/admin/clients/**` "ainda não [foi] redesenhado". Isso passa
+  a ser falso depois desta sprint, mas fica fora da edição autorizada (só o §2.1). Precisa de
+  liberação do gerente.
+- `DESIGN.md:217` (`SummaryCard`, `StatCard`), se a decisão 4 não liberar a edição.
+- `PLANO_SPRINTS_COLABORACAO.md` §6 ainda mostra A1a/A1/A2 com os status antigos, e o §6.1 D12 limita
+  a fixture à A1. O documento é do gerente; o planner não o edita.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -2521,6 +2920,8 @@ Observado no navegador em `/admin/clients`; em `/app/**` é inferido (mesmo comp
 da A1. Correção proposta: `inert` (ou `invisible` + `aria-hidden`) no `aside` quando
 `!mobileOpen` abaixo de `lg`, e handler de Esc que fecha e devolve o foco a "Abrir menu".
 
+→ Movido para a Sprint A2 (item 12 do Escopo).
+
 ---
 
 ### 17. Nome do usuário cortado no rodapé da `Sidebar` sem `title` — BAIXO (achado 4 do visual-qa na Sprint A1; para a Sprint A2)
@@ -2531,3 +2932,5 @@ larguras.
 
 **Por que fica pendente**: mesma casca compartilhada do item 16. Correção: `title={user.name}`, como
 a linha 415 já faz com `title={tenant.name}`.
+
+→ Movido para a Sprint A2 (item 13 do Escopo).

@@ -2,16 +2,16 @@
 
 import Link from 'next/link'
 import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Eye, Loader2, Terminal, X } from 'lucide-react'
+import { ArrowUpRight, Eye, Loader2, X } from 'lucide-react'
 import {
   initialProvisioningState,
   type ProvisioningActionState,
   type ProvisioningCredentialsResponse,
   type ProvisioningPackage,
 } from './types'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
+import { StatusPill } from '@/components/ui/status-pill'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,9 +22,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { AgentInstallPackage } from '@/components/agent-install-package'
 import { getTenantBasePath } from '@/lib/tenant-links'
+import {
+  STATIC_ROW_HOVER_CLASS,
+  TABLE_CELL_CLASS,
+  TABLE_HEAD_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TABLE_SHELL_CLASS,
+} from '@/lib/table-styles'
+import { cn } from '@/lib/utils'
 
 type ClientRow = {
   id: string
@@ -46,18 +53,21 @@ type ClientsPanelProps = {
   ) => Promise<ProvisioningActionState>
 }
 
-type CredentialsDialogState =
-  | { open: false; client: null; loading: false; error: null; data: null }
+/**
+ * Credenciais ativas consultadas por "Ver credenciais". `client: null` = nada
+ * aberto. Sprint A2, E6 (decisao 1 = C): deixou de ser Dialog e virou Panel
+ * inline no mesmo espaco do resultado da rotacao.
+ */
+type CredentialsState =
+  | { client: null; loading: false; error: null; data: null }
   | {
-      open: true
       client: ClientRow
       loading: boolean
       error: string | null
       data: ProvisioningCredentialsResponse | null
     }
 
-const emptyCredentialsDialogState: CredentialsDialogState = {
-  open: false,
+const emptyCredentialsState: CredentialsState = {
   client: null,
   loading: false,
   error: null,
@@ -77,74 +87,59 @@ function PackagePanel({
   message?: string | null
 }) {
   return (
-    <Card className="border-primary/40 bg-primary/5">
-      <CardHeader className="pr-14">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge>Novo pacote emitido</Badge>
-          <CardTitle>{pkg.clientName}</CardTitle>
-        </div>
-        <CardDescription>{message || rotationDoneMessage}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Panel className="border-primary/40">
+      <PanelHeader
+        className="pr-14"
+        title={`Novo pacote emitido: ${pkg.clientName}`}
+        description={message || rotationDoneMessage}
+      />
+      <PanelBody>
         <AgentInstallPackage pkg={pkg} keyIsFresh />
-      </CardContent>
-    </Card>
+      </PanelBody>
+    </Panel>
   )
 }
 
-function CredentialsDialog({
-  state,
-  onOpenChange,
-}: {
-  state: CredentialsDialogState
-  onOpenChange: (open: boolean) => void
-}) {
+/** Conteudo de "Ver credenciais": carregando, erro, indisponivel ou disponivel. */
+function CredentialsPanel({ state }: { state: Exclude<CredentialsState, { client: null }> }) {
   return (
-    <Dialog open={state.open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Credenciais ativas</DialogTitle>
-          <DialogDescription>
-            {state.open && state.client
-              ? `Pacote ativo do cliente ${state.client.name} sem rotacionar a chave atual.`
-              : 'Pacote ativo do cliente.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        {!state.open ? null : state.loading ? (
-          <div className="flex items-center justify-center gap-3 py-10 text-sm text-muted-foreground">
+    <Panel className={cn(state.error && 'border-destructive/40')}>
+      <PanelHeader
+        className="pr-14"
+        title="Credenciais ativas"
+        description={`Pacote ativo de ${state.client.name}, sem rotacionar a chave atual.`}
+      />
+      <PanelBody>
+        {state.loading ? (
+          <p className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Carregando credenciais ativas...
-          </div>
+          </p>
         ) : state.error ? (
-          <Card className="border-destructive/40">
-            <CardHeader>
-              <CardTitle>Falha ao consultar credenciais</CardTitle>
-              <CardDescription>{state.error}</CardDescription>
-            </CardHeader>
-          </Card>
+          <div className="space-y-1 text-sm">
+            <p className="font-medium text-destructive">Falha ao consultar credenciais</p>
+            <p className="text-muted-foreground">{state.error}</p>
+          </div>
         ) : state.data?.status === 'unavailable' ? (
-          <Card className="border-border/60 bg-muted/30">
-            <CardHeader>
-              <CardTitle>Pacote ativo indisponível</CardTitle>
-              <CardDescription>{state.data.message}</CardDescription>
-            </CardHeader>
-          </Card>
+          <div className="space-y-1 text-sm">
+            <p className="font-medium text-foreground">Pacote ativo indisponível</p>
+            <p className="text-muted-foreground">{state.data.message}</p>
+          </div>
         ) : state.data?.status === 'available' ? (
           <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {state.data.generatedAt
                 ? `Último pacote persistido em ${new Intl.DateTimeFormat('pt-BR', {
                     dateStyle: 'short',
                     timeStyle: 'short',
                   }).format(new Date(state.data.generatedAt))}.`
                 : 'Pacote ativo persistido sem carimbo de data disponível.'}
-            </div>
+            </p>
             <AgentInstallPackage pkg={state.data.package} keyIsFresh={false} />
           </div>
         ) : null}
-      </DialogContent>
-    </Dialog>
+      </PanelBody>
+    </Panel>
   )
 }
 
@@ -191,7 +186,11 @@ function RotateConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Confirmar</AlertDialogAction>
+          {/* Acao destrutiva (invalida os instaladores emitidos): estilo
+              destrutivo, mesmo rotulo (contrato de teste da A1). */}
+          <AlertDialogAction className={buttonVariants({ variant: 'destructive' })} onClick={onConfirm}>
+            Confirmar
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -216,9 +215,10 @@ export function ClientsPanel({
   // Uma rotacao nova devolve outro objeto e volta a aparecer.
   const [dismissedState, setDismissedState] = useState<ProvisioningActionState | null>(null)
   const result = rotateState === dismissedState ? initialProvisioningState : rotateState
-  const [credentialsDialog, setCredentialsDialog] = useState<CredentialsDialogState>(
-    emptyCredentialsDialogState
-  )
+  // Um resultado por vez no espaco acima da tabela, e a acao mais recente
+  // substitui a anterior: "Ver credenciais" dispensa o resultado da rotacao, e
+  // confirmar uma rotacao fecha as credenciais.
+  const [credentials, setCredentials] = useState<CredentialsState>(emptyCredentialsState)
   const credentialsRequestId = useRef(0)
   // O dialogo e controlado e nao tem AlertDialogTrigger, entao o Radix nao sabe
   // para onde devolver o foco ao fechar. Guardamos o botao que o abriu.
@@ -233,7 +233,14 @@ export function ClientsPanel({
     formData.set('clientId', rotateTarget.id)
     rotationConfirmedRef.current = true
     setRotateDialogOpen(false)
+    closeCredentials()
     startTransition(() => rotateAction(formData))
+  }
+
+  function closeCredentials() {
+    // Invalida uma consulta ainda em voo: a resposta tardia nao reabre o painel.
+    credentialsRequestId.current += 1
+    setCredentials(emptyCredentialsState)
   }
 
   function handleRotateDialogCloseAutoFocus(event: Event) {
@@ -249,11 +256,24 @@ export function ClientsPanel({
     if (rotateState.package || rotateState.error) resultRef.current?.focus()
   }, [rotateState])
 
+  // Credenciais: o foco vai para o painel quando o conteudo (ou o erro) chega.
+  useEffect(() => {
+    if (credentials.client && !credentials.loading) resultRef.current?.focus()
+  }, [credentials])
+
   const rotationAnnouncement = result.package
     ? `Novo pacote emitido para ${result.package.clientName}. ${result.message || rotationDoneMessage}`
     : result.error
       ? `Falha ao emitir novo pacote: ${result.error}`
       : ''
+
+  const credentialsAnnouncement = !credentials.client
+    ? ''
+    : credentials.loading
+      ? `Carregando credenciais ativas de ${credentials.client.name}.`
+      : credentials.error
+        ? `Falha ao consultar credenciais: ${credentials.error}`
+        : `Credenciais ativas de ${credentials.client.name} exibidas.`
 
   const sortedClients = useMemo(
     () => [...clients].sort((left, right) => left.name.localeCompare(right.name)),
@@ -263,7 +283,8 @@ export function ClientsPanel({
   async function handleViewCredentials(client: ClientRow) {
     const requestId = credentialsRequestId.current + 1
     credentialsRequestId.current = requestId
-    setCredentialsDialog({ open: true, client, loading: true, error: null, data: null })
+    setDismissedState(rotateState)
+    setCredentials({ client, loading: true, error: null, data: null })
 
     try {
       const response = await fetch(
@@ -285,8 +306,7 @@ export function ClientsPanel({
         return
       }
 
-      setCredentialsDialog({
-        open: true,
+      setCredentials({
         client,
         loading: false,
         error: null,
@@ -297,8 +317,7 @@ export function ClientsPanel({
         return
       }
 
-      setCredentialsDialog({
-        open: true,
+      setCredentials({
         client,
         loading: false,
         error: error instanceof Error ? error.message : credentialsLoadError,
@@ -309,16 +328,6 @@ export function ClientsPanel({
 
   return (
     <div className="space-y-6">
-      <CredentialsDialog
-        state={credentialsDialog}
-        onOpenChange={(open) => {
-          if (!open) {
-            credentialsRequestId.current += 1
-            setCredentialsDialog(emptyCredentialsDialogState)
-          }
-        }}
-      />
-
       <RotateConfirmDialog
         client={rotateTarget}
         open={rotateDialogOpen}
@@ -330,118 +339,117 @@ export function ClientsPanel({
       {/* Regiao viva sempre montada: leitores de tela so anunciam mudancas em
           regioes que ja existiam antes do conteudo chegar. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {rotationAnnouncement}
+        {credentials.client ? credentialsAnnouncement : rotationAnnouncement}
       </div>
 
-      {(result.package || result.error) && (
+      {/* Espaco unico de resultado: credenciais consultadas OU o resultado da
+          ultima rotacao. Mesmo elemento, foco programatico e "Dispensar". */}
+      {(credentials.client || result.package || result.error) && (
         <div
           ref={resultRef}
           tabIndex={-1}
-          data-testid="rotation-result"
+          data-testid={credentials.client ? 'credentials-result' : 'rotation-result'}
           className="relative rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
-          {result.package ? (
+          {credentials.client ? (
+            <CredentialsPanel state={credentials} />
+          ) : result.package ? (
             <PackagePanel pkg={result.package} message={result.message} />
           ) : (
-            <Card className="border-destructive/40">
-              <CardHeader className="pr-14">
-                <CardTitle>Falha ao emitir novo pacote</CardTitle>
-                <CardDescription>{result.error}</CardDescription>
-              </CardHeader>
-            </Card>
+            <Panel className="border-destructive/40">
+              <PanelHeader className="pr-14" title="Falha ao emitir novo pacote" description={result.error} />
+            </Panel>
           )}
           <Button
             size="sm"
             variant="ghost"
             className="absolute right-3 top-3"
             aria-label="Dispensar"
-            onClick={() => setDismissedState(rotateState)}
+            onClick={() => (credentials.client ? closeCredentials() : setDismissedState(rotateState))}
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
       )}
 
-      <Card>
-        <CardContent className="pt-6">
-          {sortedClients.length === 0 ? (
-            <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-              Nenhum cliente cadastrado. Clique em <strong>Novo cliente</strong> para começar.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b">
-                  <tr className="text-muted-foreground">
-                    <th className="px-4 py-3 text-left font-medium">Cliente</th>
-                    <th className="px-4 py-3 text-left font-medium">Agentes</th>
-                    <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-left font-medium">Painel</th>
-                    <th className="px-4 py-3 text-left font-medium">Criado em</th>
-                    <th className="px-4 py-3 text-left font-medium">Instalação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedClients.map((client) => (
-                    <tr key={client.id} className="border-b last:border-0">
-                      <td className="px-4 py-3 font-medium text-foreground">{client.name}</td>
-                      <td className="px-4 py-3">{client.agentCount}</td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant="outline"
-                          className={
-                            client.isActive
-                              ? 'border-success/40 bg-success/10 text-success'
-                              : 'text-muted-foreground'
-                          }
-                        >
-                          {client.isActive ? 'ativo' : 'inativo'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Button asChild size="sm" variant="secondary">
-                          <Link href={getTenantBasePath(client.slug)}>
-                            <ArrowUpRight className="h-4 w-4" />
-                            Abrir painel
-                          </Link>
-                        </Button>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {new Intl.DateTimeFormat('pt-BR', {
-                          dateStyle: 'short',
-                          timeStyle: 'short',
-                        }).format(new Date(client.createdAt))}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="button" size="sm" variant="outline" onClick={() => handleViewCredentials(client)}>
-                            <Eye className="h-4 w-4" />
-                            Ver credenciais
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={rotatePending}
-                            onClick={(event) => {
-                              rotateTriggerRef.current = event.currentTarget
-                              setRotateTarget(client)
-                              setRotateDialogOpen(true)
-                            }}
-                          >
-                            <Terminal className="h-4 w-4" />
-                            {rotatePending && rotateTarget?.id === client.id ? 'Emitindo...' : 'Emitir novo pacote'}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {sortedClients.length === 0 ? (
+        <Panel>
+          <PanelBody className="space-y-2 pt-5">
+            <p className="text-sm font-medium text-foreground">Nenhum cliente cadastrado nesta conta.</p>
+            <p className="text-sm text-muted-foreground">
+              Cada cliente é uma empresa atendida, com o próprio painel e o próprio instalador do agente.
+              Cadastre um para gerar o instalador e acompanhar a primeira máquina.
+            </p>
+            <Button asChild variant="link" className="h-auto px-0">
+              <Link href="/admin/clients/novo">Cadastrar o primeiro cliente</Link>
+            </Button>
+          </PanelBody>
+        </Panel>
+      ) : (
+        <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className={TABLE_HEAD_ROW_CLASS}>
+                <th className={TABLE_HEAD_CLASS}>Cliente</th>
+                <th className={TABLE_HEAD_CLASS}>Agentes</th>
+                <th className={TABLE_HEAD_CLASS}>Status</th>
+                <th className={TABLE_HEAD_CLASS}>Criado em</th>
+                <th className={TABLE_HEAD_CLASS}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedClients.map((client) => (
+                <tr key={client.id} className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}>
+                  <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>{client.name}</td>
+                  <td className={TABLE_CELL_CLASS}>{client.agentCount}</td>
+                  <td className={TABLE_CELL_CLASS}>
+                    <StatusPill
+                      tone={client.isActive ? 'success' : 'neutral'}
+                      label={client.isActive ? 'Ativo' : 'Inativo'}
+                    />
+                  </td>
+                  <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
+                    {new Intl.DateTimeFormat('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    }).format(new Date(client.createdAt))}
+                  </td>
+                  <td className={TABLE_CELL_CLASS}>
+                    {/* Hierarquia: "Abrir painel" e a acao principal da linha
+                        (unica com preenchimento); consultar e rotacionar a
+                        chave vem depois, com menos peso. */}
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild size="sm" variant="secondary">
+                        <Link href={getTenantBasePath(client.slug)}>
+                          <ArrowUpRight className="h-4 w-4" />
+                          Abrir painel
+                        </Link>
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => handleViewCredentials(client)}>
+                        <Eye className="h-4 w-4" />
+                        Ver credenciais
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={rotatePending}
+                        onClick={(event) => {
+                          rotateTriggerRef.current = event.currentTarget
+                          setRotateTarget(client)
+                          setRotateDialogOpen(true)
+                        }}
+                      >
+                        {rotatePending && rotateTarget?.id === client.id ? 'Emitindo...' : 'Emitir novo pacote'}
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

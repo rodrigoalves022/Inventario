@@ -9,8 +9,8 @@ import type { ProvisioningPackage } from '@/app/admin/clients/types'
 /**
  * Uma acao primaria em destaque, chave em caixa de aviso, e os caminhos de
  * instalacao em massa (GPO/Intune/script) recolhidos atras de "outras formas
- * de instalar". Usado no assistente /clients/novo, no dialogo "Credenciais
- * ativas" de /clients e no estado vazio do dashboard do tenant — mesmo
+ * de instalar". Usado no assistente /clients/novo, no painel inline
+ * "Credenciais ativas" de /clients e no estado vazio do dashboard do tenant — mesmo
  * pacote de instalacao, tres pontos de entrada.
  */
 export function AgentInstallPackage({
@@ -60,7 +60,7 @@ export function AgentInstallPackage({
         </button>
 
         {showAlternatives && (
-          <div className="mt-4 space-y-4 border-t pt-4">
+          <div className="mt-4 space-y-4 border-t border-surface-line pt-4">
             <div className="flex items-start gap-2 text-xs text-muted-foreground">
               <Terminal className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>Para instalação em massa via GPO, Intune ou script remoto.</span>

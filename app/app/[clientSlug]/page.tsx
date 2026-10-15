@@ -125,6 +125,9 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
   if (summary.totalDevices === 0) {
     return (
       <div className="space-y-6">
+        {/* Mesmo h1 do caminho com maquinas: sem ele, esta tela ficava sem
+            nenhum h1 depois que a marca da Sidebar deixou de ser h1 (A2). */}
+        <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
         <TenantEmptyState
           clientId={tenant.id}
           clientName={tenant.name}

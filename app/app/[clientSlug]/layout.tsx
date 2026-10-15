@@ -57,7 +57,7 @@ export default async function TenantLayout({ children, params }: LayoutProps<'/a
         now={now}
         appVersion={packageJson.version}
       />
-      <div className="flex-1 lg:pl-64">
+      <div className="min-w-0 flex-1 lg:pl-64">
         <Header
           tenant={tenant}
           user={sessionUser}
