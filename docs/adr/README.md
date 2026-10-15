@@ -27,3 +27,4 @@ Use um novo ADR quando uma decisão:
 2. [0002](./0002-go-agent-scripts-as-fallback.md) — Agente principal em Go; scripts como bootstrap/compatibilidade
 3. [0003](./0003-postgresql-only.md) — PostgreSQL como único banco, inclusive em desenvolvimento
 4. [0004](./0004-tenant-isolation-fail-closed.md) — Segregação obrigatória por tenant, fail-closed via `notFound()`
+5. [0005](./0005-enrollment-key-reexibivel.md) — `enrollmentKey` reexibível, cifrada e auditada

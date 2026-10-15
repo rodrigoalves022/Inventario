@@ -133,7 +133,11 @@ erDiagram
 
 1. **Identidade do endpoint é `agentAuthId`**, nunca `hostname` (hosts colidem entre clientes).
 2. **Todo dado de inventário pertence a exatamente um `Client`**; toda consulta é escopada por ele.
-3. **Segredos só existem em plaintext uma vez** (emissão); o banco guarda apenas hash.
+3. **Segredos nunca ficam em claro no banco.** A `apiKey` de cada agente só existe em plaintext na
+   emissão, e o banco guarda apenas o hash. A `enrollmentKey` do `Client` também é conferida por
+   hash, mas o banco guarda uma cópia cifrada (AES-256-GCM) para que quem administra o cliente
+   (`canManageTenant`) possa consultá-la de novo; cada consulta grava `credentials.view` no
+   `AuditLog` (ADR 0005).
 4. **Dados manuais (`AssetRecord`) jamais são sobrescritos pelo check-in.**
 5. **Um `Client` pertence a exatamente uma `Organization`.**
 
@@ -252,7 +256,8 @@ Servidor enfileira → agente busca no próximo ciclo → executa → reporta re
 
 Fluxo definido: **admin cria manualmente**.
 
-1. `ORG_ADMIN` cria o `Client` no painel → `enrollmentKey` exibida **uma única vez**
+1. `ORG_ADMIN` cria o `Client` no painel → `enrollmentKey` exibida; ela vale até ser rotacionada e
+   pode ser consultada de novo em "Ver credenciais" por quem administra o cliente (ADR 0005)
 2. Baixa o instalador personalizado daquele cliente
 3. Instala nas máquinas (manual, GPO, Intune ou script de bootstrap)
 4. Cada máquina vira um `AgentAuth` + `Device` vinculados àquele `Client`

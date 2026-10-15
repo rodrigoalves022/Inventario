@@ -1910,6 +1910,342 @@ recebem slugs/chaves legítimos (gerados pelo próprio sistema) ou tratam o erro
 
 ---
 
+## Sprint A1 — Corretude e confiança do fluxo "Gerar agente"
+
+**Status**: Concluída (aceita pelo gerente em 2026-10-15; 851 testes / 68 arquivos; visual-qa e security-auditor sem regressão; os achados 1 e 2 de acessibilidade do visual-qa foram corrigidos na própria sprint, os 3 e 4 foram para o Backlog, itens 16 e 17). O `sprint-planner` registrou o plano a partir do relatório da
+Sprint A0 e do escopo aprovado pelo gerente (`PLANO_SPRINTS_COLABORACAO.md` §3.1, §3.2 E4/E8 e
+§6.1 D1, D3, D11, D12). Depende da A1a (concluída, commit `c28deff`). Este plano não altera nenhuma
+linha de código. As linhas citadas abaixo foram conferidas contra o código em 2026-10-14, depois de
+`c28deff`.
+
+**Objetivo**: em cada passo do fluxo "Gerar agente", o administrador sabe o que aconteceu com a chave
+de instalação e com a primeira máquina, e nada acontece em silêncio. A rotação pede confirmação e
+mostra o pacote novo ou o erro. O passo 3 do assistente tem saída de erro e tempo esgotado. A copy e
+a documentação dizem a verdade sobre a chave reexibível (D3 = A). As duas telas do admin deixam de
+quebrar abaixo de 1024 px.
+
+### Origem do achado (rastreabilidade)
+
+Os achados vêm do relatório da **Sprint A0**. Participaram `backend-auditor`, `security-auditor`,
+`requirements-auditor`, `test-auditor`, `designer-ui` e `visual-qa`, com verificação independente
+do orquestrador e aprovação do gerente. Estão consolidados em `PLANO_SPRINTS_COLABORACAO.md` §3.1 e
+§3.2.
+
+- **F1 — rotação sem feedback e sem confirmação** (`backend-auditor`, `designer-ui`; reproduzido no
+  navegador pelo `visual-qa` na A0). Em `app/admin/clients/clients-panel.tsx:166`,
+  `const [, rotateAction] = useActionState(rotateEnrollmentKeyAction, initialProvisioningState)`
+  descarta o resultado. O form fica em `:385-389`. O hash muda, a tela não muda nada, não há
+  confirmação e os erros da rotação também somem.
+- **F2 — formulário inline morto** (`backend-auditor`, `designer-ui`). `showCreateForm` (`:161`)
+  nunca vira `true`. O bloco morto ocupa `:275-327`, com `Card`, campo `slug` e o botão "Criar e
+  emitir pacote". `PackagePanel` (`:64-85`) só é renderizado em `:255`, alimentado por `createState`,
+  que vem do formulário morto.
+- **F3 — copy e docs contra D3 = A** (`requirements-auditor`, `security-auditor`). Os trechos estão
+  listados no item 6 do Escopo.
+- **F6 — passo 3 sem saída de erro** (`backend-auditor`, `designer-ui`).
+  `app/admin/clients/novo/new-client-wizard.tsx` tem `if (!response.ok) return` (`:82`), que engole
+  401/404/500, e um `catch` vazio (`:85-87`). O polling roda a cada 5 s (`:91`) e "Aguardando a
+  primeira máquina…" (`:211`) fica na tela para sempre.
+- **E8 — acentuação e idioma das mensagens** (`designer-ui`, ampliado na A0).
+  `app/admin/clients/actions.ts` é a fonte. As strings estão listadas no item 9 do Escopo.
+- **E4 — admin quebra abaixo de 1024 px** (`visual-qa`, medido na A0; subiu da A2 por **D11**).
+  `pl-64` sem `lg:` aparece em `app/admin/clients/page.tsx:80` e em
+  `app/admin/clients/novo/page.tsx:29`, e `<main className="p-6">` em `:82` e `:31`. Em 390 px o
+  `main` começa em 256 px e a página rola na horizontal de 198 a 686 px. Em 1024 px a tabela
+  transborda 52 px.
+
+Fatos verificados no código que fundamentam as regras desta sprint:
+
+- `rotateEnrollmentKeyAction` (`actions.ts:199-280`) **já devolve o pacote completo** via
+  `buildState` (`:265-271`): `clientId`, `clientName`, `clientSlug`, `enrollmentKey`,
+  `bootstrapUrl`, `bootstrapCommand` e `installCommand`, mais `message`. O F1 não muda o contrato da
+  action, só passa a consumir o retorno.
+- A rotação só atualiza `Client.enrollmentKeyHash` e `activeProvisioningKeyEnc`
+  (`actions.ts:243-261`) e **não toca `AgentAuth`**. As máquinas já registradas continuam o
+  check-in com a própria `apiKey`. Isso confirma o fato da A0.
+- A coluna "Agentes" de `/admin/clients` (`page.tsx:34-38`, `:48`) conta `_count.agents` **sem
+  filtro**, ou seja, inclui `AgentAuth` revogados (`revokeAgentAuthAction` grava `isActive: false` e
+  `revokedAt`, `actions.ts:333-336`). Esse número **não serve** para o diálogo de confirmação. A
+  contagem do F1 deve usar `isActive: true`, o mesmo critério de
+  `app/api/clients/[id]/status/route.ts:30`.
+- `GET /api/clients/[id]/credentials` já exige `canManageTenant` (`route.ts:66`) e já grava
+  `credentials.view` (`:72`, `:98`). Não é preciso item novo de auditoria. A condição do rascunho do
+  PLANO §7 ("se não gravar AuditLog, propor") não se aplica.
+- O drawer mobile **já existe** dentro de `Sidebar` (`components/sidebar.tsx:314-367`: botão
+  `lg:hidden` e `aside` com `-translate-x-full` até `lg`). A casca do tenant
+  (`app/app/[clientSlug]/layout.tsx:60` e `:66`) usa `flex-1 lg:pl-64` e `p-4 lg:p-6`. O que quebra
+  no admin é só o `pl-64` fixo e o `p-6` das duas páginas.
+- A tabela de clientes **já está** dentro de `overflow-x-auto` (`clients-panel.tsx:336`), e mesmo
+  assim a A0 mediu 52 px de transbordo em 1024 px. Hipótese, que o implementador deve confirmar (este
+  plano não a decide): a coluna `flex-1` (`page.tsx:80`) sem `min-w-0` deixa o min-content da tabela
+  alargar o item flex e anula o `overflow-x-auto`. O critério de aceite é a medição, não a técnica.
+- `components/ui/alert-dialog.tsx` já existe no projeto. Nenhum componente novo de terceiros é
+  necessário.
+
+### RFs relacionados
+
+- **RF002**: cadastro de tenant. O texto atual ("exibe a chave em claro uma única vez") está errado
+  diante de D3 e é corrigido no F3.
+- **RF003**: enrollment de agente. "`enrollmentKey` de uso único" é falso, porque a chave é
+  reutilizável até ser rotacionada. Corrigido no F3. A rotação do F1 é o ciclo de vida dessa chave.
+
+### RNs / RNFs relacionados
+
+- **RN005**: "apenas o hash é persistido". Para a `enrollmentKey`, o banco também guarda a cópia
+  cifrada (`Client.activeProvisioningKeyEnc`, AES-256-GCM). O texto precisa de nuance (F3). A
+  `apiKey` segue só com hash.
+- **RN015**: rotação e reexibição de credenciais usam `canManageTenant`, não `hasClientsAdminAccess`
+  (comentário em `actions.ts:220-223`). Esta sprint **não muda** nenhum guard.
+- **RNF002**: validação Zod antes de efeito colateral. As mensagens passam a sair em pt-BR (E8).
+- **RNF004**: isolamento multi-tenant. A contagem de máquinas do F1 fica escopada ao cliente já
+  filtrado por organização em `getClients` (`page.tsx:26`).
+- **RNF009**: auditabilidade. `credentials.rotate` e `credentials.view` continuam gravando
+  `AuditLog`. O custo aceito da D3 é registrado em ADR (F3).
+
+### Casos de uso
+
+- `docs/PRODUCT.md` §3.1 (cadastro de tenant: passo 4 e pós-condição) e §3.2 (enrollment).
+- `docs/PRODUTO.md` §7 ("Como o cliente fica vinculado", passo 1).
+- **Lacuna de DoD (item 3)**: não existe caso de uso de **rotação da chave de instalação** em
+  `docs/PRODUCT.md` §3, e o F1 altera esse fluxo (confirmação, pacote novo, erro). Este plano
+  **propõe**, para o gerente aprovar ou cortar, um fluxo alternativo curto "Emitir novo pacote" no UC
+  §3.1 (Ator `canManageTenant`, Pré-condição, Fluxo, Exceções). O planner não decide sozinho.
+
+### Entidades de banco
+
+Nenhuma alteração de schema, migration, `db push` ou backup.
+
+Entidades **lidas**:
+- `Client`: `enrollmentKeyHash`, `activeProvisioningKeyEnc`, `activeProvisioningSetAt`.
+- `AgentAuth`: `clientId`, `isActive`, `revokedAt`, para a contagem do diálogo.
+- `Device`: passo 3, via a rota de status já existente.
+- `AuditLog`: `credentials.rotate` e `credentials.view` continuam sem mudança.
+
+Fixture de teste manual e visual: o cliente `teste-a0-rotacao` (D12). **Nunca rotacionar
+`core-ti-expert`.**
+
+### Escopo
+
+| Item | RF/RN relacionado | Caso de uso | Entidade(s) de banco | Origem do achado |
+|---|---|---|---|---|
+| 1 — **F1 (TDD, vermelho primeiro)**: teste de componente em `tests/` (`// @vitest-environment jsdom`) para o painel de clientes. O clique em "Emitir novo pacote" abre um `AlertDialog` e **não** chama a action. "Cancelar" não chama a action. "Confirmar" chama. Sucesso exibe o pacote novo e o aviso. Erro exibe a mensagem. A execução vermelha aparece no relatório antes da correção | RF003, RNF009 | PRODUCT §3.1 | — | backend-auditor, designer-ui, visual-qa (A0, F1) |
+| 2 — **F1, confirmação**: `AlertDialog` antes de rotacionar. O texto diz quantas máquinas **continuam funcionando** (contagem de `AgentAuth` com `isActive: true` do cliente, que **não** é o `_count.agents` atual) e que instaladores, comandos e pacotes antigos param de funcionar. Singular/plural e caso zero tratados | RF003, RN015, RNF004 | PRODUCT §3.1 | AgentAuth, Client | backend-auditor (A0, F1); fato verificado na A0 (rotação não revoga AgentAuth) |
+| 3 — **F1, resultado**: capturar o estado de `useActionState(rotateEnrollmentKeyAction, …)` (hoje `:166`). Em sucesso, renderizar `PackagePanel` (`:64`) com o pacote novo e o aviso de revisar instaladores antigos. Em erro, exibir `state.error`. O botão "X" de dispensar continua funcionando. Feito **antes** de apagar o código morto (item 4) | RF003 | PRODUCT §3.1 | Client | backend-auditor (A0, F1) |
+| 4 — **F2**: remover `showCreateForm` (`:161`), o bloco `:275-327` (`Card`, campo `slug`, botões) e tudo que ficar órfão: `useActionState(createClientAction)`, o espelho `createState → result` (`:173-186`), `setProvisioningServerUrl`, a prop `createClientAction` de `ClientsPanel` e o wrapper em `page.tsx:67-70`/`:101`, mais os imports sem uso. O painel de resultado (`:252-273`) **não** é apagado: passa a servir à rotação (item 3) | RF002 | — | — | backend-auditor, designer-ui (A0, F2) |
+| 5 — **F3, copy de UI**: em `components/agent-install-package.tsx:44`, a variante `keyIsFresh` deixa de dizer "Ela não será exibida novamente…" e passa a dizer que a chave fica guardada cifrada e pode ser consultada em "Ver credenciais" por quem administra o cliente, mantendo o aviso de credencial sensível. Coerente com `:45` | RF002, RN005 | PRODUCT §3.1 | — | requirements-auditor, security-auditor (A0, F3; D3) |
+| 6 — **F3, API e docs** (só texto). Ver a lista de trechos logo abaixo da tabela | RF002, RF003, RN005 | PRODUCT §3.1, §3.2; PRODUTO §7 | Client, AgentAuth (só documentação) | requirements-auditor (A0, F3; D3) |
+| 7 — **F3, ADR 0005**: `docs/adr/0005-enrollment-key-reexibivel.md` (nome sugerido) registra a D3: chave reexibível, cifrada com AES-256-GCM, acesso só por `canManageTenant`, cada visualização grava `credentials.view`. Registra o **custo aceito**: uma sessão de `ORG_ADMIN` sequestrada lê a chave, e a rotação não contém `AgentAuth` já registrados (contenção fica para a A3/N4). Mais uma entrada no índice de `docs/adr/README.md` | RN005, RN015, RNF009 | — | Client, AgentAuth, AuditLog | security-auditor (A0, D3) |
+| 8 — **F6 (TDD, vermelho primeiro)**: ver o detalhamento logo abaixo da tabela | RF003 | PRODUCT §3.2 | Device, AgentAuth (leitura via rota existente) | backend-auditor, designer-ui (A0, F6; N2); E5 parcial (só `role="status"`) |
+| 9 — **E8**: corrigir acentuação e idioma das strings de interface de `app/admin/clients/actions.ts` e trocar as mensagens padrão do Zod em inglês. Ver a lista logo abaixo da tabela | RNF002 | — | — | designer-ui (A0, E8 ampliado) |
+| 10 — **E4**: casca responsiva igual à do tenant nas duas páginas do admin. `pl-64` vira `lg:pl-64` e `p-6` vira `p-4 lg:p-6` (ou um layout compartilhado que reproduza isso). A tabela de clientes não transborda a página em nenhuma largura. O drawer da `Sidebar` (já existente) abre abaixo de `lg` | — | — | — | visual-qa (A0, E4; D11) |
+
+**Item 6, trechos que mudam:**
+- `app/api/clients/route.ts:103`: "Guarde a enrollmentKey - ela não será exibida novamente." (só a
+  string).
+- `docs/PRODUTO.md:136`, §4.2, invariante 3 ("Segredos só existem em plaintext uma vez… o banco
+  guarda apenas hash").
+- `docs/PRODUTO.md:255`, §7, passo 1 ("exibida **uma única vez**").
+- `docs/PRODUCT.md:20`, RF002 ("exibe a chave em claro uma única vez").
+- `docs/PRODUCT.md:21`, RF003 ("`enrollmentKey` de uso único").
+- `docs/PRODUCT.md:75`, RN005 (falta mencionar a cópia cifrada da `enrollmentKey`).
+- `docs/PRODUCT.md:102`, UC 3.1, passo 4 ("grava apenas `enrollmentKeyHash`… exibida uma única
+  vez").
+- `docs/PRODUCT.md:413`, §6.2, passo 1 ("grava só `enrollmentKeyHash`").
+- `docs/PRODUCT.md:673`, glossário ("de uso único por `Client`").
+- `docs/SPEC.md:25` ("a chave em claro só existe nesta resposta, uma vez").
+- **Não mudar** nada sobre a `apiKey`: `PRODUCT.md:118`, `:416`, `SPEC.md:145` e
+  `app/api/agent/register/route.ts:82` estão corretos.
+
+**Item 8, F6 em detalhe** (`new-client-wizard.tsx`):
+- Erro de polling visível. HTTP não-ok (401/404/500) e falha de rede deixam de ser engolidos (hoje
+  `:82` e `:85-87`).
+- Depois de **3 min** sem check-in, mostrar um checklist:
+  - executar como Administrador;
+  - firewall/porta liberados;
+  - servidor alcançável pela rede do cliente. O instalador usa o **endereço do servidor
+    configurado**, não o digitado no passo 1 (N2 da A0).
+- Distinguir o estado "agente registrado, aguardando primeira coleta" (`agentCount > 0` e
+  `device === null`, ambos já devolvidos por `/api/clients/[id]/status`).
+- Região `role="status"` (aria-live) para o estado do passo 3.
+- Estado derivado, sem `setState` no corpo do efeito (lint `react-hooks/set-state-in-effect`).
+- Testes de componente com jsdom e fake timers.
+
+**Item 9, strings de `app/admin/clients/actions.ts`:**
+- `:22` "Use apenas letras minusculas, numeros e hifens."
+- `:47` "Acesso administrativo nao autorizado."
+- `:127`, `:214`, `:296` "Payload invalido."
+- `:136` "Nao foi possivel gerar um identificador valido para o cliente."
+- `:145` "Ja existe um cliente com esse slug." Reescrever para quem não vê slug, por exemplo "Já existe
+  um cliente com esse nome." Ver as divergências abaixo.
+- `:182` "Cliente criado e pacote de instalacao emitido."
+- `:231` "Cliente nao encontrado."
+- `:265` "Enrollment key rotacionada. Revise os instaladores antigos." Passa a falar em "chave de
+  instalação".
+- `:275` "Erro interno ao rotacionar a enrollment key."
+- `:325` "Credencial de agente nao encontrada."
+- Mensagens padrão do Zod 3 em inglês, que vazam por `issues[0]?.message`:
+  - `serverUrl: z.string().trim().url()` em `:17` e `:27` → "Invalid url";
+  - campo ausente (`formData.get` → `null`) → "Expected string, received null";
+  - `clientId` `.min(1)` em `:28` → "String must contain at least 1 character(s)".
+- Comentários de código ficam fora: só strings de interface.
+
+Ordem de execução recomendada:
+1. teste vermelho do F1 (item 1);
+2. F1 (itens 2 e 3);
+3. F2 (item 4);
+4. F3 (itens 5 a 7);
+5. E8 (item 9);
+6. teste vermelho do F6 e depois o F6 (item 8);
+7. E4 (item 10);
+8. portões;
+9. `visual-qa`;
+10. `security-auditor` sobre o diff.
+
+### Divergências registradas em relação ao texto do gerente
+
+1. **"PRODUCT.md §4.2 e §7"**: a invariante "§4.2 invariante 3" e o "passo 1 de §7" estão em
+   **`docs/PRODUTO.md`** (`:136` e `:255`), não em `PRODUCT.md`. Em `docs/PRODUCT.md`:
+   - **§4.2** trata de relacionamentos e cascades e não tem nada a mudar;
+   - **§7** (matriz RBAC) já cobre o caso em `:448` ("Administrar tenant (credenciais, …)" →
+     `canManageTenant`), então **não há mudança obrigatória**. Citar `credentials.view` na nota da
+     matriz é opcional e fica a critério do gerente.
+2. **Trechos de docs além dos citados pelo gerente**, incluídos no item 6 porque contradizem D3:
+   `PRODUCT.md:75` (RN005), `:413` (§6.2) e `SPEC.md:25`.
+   - **Fora dos caminhos permitidos**: `CONTEXT.md:40` (raiz do repositório) repete "de uso único".
+     Não está em `docs/`, então fica desatualizado até o gerente liberar.
+   - `docs/PRODUTO.md:298` narra o redesenho antigo ("destacar que a chave só aparece uma vez"). É
+     texto histórico. O gerente decide se ganha uma nota ou fica como está.
+3. **Tamanho do código morto**: o bloco realmente inacessível é `:275-327` (53 linhas), mais o
+   espelho `:173-186` e as declarações e props órfãs, perto de 80 a 90 linhas no total. Os "~120"
+   medidos na A0 incluíam o painel de resultado (`:252-273`), que **não** deve ser apagado: ele vira
+   o feedback da rotação.
+4. **Contagem de máquinas**: a coluna "Agentes" já existente inclui `AgentAuth` revogados
+   (`page.tsx:34-38`). O diálogo precisa de contagem própria (`isActive: true`). Se o implementador
+   preferir corrigir a própria coluna, isso muda um número visível na tabela e deve ser reportado
+   como desvio, não feito em silêncio.
+5. **Tabela em 1024 px**: o `overflow-x-auto` pedido já existe (`clients-panel.tsx:336`). A causa
+   provável é a falta de `min-w-0` no item flex (hipótese, não decidida).
+6. **"Já existe um cliente com esse nome."**: o slug é derivado do nome por `slugifyClientName`, então
+   nomes diferentes podem colidir (ex.: "Acme Ltda" e "ACME LTDA."). O texto sugerido pode confundir
+   nesse caso. Alternativa: "Já existe um cliente com esse nome ou com um nome equivalente." Escolha
+   do gerente. O `createClientSchema` mantém o campo `slug` opcional (a API e os testes existentes o
+   usam). Só a UI morta que o enviava sai. Mover o campo `slug` para o assistente **não** está no
+   escopo; se fizer falta, vira proposta para a A2.
+7. `app/api/clients/route.ts:78` ("Já existe um cliente com esse slug.") **não** muda: nessa API o
+   slug é um campo do payload, e o escopo autoriza só a string de `:103`.
+
+### Restrições de compatibilidade
+
+- Os testes existentes `tests/rotate-enrollment-key.test.ts` e `tests/create-client-action.test.ts`
+  checam `result.error` só com `toBeTruthy()`/`toBeNull()`. A troca de texto do E8 não deve
+  quebrá-los. Se algum teste afirmar o texto literal, o teste é atualizado junto, não removido.
+- `AgentInstallPackage` tem três consumidores: o assistente, o diálogo "Credenciais ativas" e o
+  estado vazio do dashboard do tenant (comentário em `:9-15`). A copy nova da variante `keyIsFresh`
+  aparece no assistente e no `PackagePanel` da rotação.
+- Nenhuma mudança de guard, de contrato de action ou rota, nem de formato da chave.
+
+### Critérios de aceite
+
+- [x] **F1, TDD**: existe teste de componente novo em `tests/` (`// @vitest-environment jsdom`), e o
+      relatório do implementador mostra a execução **vermelha** antes da correção.
+- [x] **F1, confirmação**: clicar em "Emitir novo pacote" abre um `AlertDialog` e **não** chama
+      `rotateEnrollmentKeyAction`. "Cancelar" fecha sem chamar a action, e só "Confirmar" a chama
+      (afirmado em teste com a action mockada).
+- [x] **F1, contagem**: o diálogo mostra o número de `AgentAuth` **não revogados** (`isActive: true`)
+      do cliente como máquinas que continuam funcionando, e avisa que instaladores e pacotes antigos
+      param de funcionar. Teste com cliente de 2 credenciais ativas e 1 revogada exibe "2". Singular
+      ("1 máquina") e zero cobertos.
+- [x] **F1, resultado**: depois de rotação bem-sucedida, a tela exibe `PackagePanel` com a
+      `enrollmentKey` **nova** e o aviso de revisar os instaladores antigos. Depois de rotação com
+      erro, a tela exibe a mensagem de erro. Os dois casos são afirmados em teste.
+- [x] **F1, segurança**: `rotateEnrollmentKeyAction` continua exigindo `canManageTenant` e gravando
+      `credentials.rotate` (suítes existentes verdes, sem alteração de guard).
+- [x] **F2**: `rg "showCreateForm|name=\"slug\"" app/admin/clients` não retorna nada. `ClientsPanel`
+      não recebe mais `createClientAction`. Nenhum import ou estado órfão sobra (lint limpo). O
+      painel de resultado continua existindo, agora alimentado pela rotação.
+- [x] **F3, UI**: `components/agent-install-package.tsx` não contém mais "não será exibida
+      novamente". A variante `keyIsFresh` diz que a chave fica guardada cifrada e pode ser
+      consultada em "Ver credenciais" por quem administra o cliente, e mantém o aviso de credencial
+      sensível (afirmado em teste de componente).
+- [x] **F3, API**: a `message` de `POST /api/clients` (`app/api/clients/route.ts:103`) não afirma mais
+      que a chave não será exibida novamente. Nenhuma outra linha dessa rota muda.
+- [x] **F3, docs**: os trechos listados no item 6 do Escopo passam a descrever a regra D3 = A (chave
+      reutilizável até rotacionar, reexibível só por `canManageTenant`, cifrada com AES-256-GCM, cada
+      visualização gravando `credentials.view`). Os textos sobre a `apiKey` (`PRODUCT.md:118`, `:416`,
+      `SPEC.md:145`, `register/route.ts:82`) continuam **inalterados**. O relatório lista linha por
+      linha o que mudou.
+- [x] **F3, ADR**: `docs/adr/0005-*.md` existe com contexto, decisão, consequências (incluindo os
+      dois custos aceitos e a contenção adiada para a A3) e status. O índice de `docs/adr/README.md`
+      ganha a entrada 5.
+- [x] **F6, TDD**: existe teste de componente novo em `tests/` (`// @vitest-environment jsdom`, fake
+      timers), e o relatório mostra a execução **vermelha** antes da correção.
+- [x] **F6, tempo esgotado**: com fake timers, depois de 180 s sem `device`, o passo 3 exibe o
+      checklist com os três itens (executar como Administrador; firewall/porta; servidor alcançável
+      pela rede do cliente, com a observação de que o instalador usa o endereço do servidor
+      configurado e não o digitado). Antes de 180 s o checklist não aparece. Um check-in que chega
+      depois do tempo esgotado ainda leva ao estado de sucesso.
+- [x] **F6, erro visível**: respostas 401, 404 e 500 da rota de status e uma rejeição de `fetch`
+      produzem mensagem visível no passo 3, cada caso afirmado em teste. O `catch` vazio e o
+      `if (!response.ok) return` silencioso deixam de existir.
+- [x] **F6, registrado sem coleta**: `agentCount > 0` com `device === null` exibe o estado "agente
+      registrado, aguardando primeira coleta", distinto de "aguardando a primeira máquina"
+      (afirmado em teste).
+- [x] **F6, acessibilidade**: o estado do passo 3 (aguardando, registrado, erro, tempo esgotado,
+      conectado) fica dentro de uma região `role="status"`.
+- [x] **F6, lint**: nenhum `setState` síncrono no corpo de `useEffect`; o tempo esgotado é estado
+      derivado. `npm run lint` não acusa `react-hooks/set-state-in-effect`.
+- [x] **E8**: nenhuma string de interface de `app/admin/clients/actions.ts` sai sem acento. Não
+      resta "Enrollment key" em mensagem ao usuário. Entradas inválidas de `serverUrl` e `clientId`
+      (URL inválida, campo ausente, vazio) devolvem mensagens em pt-BR, afirmadas em teste. A
+      mensagem de nome duplicado não menciona "slug".
+- [x] **E4**: `document.documentElement.scrollWidth <= document.documentElement.clientWidth` em
+      **390, 1024 e 1440 px**, nas rotas `/admin/clients` e `/admin/clients/novo`, medido pelo
+      `visual-qa` (Playwright MCP) com sessão de administrador. Em 390 px o `main` começa na borda
+      esquerda (sem os 256 px) e o drawer da `Sidebar` abre e fecha.
+- [x] **Verificação visual**: o `visual-qa` captura `/admin/clients`, `/admin/clients/novo` e o
+      **diálogo de rotação** (aberto e depois de confirmar) nas três larguras. A rotação real é
+      feita **só** no cliente `teste-a0-rotacao` (D12) e **nunca** em `core-ti-expert`.
+- [x] **Segurança**: o `security-auditor` revisou o diff. Nenhuma regressão de guard
+      (`canManageTenant`/`hasClientsAdminAccess`) nem de auditoria (`credentials.rotate`,
+      `credentials.view`). Nenhuma rota ou action nova sem Zod, guard e escopo de tenant.
+- [x] **Escopo de arquivos**: o diff toca só `app/admin/clients/**`,
+      `components/agent-install-package.tsx`, `app/api/clients/route.ts` (só a string de `:103`),
+      `docs/` e `tests/`. `app/users/page.tsx` intocado.
+- [x] Portão 1: `npm run typecheck` limpo.
+- [x] Portão 2: `npm run lint` limpo.
+- [x] Portão 3: `npm run build:verify` limpo. **Não** rodar com o `next dev` de pé; o implementador
+      avisa o orquestrador antes do build.
+- [x] Portão 4: `npm test` verde com **mais de 806 testes** (baseline: 806 testes / 63 arquivos,
+      depois de `c28deff`).
+- [ ] DoD (`docs/DEFINITION_OF_DONE.md`): os 10 itens conferidos um a um, com ✅ ou N/A e
+      justificativa. "Banco de dados e migrations" é N/A, porque não há mudança de schema.
+- [x] Sem commit e sem push.
+
+### Fora de escopo desta sprint
+
+- **E1, E2, E3/N3, E5** (exceto o `role="status"` do F6), **E6, E7**: ficam para a **A2** (visual
+  do fluxo).
+- **F4** (instalador Linux na UI), **F5** (listar/revogar agentes), **N4** (revogar `AgentAuth` na
+  rotação), **N5**, **N12**: ficam para a **A3**. O ADR 0005 registra que a contenção da rotação
+  depende de N4.
+- **F7/N2** (URL digitada ignorada pelo instalador): entra **só** como texto do checklist do F6, não
+  como correção.
+- Backlog: **N6, N7, N9, N10, N11** e os itens **14** e **15** do Backlog deste arquivo.
+- Mover o campo `slug` para o assistente (ver a divergência 6).
+- Qualquer arquivo fora de `app/admin/clients/**`, `components/agent-install-package.tsx`,
+  `app/api/clients/route.ts` (só a string), `docs/` e `tests/`. `app/users/page.tsx` é proibido.
+
+### Documentação que ficará desatualizada (não editada por este plano)
+
+- `CONTEXT.md:40` (raiz do repositório): "`enrollmentKey` é de uso único por `Client`". Contradiz D3,
+  mas está fora dos caminhos liberados para esta sprint. Precisa de liberação explícita do gerente.
+- `docs/PRODUTO.md:298`: narrativa histórica do redesenho ("a chave só aparece uma vez"). O gerente
+  decide se ganha nota.
+- `PLANO_SPRINTS_COLABORACAO.md` §6 ainda mostra a A1a como "📋 Próxima" e a A1 como "📋 Proposta".
+  Esse documento é do gerente; o planner não o edita.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -2171,3 +2507,27 @@ A validação da A1a bloqueia aspas, backtick, `$` e caracteres de controle, mas
 **Por que fica pendente**: não estava na lista do plano, e `%` aparece em URL legítima com
 percent-encoding. O `serverUrl` vem da configuração do servidor ou do proxy, não de entrada pública.
 Correção: rejeitar `%` no `serverUrl` usado pelo `installCommand`, ou escapá-lo como `%%`.
+
+---
+
+### 16. Drawer da `Sidebar` abaixo de `lg` fica no Tab fechado e não fecha com Esc — MÉDIO (achado 3 do visual-qa na Sprint A1; para a Sprint A2)
+
+**Achado**: em 390 px, com o drawer fechado (`aside` com `-translate-x-full`,
+`components/sidebar.tsx:363-367`), o Tab passa por três paradas fora da tela ("Fechar menu",
+"Clientes", menu do usuário) antes de chegar ao conteúdo. Com o drawer aberto, Esc não o fecha.
+Observado no navegador em `/admin/clients`; em `/app/**` é inferido (mesmo componente).
+
+**Por que fica pendente**: é a casca compartilhada do produto inteiro, fora do fluxo "Gerar agente"
+da A1. Correção proposta: `inert` (ou `invisible` + `aria-hidden`) no `aside` quando
+`!mobileOpen` abaixo de `lg`, e handler de Esc que fecha e devolve o foco a "Abrir menu".
+
+---
+
+### 17. Nome do usuário cortado no rodapé da `Sidebar` sem `title` — BAIXO (achado 4 do visual-qa na Sprint A1; para a Sprint A2)
+
+**Achado**: `components/sidebar.tsx:447`, `p.truncate` com "Admin Core TI Expert" mede
+`scrollWidth` 143 > `clientWidth` 135 e não tem `title`; aparece "Admin Core TI Ex…" em todas as
+larguras.
+
+**Por que fica pendente**: mesma casca compartilhada do item 16. Correção: `title={user.name}`, como
+a linha 415 já faz com `title={tenant.name}`.

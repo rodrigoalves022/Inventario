@@ -22,7 +22,7 @@ sequenceDiagram
     participant API as POST /api/agent/register
 
     Admin->>DB: cria Client (Server Action, app/admin/clients/actions.ts)
-    Note over Admin,DB: Client.enrollmentKeyHash gravado — a chave em claro só existe nesta resposta, uma vez
+    Note over Admin,DB: enrollmentKeyHash e cópia cifrada (AES-256-GCM) gravados — reexibível só por canManageTenant (ADR 0005)
     Admin->>Agent: instala com client + enrollmentKey<br/>(script bootstrap .ps1 ou instalação manual)
     Agent->>API: POST { name, client, enrollmentKey }
     API->>API: rate limit register:(IP) — 15 / 5min

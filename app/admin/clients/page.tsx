@@ -4,50 +4,12 @@ import { Plus } from 'lucide-react'
 import { Sidebar, Header } from '@/components/sidebar'
 import { Button } from '@/components/ui/button'
 import { auth } from '@/auth'
-import {
-  getSessionPermissionUser,
-  isOrgAdmin,
-  isPlatformAdmin,
-  type PermissionUser,
-} from '@/lib/permissions'
-import prisma from '@/lib/prisma'
+import { getSessionPermissionUser, isOrgAdmin, isPlatformAdmin } from '@/lib/permissions'
 import { getCurrentServerUrl } from '@/lib/server-url'
-import {
-  createClientAction as createClientProvisioningAction,
-  rotateEnrollmentKeyAction as rotateClientProvisioningAction,
-} from './actions'
+import { rotateEnrollmentKeyAction as rotateClientProvisioningAction } from './actions'
 import { ClientsPanel } from './clients-panel'
+import { getClients } from './queries'
 import { type ProvisioningActionState } from './types'
-
-async function getClients(user: PermissionUser) {
-  const clients = await prisma.client.findMany({
-    // PLATFORM_ADMIN ve todas as contas; qualquer outro papel fica restrito
-    // a propria organizacao. Sem este filtro, um ORG_ADMIN veria clientes alheios.
-    where: isPlatformAdmin(user) ? undefined : { organizationId: user.organizationId ?? '__sem_organizacao__' },
-    orderBy: { name: 'asc' },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      isActive: true,
-      createdAt: true,
-      _count: {
-        select: {
-          agents: true,
-        },
-      },
-    },
-  })
-
-  return clients.map((client) => ({
-    id: client.id,
-    name: client.name,
-    slug: client.slug,
-    isActive: client.isActive,
-    createdAt: client.createdAt.toISOString(),
-    agentCount: client._count.agents,
-  }))
-}
 
 async function requireClientsAdminAccess() {
   const session = await auth()
@@ -64,11 +26,6 @@ export default async function ClientsPage() {
   const { session, user } = await requireClientsAdminAccess()
   const [clients, serverUrl] = await Promise.all([getClients(user), getCurrentServerUrl()])
 
-  async function createClientAction(state: ProvisioningActionState, formData: FormData) {
-    'use server'
-    return createClientProvisioningAction(state, formData)
-  }
-
   async function rotateEnrollmentKeyAction(state: ProvisioningActionState, formData: FormData) {
     'use server'
     return rotateClientProvisioningAction(state, formData)
@@ -77,9 +34,13 @@ export default async function ClientsPage() {
   return (
     <div className="flex min-h-screen">
       <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
-      <div className="flex-1 pl-64">
+      {/* Casca igual a do tenant (app/app/[clientSlug]/layout.tsx): abaixo de
+          lg a Sidebar vira drawer, entao o recuo de 256 px so vale a partir de
+          lg. `min-w-0` impede que o min-content da tabela alargue o item flex
+          e anule o overflow-x-auto do painel. */}
+      <div className="min-w-0 flex-1 lg:pl-64">
         <Header />
-        <main className="p-6">
+        <main className="p-4 lg:p-6">
           <div className="space-y-6">
             {/* Sem h1 aqui: o cabecalho fixo ja exibe "Clientes". Repetir o
                 titulo logo abaixo dele gastava altura util sem informar nada. */}
@@ -98,7 +59,6 @@ export default async function ClientsPage() {
             <ClientsPanel
               clients={clients}
               serverUrl={serverUrl}
-              createClientAction={createClientAction}
               rotateEnrollmentKeyAction={rotateEnrollmentKeyAction}
             />
           </div>

@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         name: client.name,
         slug: client.slug,
         enrollmentKey: plaintext,
-        message: 'Cliente criado. Guarde a enrollmentKey - ela não será exibida novamente.',
+        message: 'Cliente criado. A enrollmentKey fica guardada cifrada e pode ser consultada de novo por quem administra o cliente.',
       },
       { status: 201 }
     )

@@ -17,8 +17,8 @@
 | ID | Requisito | Descrição |
 |---|---|---|
 | RF001 | Autenticação de usuários | NextAuth com `CredentialsProvider` (`auth.ts`), verificação de senha via `bcrypt.compare` contra `User.passwordHash`. Sessão carrega `id`, `role`, `organizationId`, `clientId`. |
-| RF002 | Cadastro de tenant (Client) | `PLATFORM_ADMIN` ou `ORG_ADMIN` cadastra um `Client` pelo assistente `/admin/clients/novo`, via Server Action `createClientAction` (`app/admin/clients/actions.ts`). O sistema gera `enrollmentKeyHash` e exibe a chave em claro uma única vez. |
-| RF003 | Enrollment de agente | O agente troca a `enrollmentKey` de uso único do `Client` por uma `apiKey` própria e permanente, gravada como `AgentAuth.apiKeyHash`, via `POST /api/agent/register`. O banco nunca guarda nenhuma das duas chaves em claro. |
+| RF002 | Cadastro de tenant (Client) | `PLATFORM_ADMIN` ou `ORG_ADMIN` cadastra um `Client` pelo assistente `/admin/clients/novo`, via Server Action `createClientAction` (`app/admin/clients/actions.ts`). O sistema gera a `enrollmentKey`, grava `enrollmentKeyHash` e uma cópia cifrada (AES-256-GCM, `activeProvisioningKeyEnc`) e exibe a chave. Quem tem `canManageTenant` pode consultá-la de novo em "Ver credenciais" (grava `credentials.view`) ou rotacioná-la em "Emitir novo pacote" (grava `credentials.rotate`). Ver ADR 0005. |
+| RF003 | Enrollment de agente | O agente troca a `enrollmentKey` do `Client` (reutilizável por todas as máquinas do cliente até ser rotacionada) por uma `apiKey` própria e permanente, gravada como `AgentAuth.apiKeyHash`, via `POST /api/agent/register`. O banco nunca guarda nenhuma das duas chaves em claro: a `apiKey` só como hash, a `enrollmentKey` como hash e como cópia cifrada (AES-256-GCM). |
 | RF004 | Check-in de agente | `POST /api/agent/checkin`, autenticado por header `X-Api-Key` (`validateAgentApiKey`), payload validado por `agentCheckinSchema` (Zod) antes de tocar o banco. Ciclo de 1 hora no agente. |
 | RF005 | Coleta de hardware | Tabela `Hardware` (1:1 com `Device`): sistema operacional, versão, processador, RAM total, slots de memória (1 a 4), placa-mãe, tipo de armazenamento. |
 | RF006 | Coleta de rede | Tabela `Network` (1:N): IP, MAC, gateway, DNS, DHCP habilitado, indicador de interface primária. |
@@ -72,7 +72,7 @@
 | RN002 | `Organization.type` (`MSP` ou `DIRECT`) é convenção documentada por comentário, não constraint de banco. No modo `DIRECT`, a `Organization` possui exatamente um `Client` — o mesmo caminho de código atende os dois modelos de negócio, sem ramificação `if (isMsp)`. |
 | RN003 | Isolamento por tenant via `canAccessTenant`: `PLATFORM_ADMIN` sempre tem acesso; `ORG_ADMIN`/`ORG_OPERATOR` só se `user.organizationId === tenant.organizationId`; `CLIENT_VIEWER` nunca — por design, esse papel só acessa `/portal`, nunca `/app/*`. |
 | RN004 | RBAC de 4 papéis (`lib/permissions.ts`, tipo `AppRole`): `PLATFORM_ADMIN`, `ORG_ADMIN`, `ORG_OPERATOR`, `CLIENT_VIEWER`. Como `User.role` é `String` livre no schema, qualquer valor fora desses 4 é normalizado para `null` por `getPermissionUser()` — ou seja, sem nenhum privilégio até correção manual. |
-| RN005 | `AgentAuth.apiKeyHash` e `Client.enrollmentKeyHash` são `@unique` — apenas o hash é persistido, nunca a chave em claro, para as duas credenciais do sistema. |
+| RN005 | `AgentAuth.apiKeyHash` e `Client.enrollmentKeyHash` são `@unique` — nenhuma das duas credenciais é persistida em claro. A `apiKey` existe só como hash. A `enrollmentKey` é conferida pelo hash, mas também é guardada cifrada com AES-256-GCM em `Client.activeProvisioningKeyEnc`, para que quem tem `canManageTenant` possa reexibi-la; cada reexibição grava `credentials.view` (ADR 0005). |
 | RN006 | `AlertEvent` nunca é apagado — o ciclo é aberto→resolvido por atualização de `resolvedAt`. Aplica-se apenas ao catálogo de 4 métricas de segurança; os limiares fixos de disco/RAM/offline não geram `AlertEvent` — alimentam o status calculado do dispositivo e o webhook diretamente. |
 | RN007 | Disparo de comando remoto exige `canOperateTenant` (= `canManageTenant` OU `ORG_OPERATOR` da mesma organização) — `PLATFORM_ADMIN`, `ORG_ADMIN` e `ORG_OPERATOR` podem; `CLIENT_VIEWER` nunca. |
 | RN008 | `Client.metricsRetentionDays` (default 90) — o expurgo é executado por `deviceId` a cada ingestão de métrica, aproveitando o índice `(deviceId, collectedAt)` já necessário para os gráficos. |
@@ -99,10 +99,16 @@
   1. Ator acessa `/admin/clients/novo`.
   2. Preenche nome do cliente e observações do assistente de 3 passos.
   3. Server Action `createClientAction` (`app/admin/clients/actions.ts`, guard `hasClientsAdminAccess`) cria o `Client`, vinculado à `Organization` do ator (ou à escolhida, se `PLATFORM_ADMIN`).
-  4. Sistema gera `enrollmentKey` e grava apenas `enrollmentKeyHash`; a chave em claro é exibida uma única vez, em aviso de destaque.
+  4. Sistema gera `enrollmentKey` e grava `enrollmentKeyHash` e a cópia cifrada (AES-256-GCM) em `activeProvisioningKeyEnc`; a chave é exibida em aviso de credencial sensível e pode ser consultada de novo em "Ver credenciais" por quem tem `canManageTenant` (ADR 0005).
   5. Ator segue para o passo de instalação (ver 3.2).
-- **Fluxos alternativos**: ator sem `hasClientsAdminAccess` — Server Action recusa a execução.
-- **Pós-condição**: `Client` ativo, `enrollmentKeyHash` gravado, pronto para receber o primeiro agente.
+- **Fluxos alternativos**:
+  - Ator sem `hasClientsAdminAccess` — Server Action recusa a execução.
+  - **Emitir novo pacote** (rotação da `enrollmentKey` de um `Client` já existente):
+    - **Ator**: quem tem `canManageTenant` sobre o cliente (`PLATFORM_ADMIN`, ou `ORG_ADMIN` da mesma organização).
+    - **Pré-condição**: `Client` existente e visível em `/admin/clients`.
+    - **Fluxo**: (1) ator clica em "Emitir novo pacote" na linha do cliente; (2) um diálogo de confirmação informa quantas máquinas já registradas (`AgentAuth` com `isActive: true`) continuam funcionando e que instaladores, comandos e pacotes antigos param de funcionar para máquinas novas; (3) "Cancelar" fecha sem alterar nada; (4) "Confirmar" chama `rotateEnrollmentKeyAction`, que gera chave nova, grava `enrollmentKeyHash` e `activeProvisioningKeyEnc` e registra `credentials.rotate` no `AuditLog`; (5) a tela exibe o pacote novo com o aviso de revisar os instaladores antigos.
+    - **Exceções**: ator sem `canManageTenant` ou cliente inexistente — a action devolve erro e a tela exibe a mensagem; nada é gravado. A rotação **não** revoga `AgentAuth` já emitidos (ver ADR 0005).
+- **Pós-condição**: `Client` ativo, `enrollmentKeyHash` e `activeProvisioningKeyEnc` gravados, pronto para receber o primeiro agente.
 - **Exceções**: nome duplicado ou dados inválidos são rejeitados antes da escrita.
 
 ### 3.2 Enrollment do agente
@@ -410,7 +416,7 @@ flowchart TB
 
 ### 6.2 Fluxo de autenticação do agente (`enrollmentKey` → `apiKey`)
 
-1. `ORG_ADMIN`/`PLATFORM_ADMIN` cria o `Client` → sistema gera `enrollmentKey`, grava só `enrollmentKeyHash`.
+1. `ORG_ADMIN`/`PLATFORM_ADMIN` cria o `Client` → sistema gera `enrollmentKey`, grava `enrollmentKeyHash` e a cópia cifrada `activeProvisioningKeyEnc` (AES-256-GCM, reexibível só por `canManageTenant`; ADR 0005).
 2. Agente instalado com `client` + `enrollmentKey` chama `POST /api/agent/register`.
 3. Servidor confere o hash da chave recebida contra `enrollmentKeyHash` (ou aceita `X-Admin-Secret` como caminho alternativo).
 4. Servidor cria `AgentAuth` com `apiKeyHash` novo (SHA-256 sem sal — chave de alta entropia gerada pelo próprio servidor, ver §4.3 de `SPEC.md`) e devolve a `apiKey` em claro **uma única vez**.
@@ -670,7 +676,7 @@ erDiagram
 
 **AgentAuth** — A credencial de uma instalação de agente, 1:1 com `Device` (`onDelete: Cascade` a partir daqui). É a unidade real de identidade/autenticação; `Device` é o que pendura dela. *Evitar*: confundir com `enrollmentKey`.
 
-**Enrollment key vs. API key** — `enrollmentKey` é de uso único por `Client`, só para o primeiro contato (`/api/agent/register`). `apiKey` (via `AgentAuth`) é a credencial permanente de cada `Device`, usada em todo check-in depois disso. O banco nunca guarda nenhuma das duas em claro. *Evitar*: "chave do agente" sem especificar qual das duas.
+**Enrollment key vs. API key** — `enrollmentKey` é uma por `Client`, reutilizável por todas as máquinas do cliente até ser rotacionada ("Emitir novo pacote"), e só serve para o primeiro contato (`/api/agent/register`). `apiKey` (via `AgentAuth`) é a credencial permanente de cada `Device`, usada em todo check-in depois disso. O banco nunca guarda nenhuma das duas em claro (a `enrollmentKey` fica como hash e como cópia cifrada AES-256-GCM, ver ADR 0005). *Evitar*: "chave do agente" sem especificar qual das duas.
 
 **Check-in** — Requisição periódica do agente (`POST /api/agent/checkin`, ciclo de 1h) que envia o inventário completo. Distinto do ciclo de métricas (~10min) e do ciclo de comandos (~90s), que são rotas e ritmos separados.
 

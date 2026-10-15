@@ -37,11 +37,11 @@ export function AgentInstallPackage({
           <div className="min-w-0 flex-1 space-y-3">
             <div>
               <p className="text-sm font-medium">
-                {keyIsFresh ? 'Guarde a chave de instalação agora' : 'Chave ativa deste cliente'}
+                {keyIsFresh ? 'Chave de instalação: trate como senha' : 'Chave ativa deste cliente'}
               </p>
               <p className="text-xs text-muted-foreground">
                 {keyIsFresh
-                  ? 'Ela não será exibida novamente. Só é necessária para instalar em mais máquinas manualmente.'
+                  ? 'É uma credencial sensível: quem a tiver registra máquinas neste cliente. Ela fica guardada cifrada e pode ser consultada em "Ver credenciais" por quem administra este cliente. Só é necessária para instalar em mais máquinas manualmente.'
                   : 'Continua válida até você emitir um novo pacote — quem acessa esta tela pode vê-la novamente a qualquer momento.'}
               </p>
             </div>

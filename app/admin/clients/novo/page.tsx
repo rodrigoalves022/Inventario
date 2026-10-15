@@ -26,9 +26,11 @@ export default async function NewClientPage() {
   return (
     <div className="flex min-h-screen">
       <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
-      <div className="flex-1 pl-64">
+      {/* Mesma casca do tenant: recuo da Sidebar so a partir de lg (abaixo
+          disso ela vira drawer). */}
+      <div className="min-w-0 flex-1 lg:pl-64">
         <Header />
-        <main className="p-6">
+        <main className="p-4 lg:p-6">
           <NewClientWizard serverUrl={serverUrl} createClientAction={createClientAction} />
         </main>
       </div>

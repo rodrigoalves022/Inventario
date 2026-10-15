@@ -13,23 +13,39 @@ import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
 import { type ProvisioningActionState } from './types'
 
+// Mensagens em pt-BR em todos os campos: as padrao do Zod 3 sao em ingles
+// ("Invalid url", "Expected string, received null"...) e chegam ao usuario
+// por `issues[0]?.message`. `formData.get` devolve null para campo ausente,
+// que cai em invalid_type_error (nao em required_error).
+function requiredString(message: string) {
+  return z.string({ required_error: message, invalid_type_error: message })
+}
+
+const serverUrlSchema = requiredString('Informe o endereço do servidor.')
+  .trim()
+  .url('Informe um endereço de servidor válido, por exemplo https://inventario.suaempresa.com.')
+
+const clientNameMessage = 'Informe um nome com pelo menos 3 caracteres.'
+
 const createClientSchema = z.object({
-  serverUrl: z.string().trim().url(),
-  name: z.string().trim().min(3, 'Informe um nome com pelo menos 3 caracteres.'),
+  serverUrl: serverUrlSchema,
+  name: requiredString(clientNameMessage).trim().min(3, clientNameMessage),
   slug: z
     .string()
     .trim()
-    .regex(/^[a-z0-9-]+$/, 'Use apenas letras minusculas, numeros e hifens.')
+    .regex(/^[a-z0-9-]+$/, 'Use apenas letras minúsculas, números e hifens.')
     .optional(),
 })
 
 const rotateKeySchema = z.object({
-  serverUrl: z.string().trim().url(),
-  clientId: z.string().trim().min(1),
+  serverUrl: serverUrlSchema,
+  clientId: requiredString('Cliente não informado.').trim().min(1, 'Cliente não informado.'),
 })
 
 const revokeAgentAuthSchema = z.object({
-  agentAuthId: z.string().trim().min(1),
+  agentAuthId: requiredString('Credencial de agente não informada.')
+    .trim()
+    .min(1, 'Credencial de agente não informada.'),
 })
 
 // Um arquivo 'use server' so pode exportar funcoes async (Next.js exige isso
@@ -44,7 +60,7 @@ export type RevokeAgentAuthState = {
 
 function rejectUnauthorizedAccess(): ProvisioningActionState {
   return {
-    error: 'Acesso administrativo nao autorizado.',
+    error: 'Acesso administrativo não autorizado.',
     message: null,
     package: null,
   }
@@ -124,7 +140,7 @@ export async function createClientAction(
 
     if (!parsed.success) {
       return {
-        error: parsed.error.issues[0]?.message ?? 'Payload invalido.',
+        error: parsed.error.issues[0]?.message ?? 'Dados inválidos.',
         message: null,
         package: null,
       }
@@ -133,7 +149,7 @@ export async function createClientAction(
     const slug = (parsed.data.slug ?? slugifyClientName(parsed.data.name)).trim().toLowerCase()
     if (!slug) {
       return {
-        error: 'Nao foi possivel gerar um identificador valido para o cliente.',
+        error: 'Não foi possível gerar um identificador válido para o cliente.',
         message: null,
         package: null,
       }
@@ -142,7 +158,7 @@ export async function createClientAction(
     const existing = await prisma.client.findUnique({ where: { slug } })
     if (existing) {
       return {
-        error: 'Ja existe um cliente com esse slug.',
+        error: 'Já existe um cliente com esse nome ou com um nome equivalente.',
         message: null,
         package: null,
       }
@@ -179,7 +195,7 @@ export async function createClientAction(
 
     revalidatePath('/admin/clients')
 
-    return buildState('Cliente criado e pacote de instalacao emitido.', {
+    return buildState('Cliente criado e pacote de instalação emitido.', {
       clientId: client.id,
       clientName: client.name,
       clientSlug: client.slug,
@@ -211,7 +227,7 @@ export async function rotateEnrollmentKeyAction(
 
     if (!parsed.success) {
       return {
-        error: parsed.error.issues[0]?.message ?? 'Payload invalido.',
+        error: parsed.error.issues[0]?.message ?? 'Dados inválidos.',
         message: null,
         package: null,
       }
@@ -228,7 +244,7 @@ export async function rotateEnrollmentKeyAction(
 
     if (!client) {
       return {
-        error: 'Cliente nao encontrado.',
+        error: 'Cliente não encontrado.',
         message: null,
         package: null,
       }
@@ -262,7 +278,7 @@ export async function rotateEnrollmentKeyAction(
 
     revalidatePath('/admin/clients')
 
-    return buildState('Enrollment key rotacionada. Revise os instaladores antigos.', {
+    return buildState('Chave de instalação rotacionada. Revise os instaladores antigos.', {
       clientId: client.id,
       clientName: client.name,
       clientSlug: client.slug,
@@ -272,7 +288,7 @@ export async function rotateEnrollmentKeyAction(
   } catch (error) {
     console.error('[clients/rotate-key] Erro:', error)
     return {
-      error: 'Erro interno ao rotacionar a enrollment key.',
+      error: 'Erro interno ao rotacionar a chave de instalação.',
       message: null,
       package: null,
     }
@@ -293,7 +309,7 @@ export async function revokeAgentAuthAction(
 
     if (!parsed.success) {
       return {
-        error: parsed.error.issues[0]?.message ?? 'Payload invalido.',
+        error: parsed.error.issues[0]?.message ?? 'Dados inválidos.',
         message: null,
       }
     }
@@ -322,7 +338,7 @@ export async function revokeAgentAuthAction(
     // um registro orfao (sem client) tambem cai neste mesmo caminho.
     if (!agentAuth || !agentAuth.client || !canManageTenant(user, agentAuth.client)) {
       return {
-        error: 'Credencial de agente nao encontrada.',
+        error: 'Credencial de agente não encontrada.',
         message: null,
       }
     }

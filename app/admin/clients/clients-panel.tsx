@@ -1,9 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useMemo, useRef, useState } from 'react'
-import { useFormStatus } from 'react-dom'
-import { ArrowUpRight, Eye, KeyRound, Loader2, Terminal, X } from 'lucide-react'
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUpRight, Eye, Loader2, Terminal, X } from 'lucide-react'
 import {
   initialProvisioningState,
   type ProvisioningActionState,
@@ -13,8 +12,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { AgentInstallPackage } from '@/components/agent-install-package'
 import { getTenantBasePath } from '@/lib/tenant-links'
@@ -26,15 +33,13 @@ type ClientRow = {
   isActive: boolean
   createdAt: string
   agentCount: number
+  /** AgentAuth com isActive: true: maquinas que seguem funcionando depois da rotacao. */
+  activeAgentCount: number
 }
 
 type ClientsPanelProps = {
   clients: ClientRow[]
   serverUrl: string
-  createClientAction: (
-    state: ProvisioningActionState,
-    payload: FormData
-  ) => Promise<ProvisioningActionState>
   rotateEnrollmentKeyAction: (
     state: ProvisioningActionState,
     payload: FormData
@@ -61,6 +66,9 @@ const emptyCredentialsDialogState: CredentialsDialogState = {
 
 const credentialsLoadError = 'Falha ao carregar credenciais ativas.'
 
+const rotationDoneMessage = 'Chave de instalação rotacionada. Revise os instaladores antigos.'
+
+/** Resultado de uma rotacao bem-sucedida: o pacote novo, com a chave nova. */
 function PackagePanel({
   pkg,
   message,
@@ -70,12 +78,12 @@ function PackagePanel({
 }) {
   return (
     <Card className="border-primary/40 bg-primary/5">
-      <CardHeader>
+      <CardHeader className="pr-14">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge>Provisionado</Badge>
+          <Badge>Novo pacote emitido</Badge>
           <CardTitle>{pkg.clientName}</CardTitle>
         </div>
-        {message && <CardDescription>{message}</CardDescription>}
+        <CardDescription>{message || rotationDoneMessage}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <AgentInstallPackage pkg={pkg} keyIsFresh />
@@ -140,50 +148,112 @@ function CredentialsDialog({
   )
 }
 
-function RotatePackageButton() {
-  const { pending } = useFormStatus()
+/** Texto do dialogo: quantas maquinas ja registradas seguem fazendo check-in. */
+function machinesThatKeepWorking(count: number) {
+  if (count <= 0) return 'Nenhuma máquina está registrada neste cliente no momento.'
+  if (count === 1) {
+    return '1 máquina já registrada continua funcionando: ela usa a própria credencial, que a rotação não altera.'
+  }
+  return `${count} máquinas já registradas continuam funcionando: elas usam a própria credencial, que a rotação não altera.`
+}
 
+function RotateConfirmDialog({
+  client,
+  open,
+  onOpenChange,
+  onConfirm,
+  onCloseAutoFocus,
+}: {
+  client: ClientRow | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+  onCloseAutoFocus: (event: Event) => void
+}) {
   return (
-    <Button type="submit" size="sm" variant="outline" disabled={pending}>
-      <Terminal className="h-4 w-4" />
-      {pending ? 'Emitindo...' : 'Emitir novo pacote'}
-    </Button>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent onCloseAutoFocus={onCloseAutoFocus}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {client ? `Emitir novo pacote para ${client.name}?` : 'Emitir novo pacote?'}
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <p>
+                Uma nova chave de instalação será gerada. Instaladores, comandos e pacotes emitidos
+                antes desta rotação param de funcionar para instalar em máquinas novas.
+              </p>
+              <p className="font-medium text-foreground">
+                {machinesThatKeepWorking(client?.activeAgentCount ?? 0)}
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>Confirmar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
 export function ClientsPanel({
   clients,
   serverUrl,
-  createClientAction,
   rotateEnrollmentKeyAction,
 }: ClientsPanelProps) {
-  const [provisioningServerUrl, setProvisioningServerUrl] = useState(serverUrl)
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [createState, createAction, createPending] = useActionState(
-    createClientAction,
+  const [rotateState, rotateAction, rotatePending] = useActionState(
+    rotateEnrollmentKeyAction,
     initialProvisioningState
   )
-  const [, rotateAction] = useActionState(rotateEnrollmentKeyAction, initialProvisioningState)
-  const [result, setResult] = useState<ProvisioningActionState>(initialProvisioningState)
+  // Cliente alvo do dialogo de confirmacao. Fica separado de `rotateDialogOpen`
+  // para o conteudo nao sumir durante a animacao de fechamento.
+  const [rotateTarget, setRotateTarget] = useState<ClientRow | null>(null)
+  const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
+  // O botao "X" dispensa o resultado exibido. Estado derivado: guarda a
+  // referencia dispensada em vez de copiar `rotateState` para outro estado.
+  // Uma rotacao nova devolve outro objeto e volta a aparecer.
+  const [dismissedState, setDismissedState] = useState<ProvisioningActionState | null>(null)
+  const result = rotateState === dismissedState ? initialProvisioningState : rotateState
   const [credentialsDialog, setCredentialsDialog] = useState<CredentialsDialogState>(
     emptyCredentialsDialogState
   )
   const credentialsRequestId = useRef(0)
+  // O dialogo e controlado e nao tem AlertDialogTrigger, entao o Radix nao sabe
+  // para onde devolver o foco ao fechar. Guardamos o botao que o abriu.
+  const rotateTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const rotationConfirmedRef = useRef(false)
+  const resultRef = useRef<HTMLDivElement | null>(null)
 
-  // Espelha `createState` (resultado da Server Action) em `result` — que
-  // tambem precisa poder ser descartado independentemente pelo botao "X"
-  // (por isso nao da so para renderizar `createState` direto). Ajuste de
-  // estado durante o render (comparando com a referencia anterior) evita o
-  // setState sincrono dentro de um useEffect, que causa re-render em
-  // cascata — mesmo padrao usado em `Sidebar` para fechar o drawer mobile.
-  const [prevCreateState, setPrevCreateState] = useState(createState)
-  if (createState !== prevCreateState) {
-    setPrevCreateState(createState)
-    if (createState.error || createState.message || createState.package) {
-      setResult(createState)
-      if (createState.package) setShowCreateForm(false)
-    }
+  function confirmRotation() {
+    if (!rotateTarget) return
+    const formData = new FormData()
+    formData.set('serverUrl', serverUrl)
+    formData.set('clientId', rotateTarget.id)
+    rotationConfirmedRef.current = true
+    setRotateDialogOpen(false)
+    startTransition(() => rotateAction(formData))
   }
+
+  function handleRotateDialogCloseAutoFocus(event: Event) {
+    event.preventDefault()
+    // Confirmado: o foco vai para o resultado quando ele chegar (efeito abaixo);
+    // o botao fica desabilitado enquanto a rotacao corre.
+    if (!rotationConfirmedRef.current) rotateTriggerRef.current?.focus()
+    rotationConfirmedRef.current = false
+  }
+
+  // Cada rotacao devolve um objeto novo; leva o foco ao resultado (sucesso ou erro).
+  useEffect(() => {
+    if (rotateState.package || rotateState.error) resultRef.current?.focus()
+  }, [rotateState])
+
+  const rotationAnnouncement = result.package
+    ? `Novo pacote emitido para ${result.package.clientName}. ${result.message || rotationDoneMessage}`
+    : result.error
+      ? `Falha ao emitir novo pacote: ${result.error}`
+      : ''
 
   const sortedClients = useMemo(
     () => [...clients].sort((left, right) => left.name.localeCompare(right.name)),
@@ -197,7 +267,7 @@ export function ClientsPanel({
 
     try {
       const response = await fetch(
-        `/api/clients/${client.id}/credentials?serverUrl=${encodeURIComponent(provisioningServerUrl)}`,
+        `/api/clients/${client.id}/credentials?serverUrl=${encodeURIComponent(serverUrl)}`,
         {
           method: 'GET',
           cache: 'no-store',
@@ -249,14 +319,33 @@ export function ClientsPanel({
         }}
       />
 
+      <RotateConfirmDialog
+        client={rotateTarget}
+        open={rotateDialogOpen}
+        onOpenChange={setRotateDialogOpen}
+        onConfirm={confirmRotation}
+        onCloseAutoFocus={handleRotateDialogCloseAutoFocus}
+      />
+
+      {/* Regiao viva sempre montada: leitores de tela so anunciam mudancas em
+          regioes que ja existiam antes do conteudo chegar. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {rotationAnnouncement}
+      </div>
+
       {(result.package || result.error) && (
-        <div className="relative">
+        <div
+          ref={resultRef}
+          tabIndex={-1}
+          data-testid="rotation-result"
+          className="relative rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
           {result.package ? (
             <PackagePanel pkg={result.package} message={result.message} />
           ) : (
             <Card className="border-destructive/40">
-              <CardHeader>
-                <CardTitle>Falha ao gerar pacote</CardTitle>
+              <CardHeader className="pr-14">
+                <CardTitle>Falha ao emitir novo pacote</CardTitle>
                 <CardDescription>{result.error}</CardDescription>
               </CardHeader>
             </Card>
@@ -265,66 +354,13 @@ export function ClientsPanel({
             size="sm"
             variant="ghost"
             className="absolute right-3 top-3"
-            onClick={() => setResult(initialProvisioningState)}
+            aria-label="Dispensar"
+            onClick={() => setDismissedState(rotateState)}
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
       )}
-
-      {showCreateForm ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Novo cliente</CardTitle>
-                <CardDescription>
-                  Cria o cadastro, a chave inicial e o pacote de instalação em um passo.
-                </CardDescription>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => setShowCreateForm(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form action={createAction} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="serverUrl">URL usada nos instaladores</Label>
-                <Input
-                  id="serverUrl"
-                  name="serverUrl"
-                  value={provisioningServerUrl}
-                  onChange={(event) => setProvisioningServerUrl(event.target.value)}
-                  placeholder="https://inventario.suaempresa.com"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use o IP ou domínio acessível pela máquina do cliente.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome do cliente</Label>
-                <Input id="name" name="name" placeholder="Core TI Expert" required minLength={3} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="slug">Slug do cliente</Label>
-                <Input id="slug" name="slug" placeholder="core-ti-expert" />
-                <p className="text-xs text-muted-foreground">Se vazio, é gerado automaticamente.</p>
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={createPending}>
-                  <KeyRound className="h-4 w-4" />
-                  {createPending ? 'Criando...' : 'Criar e emitir pacote'}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <Card>
         <CardContent className="pt-6">
@@ -382,11 +418,20 @@ export function ClientsPanel({
                             <Eye className="h-4 w-4" />
                             Ver credenciais
                           </Button>
-                          <form action={rotateAction} className="inline">
-                            <input type="hidden" name="serverUrl" value={provisioningServerUrl} />
-                            <input type="hidden" name="clientId" value={client.id} />
-                            <RotatePackageButton />
-                          </form>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={rotatePending}
+                            onClick={(event) => {
+                              rotateTriggerRef.current = event.currentTarget
+                              setRotateTarget(client)
+                              setRotateDialogOpen(true)
+                            }}
+                          >
+                            <Terminal className="h-4 w-4" />
+                            {rotatePending && rotateTarget?.id === client.id ? 'Emitindo...' : 'Emitir novo pacote'}
+                          </Button>
                         </div>
                       </td>
                     </tr>

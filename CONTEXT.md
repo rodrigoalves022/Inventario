@@ -37,7 +37,7 @@ não o contrário). É a unidade real de identidade/autenticação, `Device` é 
 _Avoid_: confundir com `enrollmentKey` (ver abaixo — momentos diferentes do ciclo de vida).
 
 **Enrollment key vs API key**:
-`enrollmentKey` é de uso único por `Client`, só para o primeiro contato (`/api/agent/register`).
+`enrollmentKey` é uma por `Client`, reutilizável até ser rotacionada, só para o primeiro contato (`/api/agent/register`).
 `apiKey` (via `AgentAuth`) é a credencial permanente de cada `Device`, usada em todo check-in
 depois disso. O banco nunca guarda nenhuma das duas em claro — só hash.
 _Avoid_: "chave do agente" sem especificar qual das duas.
