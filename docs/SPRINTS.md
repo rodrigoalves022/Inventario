@@ -3350,3 +3350,69 @@ atual (não o script antigo) e de auditoria de segurança do comando gerado.
   - Incluído `cursor-pointer` explícito em `buttonVariants` (`components/ui/button.tsx`) e no `CheckboxPrimitive.Root` (`components/ui/checkbox.tsx`).
 - **Testes**: suíte atualizada em `tests/clients-panel-agents.test.tsx` com novo teste para o botão de ação e preservação de todos os 970 testes verdes.
 
+---
+
+### 21. Desinstalação Remota de Agente via Painel (Self-Uninstall Command via RMM) — MÉDIO/ALTO (Sugestão de Produto, 2026-10-15)
+
+**Origem**: sugestão do usuário inspirada no modelo do Bitdefender / EDR corporativo.
+
+**Contexto**:
+- Hoje (Sprint A3), a revogação de um agente em `/admin/clients/[id]/agents` desativa o registro no banco (`AgentAuth.isActive = false`), cancela comandos pendentes e ignora a máquina nos alertas.
+- No entanto, o serviço binário do agente Go continua ativo e rodando no endpoint, recebendo HTTP 403 a cada ciclo de check-in, até que um técnico acesse fisicamente a máquina ou execute desinstalação manual via script/GPO.
+
+**Proposta / Avaliação**:
+- **Mecanismo**: Adicionar comando reservado `AGENT_UNINSTALL` na fila assíncrona de comandos (`CommandQueue` / `agent_command`).
+- **Fluxo**:
+  1. No painel, o administrador clica em *"Revogar e Desinstalar"* (ou *"Desinstalar remotamente"*).
+  2. Um diálogo de confirmação de alto atrito explica que a desinstalação do serviço na máquina remota será disparada no próximo check-in.
+  3. O agente recebe o comando no ciclo de polling de 90s, executa a rotina nativa de auto-remoção:
+     - Windows: agenda a parada do serviço (`sc stop InventarioAgent`), remoção do registro do serviço (`sc delete InventarioAgent`), limpeza de chaves DPAPI e arquivos de configuração, e spawn de processo auxiliar assíncrono para exclusão do binário após o término do processo.
+     - Linux: executa `systemctl disable --now inventario-agent`, remove o arquivo de unit `/etc/systemd/system/inventario-agent.service` e os dados em `/opt/inventario-agent`.
+  4. O agente reporta ACK de sucesso antes da finalização do processo.
+  5. O servidor registra `AuditLog` (`agent_auth.remote_uninstall`) e revoga atomicamente o `AgentAuth`.
+- **Veredito**: **Excelente recurso**. Reduz drasticamente o custo operacional de suporte técnico e evita agentes "fantasmas" rodando indefinidamente em máquinas desativadas.
+
+---
+
+### 22. Agente de Rede / Sonda Local (Network Discovery, SNMP e Relay Local) — ALTO (Sugestão de Produto, 2026-10-15)
+
+**Origem**: avaliação solicitada pelo usuário sobre promover agentes a "agentes de rede" para gerenciamento amplo da infraestrutura local.
+
+**Avaliação Arquitetural (Prós e Contras)**:
+- **Papéis de um Agente de Rede**:
+  1. *Descoberta de Ativos não-gerenciáveis (Network Discovery & SNMP)*:
+     - Na maioria das empresas clientes existem impressoras de rede, switches gerenciáveis, roteadores/firewalls, storages NAS, access points Wi-Fi, câmeras IP e dispositivos IoT que **não suportam** a instalação de um agente Windows/Linux.
+     - Um agente instalado em um servidor ou máquina ligada permanentemente pode ser configurado como **Sonda de Rede (Network Probe)**. Ele executa varreduras passivas (escuta ARP, mDNS, DHCP) e ativas (ICMP ping sweep, SNMP v2c/v3, banner grabbing) na sub-rede local e envia ao painel o inventário de ativos de rede.
+  2. *Proxy / Gateway Relay para Ambientes Restritos (Air-gapped / VLANs sem Internet)*:
+     - Em redes corporativas com políticas rígidas de segurança ou DMZs, máquinas locais não possuem acesso direto à internet para alcançar o servidor nuvem.
+     - O Agente de Rede atua como um relay/proxy local: escuta em uma porta interna e retransmite o tráfego de métricas e inventário para o servidor central com criptografia TLS mútua.
+  3. *Cache Local e Distribuidor P2P de Atualizações*:
+     - Em filiais com centenas de computadores e link de internet limitado, o Agente de Rede baixa atualizações de pacotes e binários apenas uma vez e distribui localmente via LAN, economizando banda WAN do cliente.
+- **Veredito**: **Recurso de altíssimo valor de mercado (diferencial enterprise)**. Eleva o produto de "inventário de endpoints" para uma plataforma completa de **ITAM (IT Asset Management) e Observabilidade de Infraestrutura**.
+- **Recomendações técnicas**:
+  - Assegurar que a função de sonda seja estritamente **opt-in** por cliente e com sub-redes configuradas pelo administrador, para não disparar falsos positivos em firewalls/EDR locais.
+  - Controle de taxa (throttling) para não sobrecarregar a CPU do host nem saturar a rede.
+
+---
+
+### 23. Matriz de Novas Oportunidades, Ferramentas e Funcionalidades Corporativas (Roadmap Estratégico)
+
+**Origem**: levantamento de recursos de alto impacto para expansão do Inventário Enterprise.
+
+1. **Gestão de Vulnerabilidades de Software (CVE Vulnerability Scanner)**:
+   - Cruzar a lista de softwares e versões já coletados pelo agente com a base pública da NVD/NIST de vulnerabilidades conhecidas (CVEs). Exibir painel com alertas de softwares desatualizados com risco crítico (RCE, elevação de privilégio).
+2. **Saúde de Hardware e Telemetria SMART (Predição de Falhas de Disco)**:
+   - Coletar métricas SMART dos discos/SSDs (temperatura, horas ligado, setores realocados, % de desgaste de células SSD).
+   - Gerar alertas preventivos antes da quebra física do disco: *"O SSD da máquina do Financeiro atingiu 95% de desgaste"*.
+3. **Status do Windows Update e Conformidade de Segurança**:
+   - Telemetria de atualizações do SO pendentes, data da última atualização instalada e identificação de máquinas vulneráveis por falta de KBs de segurança.
+4. **Terminal Remoto Seguro / Ferramenta de Ações Rápidas (Live Command Shell / Quick Actions)**:
+   - Aproveitar a fila de `agent_command` para criar ações pré-definidas no painel com 1 clique (ex: reiniciar spooler de impressão, limpar cache DNS, reiniciar máquina, forçar coleta de diagnóstico) com auditoria completa.
+5. **Auditoria de Conexão de Dispositivos USB e Armazenamento em Massa**:
+   - O agente já coleta periféricos USB; criar alertas em tempo real quando um dispositivo de armazenamento USB desconhecido for conectado a uma máquina corporativa (prevenção contra vazamento de dados e ransomware).
+6. **Diagrama de Topologia de Rede Interativo**:
+   - A partir das tabelas ARP, MACs e vizinhos de switches (LLDP/CDP coletados via SNMP pelo Agente de Rede), renderizar visualmente o mapa da infraestrutura de rede da empresa.
+7. **Motor de Automação e Auto-Remediação (Self-Healing Rules)**:
+   - Gatilhos automáticos baseados em métricas: *"Se o disco C: ultrapassar 90%, executar rotina de limpeza de arquivos temporários e logs antigos"*.
+
+
