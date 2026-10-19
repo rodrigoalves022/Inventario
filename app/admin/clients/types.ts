@@ -6,6 +6,13 @@ export type ProvisioningPackage = {
   bootstrapUrl: string
   bootstrapCommand: string
   installCommand: string
+  // Sprint A4 (RF032): instalacao Linux e SHA-256 dos binarios publicados
+  // (`null` = binario daquela plataforma nao publicado neste servidor).
+  linuxBootstrapUrl: string
+  linuxBootstrapCommand: string
+  linuxInstallCommand: string
+  windowsSha256: string | null
+  linuxSha256: string | null
 }
 
 export type ProvisioningActionState = {

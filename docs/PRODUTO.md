@@ -247,6 +247,11 @@ Servidor enfileira → agente busca no próximo ciclo → executa → reporta re
 
   Para reproduzir: `cd agent-go && GOOS=linux GOARCH=amd64 go build -o dist/inventario-agent-linux ./cmd/inventario-agent`,
   copiar para dentro do WSL/Linux, `sudo ./inventario-agent-linux install -server <url> -client <slug> -key <chave>`.
+
+  Desde a Sprint A4 (RF032) a instalação Linux (amd64) sai do painel: `node scripts/build-agent.mjs all`
+  publica `public/inventario-agent-linux`, e o pacote de instalação tem a aba Linux com o download do
+  binário configurado, a linha `curl -fsSL '<url>' | sudo bash` (script que confere o SHA-256 do binário
+  antes de instalar em `/usr/local/bin/inventario-agent`) e o comando manual.
 - **macOS**: não suportado — só o stub (`factory_stub.go`) responde "coletor nativo ainda
   não implementado"
 

@@ -42,6 +42,8 @@ prisma/export/
 agent-go/*.exe
 agent-go/dist/
 public/*.exe
+public/inventario-agent-linux
+.playwright-mcp/
 
 # Backups locais do SQLite (contem hashes de credenciais)
 prisma/*.db

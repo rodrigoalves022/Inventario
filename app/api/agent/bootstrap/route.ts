@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildBootstrapScript, PROVISIONING_PARAMS_ERROR, provisioningParamsSchema } from '@/lib/provisioning'
 import { getCurrentServerUrl } from '@/lib/server-url'
+import { getAgentBinarySha256 } from '@/lib/agent-binary'
 import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
@@ -22,11 +23,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: PROVISIONING_PARAMS_ERROR }, { status: 400 })
   }
 
+  // Sprint A4 (N6): o script confere o SHA-256 do .exe baixado antes de
+  // executa-lo. Sem binario publicado nao ha hash a conferir: 503, sem script.
+  const expectedSha256 = await getAgentBinarySha256('windows')
+  if (!expectedSha256) {
+    return NextResponse.json(
+      { error: 'Binário do agente para Windows não publicado neste servidor.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    )
+  }
+
   const serverUrl = await getCurrentServerUrl()
 
   let script: string
   try {
-    script = buildBootstrapScript(serverUrl, parsed.data.client, parsed.data.key)
+    script = buildBootstrapScript(serverUrl, parsed.data.client, parsed.data.key, expectedSha256)
   } catch (error) {
     // serverUrl vem do env ou, sem env, dos cabecalhos host/x-forwarded-*:
     // se nao passar na allowlist, nenhum script e' servido.

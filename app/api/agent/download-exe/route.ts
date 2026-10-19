@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PROVISIONING_PARAMS_ERROR, provisioningParamsSchema } from '@/lib/provisioning'
 import { getCurrentServerUrl } from '@/lib/server-url'
 import { rateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
+import { appendAgentConfig } from '@/lib/agent-binary'
 import path from 'path'
 import { promises as fs } from 'fs'
 
@@ -34,17 +35,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Agente binario nao encontrado no servidor.' }, { status: 500 })
   }
 
-  // Build the tail payload
-  const configBlock = JSON.stringify({
+  // Bloco <<INV_CONFIG>> compartilhado com /api/agent/download-linux (Sprint A4).
+  const modifiedExe = appendAgentConfig(exeBytes, {
     serverUrl,
     client: parsed.data.client,
-    key: parsed.data.key
+    key: parsed.data.key,
   })
-  
-  const payloadStr = `\n<<INV_CONFIG>>${configBlock}<<INV_CONFIG>>\n`
-  const payloadBytes = Buffer.from(payloadStr, 'utf-8')
-  
-  const modifiedExe = Buffer.concat([exeBytes, payloadBytes])
 
   return new NextResponse(modifiedExe, {
     status: 200,

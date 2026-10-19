@@ -22,7 +22,7 @@ const { auth } = NextAuth(authConfig)
 // agente (foi exatamente o que aconteceu com /api/agent/discovery na Sprint 14,
 // pego so no teste com servidor real — chamar POST() direto no Vitest nunca
 // passa pelo proxy).
-const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/metrics", "/api/agent/discovery", "/api/agent/bootstrap", "/api/agent/register", "/api/agent/download", "/api/agent/download-exe", "/api/agent/commands", "/api/collect/windows"]
+const publicRoutes = ["/login", "/api/auth", "/api/agent/checkin", "/api/agent/metrics", "/api/agent/discovery", "/api/agent/bootstrap", "/api/agent/bootstrap-linux", "/api/agent/register", "/api/agent/download", "/api/agent/download-exe", "/api/agent/download-linux", "/inventario-agent-linux", "/api/agent/commands", "/api/collect/windows"]
 
 export default auth((req) => {
   const { nextUrl } = req

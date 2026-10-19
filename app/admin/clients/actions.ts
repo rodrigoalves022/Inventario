@@ -9,6 +9,7 @@ import { slugifyClientName } from '@/lib/clients'
 import { canManageTenant, getSessionPermissionUser, isOrgAdmin, isPlatformAdmin } from '@/lib/permissions'
 import { resolveOrganizationIdForActor } from '@/lib/organizations'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
+import { getPublishedAgentHashes } from '@/lib/agent-binary'
 import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
 import { type ProvisioningActionState } from './types'
@@ -139,7 +140,7 @@ async function persistActiveProvisioningKey(
   `
 }
 
-function buildState(
+async function buildState(
   message: string,
   packageData: {
     clientId: string
@@ -148,7 +149,7 @@ function buildState(
     enrollmentKey: string
     serverUrl: string
   }
-): ProvisioningActionState {
+): Promise<ProvisioningActionState> {
   const artifacts = buildProvisioningArtifacts(
     packageData.serverUrl,
     packageData.clientSlug,
@@ -164,6 +165,7 @@ function buildState(
       clientSlug: packageData.clientSlug,
       enrollmentKey: packageData.enrollmentKey,
       ...artifacts,
+      ...(await getPublishedAgentHashes()),
     },
   }
 }
@@ -240,7 +242,7 @@ export async function createClientAction(
 
     revalidatePath('/admin/clients')
 
-    return buildState('Cliente criado e pacote de instalação emitido.', {
+    return await buildState('Cliente criado e pacote de instalação emitido.', {
       clientId: client.id,
       clientName: client.name,
       clientSlug: client.slug,
@@ -383,7 +385,7 @@ export async function rotateEnrollmentKeyAction(
           }. Reinstale o agente nessas máquinas com o pacote novo.`
         : 'Chave de instalação rotacionada. Revise os instaladores antigos.'
 
-    return buildState(message, {
+    return await buildState(message, {
       clientId: client.id,
       clientName: client.name,
       clientSlug: client.slug,

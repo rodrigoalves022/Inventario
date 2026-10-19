@@ -207,6 +207,32 @@ default 90).
 | 200 | texto plano (script PowerShell), `Content-Disposition: attachment` |
 | 400 | `{ error: 'Parâmetros client e key ausentes ou fora do formato permitido.' }` — `client`/`key` ausente **ou fora da allowlist** (§3.6); nenhum script no corpo |
 | 500 | `{ error: 'Não foi possível gerar o script de instalação.' }` — URL do servidor (env ou cabeçalhos `x-forwarded-host`/`host`) inválida para interpolação no script; nenhum script no corpo |
+| 503 | `{ error }` — `public/inventario-agent.exe` não publicado (sem SHA-256 a conferir); avaliado depois do `400` e antes de montar o script; nenhum script no corpo (Sprint A4, N6) |
+| 429 | `{ error }`, header `Retry-After` |
+
+O script confere `(Get-FileHash -Algorithm SHA256 -Path $downloadPath).Hash` contra o hash publicado logo depois do `Invoke-WebRequest` e antes de qualquer execução do arquivo baixado; divergência → `Remove-Item` e `throw` com esperado e obtido.
+
+### `GET /api/agent/bootstrap-linux`
+
+| | |
+|---|---|
+| Request | query string `?client=&key=` — `provisioningParamsSchema` (§3.6) |
+| 200 | script bash, `Content-Type: text/plain; charset=utf-8`, `Content-Disposition: attachment; filename="install-{client}.sh"`, `Cache-Control: no-store` |
+| 400 | `{ error: 'Parâmetros client e key ausentes ou fora do formato permitido.' }`; nenhum script no corpo |
+| 503 | `{ error }` — `public/inventario-agent-linux` não publicado; nenhum script no corpo |
+| 500 | `{ error: 'Não foi possível gerar o script de instalação.' }` — URL do servidor fora da allowlist |
+| 429 | `{ error }`, header `Retry-After` |
+
+Uso: `curl -fsSL '<url>' | sudo bash`. O script (`buildLinuxBootstrapScript`) roda dentro de `main()`, com `set -euo pipefail`; exige `id -u` = 0; baixa `${server}/inventario-agent-linux` para `mktemp -d` (apagado por `trap`) com `curl -fsSL` ou `wget -qO`; confere o hash com `sha256sum` ou `shasum -a 256`; sem ferramenta de download, sem ferramenta de hash ou com hash divergente sai com código ≠ 0 sem instalar. Nada é executado do diretório temporário: o binário vai para `/usr/local/bin/inventario-agent`, e só então roda `uninstall` (se `/etc/systemd/system/inventario-agent.service` existir) e `install -server … -client … -key … -name "$(hostname)"`.
+
+### `GET /api/agent/download-linux`
+
+| | |
+|---|---|
+| Request | query string `?client=&key=` — `provisioningParamsSchema` (§3.6) |
+| 200 | binário Linux (amd64) + bloco `\n<<INV_CONFIG>>{serverUrl,client,key}<<INV_CONFIG>>\n` (o mesmo de `download-exe`), `application/octet-stream`, `Content-Disposition: attachment; filename="inventario-agent-{client}"`, `Cache-Control: no-store`, `Content-Length` |
+| 400 | `{ error: 'Parâmetros client e key ausentes ou fora do formato permitido.' }`; nenhum byte de binário |
+| 503 | `{ error }` — binário Linux não publicado |
 | 429 | `{ error }`, header `Retry-After` |
 
 ### `POST /api/tenant/[clientSlug]/devices/[deviceId]/commands` (enfileirar — sessão de usuário, não agente)
@@ -324,9 +350,9 @@ client?: string.min(2)
 enrollmentKey?: string.min(16)
 ```
 
-### 3.6 `GET /api/agent/bootstrap` e `GET /api/agent/download-exe` — schema compartilhado
+### 3.6 `GET /api/agent/bootstrap`, `bootstrap-linux`, `download-exe` e `download-linux` — schema compartilhado
 
-`provisioningParamsSchema` em `lib/provisioning.ts`, importado pelas duas rotas (nenhuma define a
+`provisioningParamsSchema` em `lib/provisioning.ts`, importado pelas quatro rotas (nenhuma define a
 regex inline). Allowlist estrita: entrada fora do formato é **rejeitada** com `400`, nunca
 sanitizada.
 
@@ -339,6 +365,12 @@ Defesa em profundidade: `buildBootstrapScript` e `buildProvisioningArtifacts` la
 `client`/`key` fora da mesma allowlist e para `serverUrl` não parseável, com protocolo diferente de
 `http`/`https`, ou contendo aspas (ASCII `'`/`"` e U+2018–U+201B), backtick, `$` ou caractere de
 controle (incluindo `\r`/`\n`).
+
+Sprint A4: `buildLinuxBootstrapScript` aplica a mesma allowlist e, como segunda camada, interpola
+os valores entre aspas simples com `escapeBashSingleQuoted` (`'` → `'\''`). O `linuxInstallCommand`
+usa aspas duplas de bash, por isso a recusa de `$` e backtick no `serverUrl` é obrigatória. O hash
+esperado (`expectedSha256`) é obrigatório em `buildBootstrapScript` e `buildLinuxBootstrapScript` e
+validado por `/^[a-f0-9]{64}$/` antes de entrar em qualquer script.
 
 ---
 
@@ -401,6 +433,8 @@ documentada explicitamente no próprio arquivo, não uma surpresa a descobrir em
 | `bootstrap` | IP do cliente | 20 | 5 min |
 | `download` | IP do cliente | 20 | 5 min |
 | `download-exe` | IP do cliente | 20 | 5 min |
+| `bootstrap-linux` | IP do cliente | 20 | 5 min |
+| `download-linux` | IP do cliente | 20 | 5 min |
 | `commands/pending` | `agentAuthId` | 60 | 5 min |
 | `commands/[id]/result` | `agentAuthId` | 30 | 5 min |
 

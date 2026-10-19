@@ -46,6 +46,12 @@ const pkg = {
   bootstrapUrl: `${SERVER_URL}/api/agent/bootstrap?client=teste-a0-rotacao`,
   bootstrapCommand: 'powershell -c "bootstrap"',
   installCommand: 'install.exe',
+  // Campos da Sprint A4 (pacote Linux e SHA-256 dos binarios publicados).
+  linuxBootstrapUrl: 'https://inventario.example.com/api/agent/bootstrap-linux',
+  linuxBootstrapCommand: 'curl -fsSL bootstrap-linux | sudo bash',
+  linuxInstallCommand: 'sudo /usr/local/bin/inventario-agent install',
+  windowsSha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  linuxSha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
 }
 
 const availableBody = {

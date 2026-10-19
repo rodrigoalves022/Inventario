@@ -65,7 +65,7 @@ export function TenantEmptyState({
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Instalar o agente</DialogTitle>
             <DialogDescription>Pacote ativo de {clientName}, sem rotacionar a chave atual.</DialogDescription>

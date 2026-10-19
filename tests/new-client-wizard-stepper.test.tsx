@@ -31,6 +31,12 @@ const pkgState: ProvisioningActionState = {
     bootstrapUrl: 'https://inventario.example.com/api/agent/bootstrap?client=acme',
     bootstrapCommand: 'powershell -c "bootstrap"',
     installCommand: 'install.exe',
+    // Campos da Sprint A4 (pacote Linux e SHA-256 dos binarios publicados).
+    linuxBootstrapUrl: 'https://inventario.example.com/api/agent/bootstrap-linux',
+    linuxBootstrapCommand: 'curl -fsSL bootstrap-linux | sudo bash',
+    linuxInstallCommand: 'sudo /usr/local/bin/inventario-agent install',
+    windowsSha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    linuxSha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
   },
 }
 

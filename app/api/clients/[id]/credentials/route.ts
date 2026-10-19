@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma'
 import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
 import { canManageTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
+import { getPublishedAgentHashes } from '@/lib/agent-binary'
 import { decryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { getCurrentServerUrl } from '@/lib/server-url'
 
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest, context: RouteContext<'/api/clients/
           clientSlug: client.slug,
           enrollmentKey,
           ...artifacts,
+          ...(await getPublishedAgentHashes()),
         },
       },
       { status: 200, headers: { 'Cache-Control': 'no-store' } }

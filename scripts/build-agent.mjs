@@ -41,10 +41,16 @@ function publishWindows() {
   console.log(`[build-agent] Publicado: ${published}`)
 }
 
-function buildLinux() {
-  // Sem publish: coletores Linux ainda nao existem (factory_stub.go retorna
-  // erro), entao nao ha o que servir de verdade para essa plataforma.
-  build('linux', 'amd64', `${APP_NAME}-linux`)
+function publishLinux() {
+  // Sprint A4 (RF032): o agente Linux tem coletores proprios
+  // (internal/collectors/factory_linux.go) e instala uma unidade systemd
+  // (service_linux.go). Publicado em public/inventario-agent-linux: servido
+  // estatico ao script de GET /api/agent/bootstrap-linux, que confere o
+  // SHA-256, e lido por GET /api/agent/download-linux.
+  const built = build('linux', 'amd64', `${APP_NAME}-linux`)
+  const published = join(publicDir, `${APP_NAME}-linux`)
+  copyFileSync(built, published)
+  console.log(`[build-agent] Publicado: ${published}`)
 }
 
 if (!existsSync(distDir)) mkdirSync(distDir, { recursive: true })
@@ -56,11 +62,11 @@ switch (target) {
     publishWindows()
     break
   case 'linux':
-    buildLinux()
+    publishLinux()
     break
   case 'all':
     publishWindows()
-    buildLinux()
+    publishLinux()
     break
   default:
     console.error(`[build-agent] Alvo desconhecido: ${target}. Use windows, linux ou all.`)

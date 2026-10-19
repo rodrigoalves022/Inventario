@@ -25,6 +25,14 @@ vi.mock('@/lib/rate-limit', () => ({
   getClientIp: vi.fn(() => '127.0.0.1'),
 }))
 
+// Sprint A4 (N6): o bootstrap passa a exigir o SHA-256 do .exe publicado.
+// Aqui o alvo continua sendo a allowlist; o hash e' fixo e o 503 sem binario
+// e' coberto em tests/agent-bootstrap-linux-routes.test.ts.
+vi.mock('@/lib/agent-binary', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/agent-binary')>()),
+  getAgentBinarySha256: vi.fn(async () => 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'),
+}))
+
 // lib/auth importa lib/prisma (PrismaClient real) — so precisamos de
 // generateEnrollmentKey, que nao toca o banco.
 vi.mock('@/lib/prisma', () => ({ default: {} }))
@@ -39,64 +47,21 @@ import { generateEnrollmentKey } from '@/lib/auth'
 import { GET as bootstrapGET } from '@/app/api/agent/bootstrap/route'
 import { GET as downloadExeGET } from '@/app/api/agent/download-exe/route'
 
-const REAL_SLUG = 'core-ti-expert'
-const REAL_KEY = 'a3f1c9e07b5d42e8961f0c7a2b4d6e8f0a1b2c3d4e5f60718293a4b5c6d7e8f9'
-const SERVER_URL = 'https://inventario.example.com'
+import {
+  LEGIT_SERVER_URLS,
+  MALICIOUS_FRAGMENTS,
+  MALICIOUS_SERVER_URLS,
+  REAL_KEY,
+  REAL_SLUG,
+  SERVER_URL,
+  VALID_SHA256,
+  maliciousClient,
+  maliciousKey,
+} from './provisioning-payloads'
+
+// Payloads movidos para tests/provisioning-payloads.ts na Sprint A4, para os
+// testes do bootstrap Linux reutilizarem exatamente a mesma lista.
 const FAKE_EXE = Buffer.from('MZ-FAKE-EXE-BYTES')
-
-// Fragmentos injetados no MEIO do valor (o schema faz .trim(), entao
-// injecao so nas pontas poderia ser removida pelo trim e mascarar o teste).
-const MALICIOUS_FRAGMENTS: Array<[string, string]> = [
-  ['quebra de linha \\n', '\ncalc.exe\n'],
-  ['quebra de linha \\r\\n', '\r\ncalc.exe\r\n'],
-  ["aspa simples ASCII '", "';calc.exe;'"],
-  ['aspa U+2018', '\u2018;calc.exe;\u2018'],
-  ['aspa U+2019', '\u2019;calc.exe;\u2019'],
-  ['aspa U+201A', '\u201A;calc.exe;\u201A'],
-  ['aspa U+201B', '\u201B;calc.exe;\u201B'],
-  ['aspa dupla "', '" & calc.exe & "'],
-  ['backtick', '`ncalc.exe'],
-  ['subexpressao $(...)', '$(calc.exe)'],
-  ['ponto e virgula ;', ';calc.exe'],
-  ['pipe |', '|calc.exe'],
-  ['e comercial &', '&calc.exe'],
-  ['NUL', '\u0000calc.exe'],
-  ['controle BEL', '\u0007'],
-  ['controle ESC', '\u001b[0m'],
-  ['controle DEL', '\u007f'],
-  ['tabulacao', '\tcalc.exe'],
-  ['calc.exe injetado', "'; Start-Process calc.exe; '"],
-]
-
-const maliciousClient = (fragment: string) => `core${fragment}ti`
-const maliciousKey = (fragment: string) => `${REAL_KEY.slice(0, 32)}${fragment}${REAL_KEY.slice(32)}`
-
-const MALICIOUS_SERVER_URLS: Array<[string, string]> = [
-  ['nao parseavel', 'nao e uma url'],
-  ['vazio', ''],
-  ['protocolo ftp', 'ftp://inventario.example.com'],
-  ['protocolo javascript', 'javascript://inventario.example.com'],
-  ['protocolo file', 'file:///C:/Windows/System32'],
-  ["aspa simples ASCII '", "https://inventario.example.com/';calc.exe;'"],
-  ['aspa U+2018', 'https://inventario.example.com/\u2018;calc.exe;\u2018'],
-  ['aspa U+2019', 'https://inventario.example.com/\u2019;calc.exe;\u2019'],
-  ['aspa U+201A', 'https://inventario.example.com/\u201A;calc.exe;\u201A'],
-  ['aspa U+201B', 'https://inventario.example.com/\u201B;calc.exe;\u201B'],
-  ['aspa dupla "', 'https://inventario.example.com/"&calc.exe&"'],
-  ['backtick', 'https://inventario.example.com/`ncalc.exe'],
-  ['cifrao $', 'https://inventario.example.com/$(calc.exe)'],
-  ['\\r', 'https://inventario.example.com/\rcalc.exe'],
-  ['\\n', 'https://inventario.example.com/\ncalc.exe'],
-  ['NUL', 'https://inventario.example.com/\u0000calc.exe'],
-  ['controle BEL', 'https://inventario.example.com/\u0007'],
-]
-
-const LEGIT_SERVER_URLS = [
-  'http://localhost:3000',
-  'https://inventario.example.com',
-  'http://192.168.0.10:3000/',
-  'https://inventario.example.com/base/path',
-]
 
 function bootstrapRequest(params: Record<string, string>) {
   return new NextRequest(`http://localhost/api/agent/bootstrap?${new URLSearchParams(params).toString()}`)
@@ -188,11 +153,11 @@ describe('escapePowerShellSingleQuoted — segunda camada', () => {
 
 describe('buildBootstrapScript / buildProvisioningArtifacts — rejeitam client/key fora da allowlist', () => {
   it.each(MALICIOUS_FRAGMENTS)('buildBootstrapScript lanca para client com %s', (_label, fragment) => {
-    expect(() => buildBootstrapScript(SERVER_URL, maliciousClient(fragment), REAL_KEY)).toThrow()
+    expect(() => buildBootstrapScript(SERVER_URL, maliciousClient(fragment), REAL_KEY, VALID_SHA256)).toThrow()
   })
 
   it.each(MALICIOUS_FRAGMENTS)('buildBootstrapScript lanca para key com %s', (_label, fragment) => {
-    expect(() => buildBootstrapScript(SERVER_URL, REAL_SLUG, maliciousKey(fragment))).toThrow()
+    expect(() => buildBootstrapScript(SERVER_URL, REAL_SLUG, maliciousKey(fragment), VALID_SHA256)).toThrow()
   })
 
   it.each(MALICIOUS_FRAGMENTS)('installCommand (buildProvisioningArtifacts) lanca para client com %s', (_label, fragment) => {
@@ -204,7 +169,7 @@ describe('buildBootstrapScript / buildProvisioningArtifacts — rejeitam client/
   })
 
   it.each(MALICIOUS_SERVER_URLS)('buildBootstrapScript lanca para serverUrl %s', (_label, serverUrl) => {
-    expect(() => buildBootstrapScript(serverUrl, REAL_SLUG, REAL_KEY)).toThrow()
+    expect(() => buildBootstrapScript(serverUrl, REAL_SLUG, REAL_KEY, VALID_SHA256)).toThrow()
   })
 
   it.each(MALICIOUS_SERVER_URLS)('buildProvisioningArtifacts lanca para serverUrl %s', (_label, serverUrl) => {
@@ -212,7 +177,7 @@ describe('buildBootstrapScript / buildProvisioningArtifacts — rejeitam client/
   })
 
   it.each(LEGIT_SERVER_URLS)('entrada legitima continua funcionando (serverUrl %s)', (serverUrl) => {
-    const script = buildBootstrapScript(serverUrl, REAL_SLUG, REAL_KEY)
+    const script = buildBootstrapScript(serverUrl, REAL_SLUG, REAL_KEY, VALID_SHA256)
     expect(script).toContain(`$client = '${REAL_SLUG}'`)
     expect(script).toContain(`$key = '${REAL_KEY}'`)
     expect(script).toContain(`$server = '${serverUrl.replace(/\/+$/, '')}'`)

@@ -3003,6 +3003,304 @@ rotacionar nada de `core-ti-expert`**, que tem agentes reais.
 
 ---
 
+## Sprint A4 — Instalador Linux no Painel + Hash SHA-256 (N6 + F4)
+
+**Status**: ✅ Concluída (2026-10-19) — 1.250 testes passando em 86 arquivos, 4 portões limpos.
+Plano montado pelo `sprint-planner` a partir do registro do Backlog, item 19 (F4 e N6, retirados da
+A3 por decisão do usuário), do relatório da Sprint A0 (`security-auditor`, N6; F4 confirmado em
+`PLANO_SPRINTS_COLABORACAO.md:75`), dos fatos verificados pelo orquestrador e do escopo aprovado pelo
+usuário com 8 ressalvas. Depende da A3 (concluída, commit `d4b42e1`; HEAD atual `2a4d138`; baseline
+970 testes / 81 arquivos). Este plano não altera nenhuma linha de código. As linhas citadas abaixo
+foram conferidas contra o código em 2026-10-19, depois de `2a4d138`.
+
+**Objetivo**: quem administra um cliente passa a instalar o agente em Linux (amd64) direto do painel,
+com o mesmo pacote que já existe para Windows: download do binário, script de uma linha e comando
+manual. Os dois scripts de bootstrap (PowerShell e bash) passam a conferir o SHA-256 do binário
+baixado antes de executá-lo e abortam se o hash divergir. Sem binário publicado, nenhum script é
+servido.
+
+### Origem do achado (rastreabilidade)
+
+- **F4, só Windows na UI** (A0; `PLANO_SPRINTS_COLABORACAO.md:75`, "[confirmado]"; Backlog item 19).
+  `components/agent-install-package.tsx:27-32` só oferece o `.exe`; `:68-69` só mostram PowerShell e
+  cmd.exe. `scripts/build-agent.mjs:44-48` compila `linux/amd64` só para `agent-go/dist/`, com
+  comentário obsoleto ("coletores Linux ainda nao existem"): `agent-go/internal/collectors/factory_linux.go`
+  existe e `service_linux.go` instala unidade systemd `Type=simple` (`:97-110`, `ExecStart=%s run` a
+  partir de `os.Executable()`, `:117-126`).
+- **N6, bootstrap sem conferência de hash** (`security-auditor`, A0; adiado na A1a, "Fora de escopo",
+  e na A3). `lib/provisioning.ts:163` faz `Invoke-WebRequest` de `/inventario-agent.exe` e `:168`
+  executa o arquivo sem conferir hash. O SHA-256 só existe no auto-update (RF024,
+  `lib/agent-binary.ts:22-36`, consumido em `app/api/agent/checkin/route.ts:401`).
+- **Injeção em shell** (classe do N1 da A1a, `security-auditor`). Um comando bash montado com
+  `serverUrl`, `slug` e chave é a mesma superfície fechada na A1a para PowerShell e cmd.exe. A
+  allowlist de `lib/provisioning.ts:14-95` (lança erro, não sanitiza) é a primeira camada; falta o
+  escape de bash.
+- **Fatos do orquestrador conferidos nesta rodada**: `lib/agent-binary.ts:10` fixa o caminho no
+  `.exe`; o agente lê `<<INV_CONFIG>>` do fim do próprio binário em qualquer plataforma
+  (`agent-go/cmd/inventario-agent/main.go:53`) e, sem argumentos e com config, faz autoinstall
+  (`:111-119`); no Linux sem root, `elevation_stub.go:16-19` avisa e sai com código 1;
+  `download-exe/route.ts:38-47` monta o bloco; `.gitignore:44` só ignora `public/*.exe`.
+
+### RFs relacionados (numeração proposta: próximo livre RF032)
+
+- **RF032 (novo)**: instalação Linux (amd64) pelo painel e conferência de hash nos dois bootstraps.
+  O pacote de instalação oferece Windows e Linux. `GET /api/agent/bootstrap-linux` serve um script
+  bash e `GET /api/agent/download-linux` serve o binário com a configuração embutida. Os dois
+  scripts de bootstrap (`.ps1` e `.sh`) carregam o SHA-256 do binário publicado e abortam, com
+  código diferente de zero, se o arquivo baixado divergir. Sem binário publicado da plataforma, a
+  rota responde `503` sem script. O texto registra o limite do N6 (ressalva 5): com `http` na rede
+  local, script e binário vêm do mesmo canal; o hash protege contra download corrompido ou truncado
+  e contra binário trocado no servidor depois de o script ser gerado, **não** contra interceptação
+  ativa. A defesa contra MITM é HTTPS.
+- **RF003**: enrollment. O UC 3.2 ganha o caminho Linux.
+- **RF024**: auto-update. Inalterado nesta sprint (ver o Backlog, item 24).
+- **RF025**: coleta multiplataforma. Passa a ter instalação pelo painel.
+
+### RNs / RNFs relacionados
+
+- **RNF002**: Zod (`provisioningParamsSchema`) antes de qualquer efeito nas duas rotas novas, com a
+  mesma resposta `400` da A1a (`PROVISIONING_PARAMS_ERROR`).
+- **RNF003**: allowlist que lança erro (primeira camada) e `escapeBashSingleQuoted` (segunda camada).
+  O hash esperado também é validado (`/^[a-f0-9]{64}$/`) antes de entrar em qualquer script.
+- **RNF010**: rate limit por IP nas duas rotas novas, 20 por 5 min, chaves próprias
+  (`bootstrap-linux:`, `download-linux:`), no padrão de `bootstrap/route.ts:11`.
+- **RN005**: a chave continua só no pacote já exibível (ADR 0005); nenhuma rota nova persiste nada.
+
+### Casos de uso
+
+- **UC 3.2** (`docs/PRODUCT.md:120-133`): passo 1 ganha o caminho Linux (botão, `curl … | sudo
+  bash` e comando manual) e a conferência de hash nos dois bootstraps; exceções ganham "binário não
+  publicado (`503`)" e "hash divergente (script aborta, nada é instalado)".
+- **UC 3.1**: o pacote mostrado ao criar cliente e ao emitir novo pacote passa a ter as duas
+  plataformas.
+
+### Entidades de banco
+
+Nenhuma alteração de schema, migration, `db push` ou backup. Nenhuma entidade nova é lida: as rotas
+novas não consultam o banco (mesmo desenho de `bootstrap` e `download-exe`, `docs/PRODUCT.md:558`).
+`Client` e `AuditLog` continuam sendo lidos e escritos só pelos caminhos já existentes de
+`actions.ts` e `credentials/route.ts`, que ganham apenas os campos de hash no pacote.
+
+Fixture de verificação: `teste-a0-rotacao`. **Nada** é rotacionado, revogado ou instalado em
+`core-ti-expert`.
+
+### Escopo
+
+| Item | RF/RN relacionado | Caso de uso | Entidade(s) de banco | Origem do achado |
+|---|---|---|---|---|
+| 1 — **Build e publicação**: `buildLinux()` vira `publishLinux()`: compila `linux/amd64` e copia para `public/inventario-agent-linux`; o alvo `all` publica os dois; o comentário obsoleto de `:45-46` é trocado por um correto. O implementador roda `node scripts/build-agent.mjs all` e registra no relatório os dois SHA-256 publicados | RF032, RF025 | UC 3.2 | — | F4 (A0); fatos do orquestrador |
+| 2 — **`.gitignore`**: uma linha, `public/inventario-agent-linux` (ressalva 4) | RF032 | — | — | orquestrador (ressalva 4) |
+| 3 — **`lib/agent-binary.ts` por plataforma (TDD)**: `getAgentBinaryPath(platform = 'windows')` e `getAgentBinarySha256(platform = 'windows')`, `platform: 'windows' \| 'linux'`; cache por mtime separado por plataforma; chamada sem argumento (checkin) devolve exatamente o de hoje | RF032, RF024 | UC 3.2 | — | security-auditor (A0, N6) |
+| 4 — **`escapeBashSingleQuoted` (TDD)**: `'` → `'\''`. Segunda camada; a primeira continua sendo `assertProvisioningInput` (`lib/provisioning.ts:91-95`) para client, key e serverUrl (ressalva 7). Como `linuxInstallCommand` usa aspas duplas de bash, a recusa de `$` e backtick pela allowlist é obrigatória e testada | RNF003 | UC 3.2 | — | security-auditor (A1a, N1, mesma classe) |
+| 5 — **`buildLinuxBootstrapScript(serverUrl, clientSlug, enrollmentKey, expectedSha256)` (TDD)**: `expectedSha256` obrigatório, validado por `/^[a-f0-9]{64}$/`; ausente ou inválido → lança (ressalva 3). Script: `#!/usr/bin/env bash`; `set -euo pipefail`; `id -u` diferente de 0 → mensagem e saída ≠ 0; `mktemp -d` com `trap` que apaga o diretório; download de `${server}/inventario-agent-linux` por `curl -fsSL` (fallback `wget -qO`; nenhum dos dois → aborta); hash por `sha256sum` ou `shasum -a 256` (nenhum → aborta); divergência → mensagem com esperado e obtido, apaga o arquivo e sai ≠ 0; `chmod 755`; se `/etc/systemd/system/inventario-agent.service` existir, desinstala a versão anterior (o `Install()` do agente recusa unidade existente, `service_linux.go:113-115`); move para `/usr/local/bin/inventario-agent` e executa de lá `install -server … -client … -key … -name "$(hostname)"`. Valores interpolados entre aspas simples com o escape do item 4. Nenhum binário é executado a partir do diretório temporário (ver decisão 3) | RF032, RNF003 | UC 3.2 | — | F4; security-auditor (A0, N6); ressalvas 3 e 7 |
+| 6 — **N6 Windows (TDD, ressalva 2)**: `buildBootstrapScript` ganha `expectedSha256` obrigatório e validado como no item 5. Depois do `Invoke-WebRequest` (`:163`) e antes de qualquer execução do arquivo baixado (`:165`, `:168`), compara `(Get-FileHash -Algorithm SHA256 -Path $downloadPath).Hash` com o esperado sem diferenciar maiúsculas; divergência → `Remove-Item` do arquivo e `throw` com esperado e obtido | RF032, RNF003 | UC 3.2 | — | security-auditor (A0, N6) |
+| 7 — **`/api/agent/bootstrap` (TDD)**: passa `getAgentBinarySha256()` ao builder; `null` → `503` sem script, depois do `400` de parâmetro e antes de montar o script. O `500` de `serverUrl` rejeitado (`route.ts:30-35`) continua | RF032 | UC 3.2 | — | security-auditor (A0, N6); ressalva 2 |
+| 8 — **`buildProvisioningArtifacts`**: acrescenta `linuxBootstrapUrl` (`/api/agent/bootstrap-linux?client=&key=`), `linuxBootstrapCommand` (`curl -fsSL '<url escapada>' \| sudo bash`) e `linuxInstallCommand` (forma final pela decisão 2). Tipos atualizados em `lib/provisioning.ts:3-7` e `app/admin/clients/types.ts:1-9`. Campos atuais intactos | RF032 | UC 3.1, UC 3.2 | — | F4 |
+| 9 — **Rota nova `app/api/agent/bootstrap-linux/route.ts` (TDD)**: pública, rate limit (RNF010), `provisioningParamsSchema`, `400` igual ao da A1a; hash por `getAgentBinarySha256('linux')`, `null` → `503` sem script; `200` com `text/plain; charset=utf-8`, `Content-Disposition: attachment; filename="install-${client}.sh"`, `Cache-Control: no-store` | RF032, RNF002, RNF010 | UC 3.2 | — | F4; ressalva 3 |
+| 10 — **Rota nova `app/api/agent/download-linux/route.ts` (TDD)**: pública, rate limit, mesmo schema e `400`; lê `getAgentBinaryPath('linux')`; ausente → `503` sem binário; anexa o bloco `<<INV_CONFIG>>` com paridade byte a byte com `download-exe` (helper compartilhado se reduzir duplicação; nesse caso `download-exe/route.ts` só troca a montagem pelo helper); `200` com `application/octet-stream`, `Content-Disposition: attachment; filename="inventario-agent-${client}"`, `Cache-Control: no-store`, `Content-Length` | RF032, RNF002, RNF010 | UC 3.2 | — | F4 |
+| 11 — **`proxy.ts` (condicional à decisão 1)**: `/api/agent/bootstrap-linux`, `/api/agent/download-linux` e `/inventario-agent-linux` em `publicRoutes`. Sem isso as três respondem `307 → /login` a quem não tem sessão (divergência 1) | RF032 | UC 3.2 | — | conferido nesta rodada; Backlog item 8 (mesma classe) |
+| 12 — **Hash até a tela (ressalva 8)**: `app/admin/clients/actions.ts` (`buildState`, `:142-169`, que serve criação e rotação) e `app/api/clients/[id]/credentials/route.ts` (`:96-119`) acrescentam `windowsSha256` e `linuxSha256` (`string \| null`) ao pacote, lidos no servidor por `getAgentBinarySha256`. Nenhuma outra linha desses arquivos muda; o `AuditLog` existente não muda | RF032 | UC 3.1 | Client (leitura já existente) | orquestrador (ressalva 8) |
+| 13 — **UI `components/agent-install-package.tsx` (TDD)**: seletor Windows \| Linux com semântica de `tablist`/`tab`/`tabpanel` (`aria-selected`, setas e Home/End, um só `tabIndex=0`) ou `radiogroup` (`aria-checked`); tokens `bg-secondary`, `border-surface-line`, `cursor-pointer`; zero cor literal. **Windows**: "Baixar instalador para Windows (.exe)", PowerShell de uma linha, cmd.exe manual. **Linux**: "Baixar binário para Linux (amd64)", `curl … \| sudo bash`, comando manual com nota de `chmod +x` e `sudo`. **Badge do hash (ressalva 1)**: rótulo "SHA-256 do binário publicado (sem configuração)", nota curta de que o arquivo do botão inclui a configuração e por isso tem outro hash, e de que a conferência automática é feita pelo script de uma linha; `.data-mono`, truncado, com `title` do hash inteiro. Hash `null` → "binário não publicado" naquela plataforma, **sem** botão de download e sem comando de uma linha para ela. Caixa da chave (F3) idêntica | RF032 | UC 3.1, UC 3.2 | — | F4; ressalvas 1 e 8 |
+| 14 — **Docs**: `docs/PRODUCT.md`: RF032, UC 3.2, linhas novas da §8.1 (`:522-523` têm as rotas do Windows), contratos e `503` na §8.4, limite do N6 (ressalva 5). `docs/SPEC.md`: contratos de `bootstrap-linux` e `download-linux` na §2, `503` no `bootstrap` (`:202`), schema compartilhado na §3.6, rate limit na §4.4. `docs/PRODUTO.md` só onde citar a instalação | RF032 | UC 3.2 | — | requisito novo (F4); ressalva 5 |
+| 15 — **Testes** em `tests/`: ver os critérios de aceite. `tests/provisioning-security.test.ts`, `tests/agent-binary-sha256.test.ts` e `tests/agent-install-package-copy.test.tsx` continuam verdes; mudança de rótulo exigida pelo escopo ("(.exe)") é declarada no relatório | — | — | — | orquestrador (TDD) |
+
+**Ordem de execução recomendada:**
+1. testes vermelhos: itens 3, 4, 5, 6, 7, 9, 10 e 13;
+2. itens 3 e 4, depois 5 e 6 (`lib/`);
+3. itens 7, 9 e 10 (rotas) e, se aprovado, 11 (`proxy.ts`);
+4. itens 8 e 12 (pacote e tipos);
+5. item 13 (UI);
+6. itens 1 e 2 (build e publicação; avisar o orquestrador antes);
+7. item 14 (docs);
+8. portões;
+9. `security-auditor` sobre o diff e `visual-qa`.
+
+### Decisões que ficam para o usuário
+
+1. **Liberar `proxy.ts` (item 11).** **Recomendação: sim, só as três entradas em `publicRoutes`.** O
+   casamento é exato ou por prefixo com `/` (`proxy.ts:52-54`): `/api/agent/bootstrap-linux` não casa
+   com `/api/agent/bootstrap`, e `/inventario-agent-linux` não tem extensão, então o `matcher`
+   (`proxy.ts:123`, que só exclui `.exe` e imagens) passa por ele. Sem a liberação, `curl -fsSL`
+   segue o `307` até `/login`, recebe HTML com `200` e o script aborta por hash divergente: a
+   funcionalidade nasce quebrada, e nenhum teste Vitest pega isso (Backlog, item 8). A alternativa
+   de excluir o arquivo no `matcher` também exige `proxy.ts`.
+2. **Forma do comando manual Linux.** O serviço systemd aponta para onde o binário estiver no
+   momento do `install` (`service_linux.go:117-126`). O `./inventario-agent install …` do escopo
+   deixa o serviço preso à pasta de download, e o arquivo baixado pelo botão se chama
+   `inventario-agent-<slug>`, não `inventario-agent`. **Recomendação**: `sudo install -m 755
+   ./inventario-agent-<slug> /usr/local/bin/inventario-agent && sudo /usr/local/bin/inventario-agent
+   install -server "…" -client "…" -key "…" -name "$(hostname)"`, mesmo destino do bootstrap. A nota
+   de `chmod +x` fica para quem rodar o autoinstall (`chmod +x` e `sudo ./inventario-agent-<slug>`),
+   com o aviso de mover o arquivo antes, porque o autoinstall registra o caminho atual.
+3. **Execução a partir do diretório temporário.** `/tmp` com `noexec` é comum em servidores
+   endurecidos. **Recomendação**: o script não executa nada do `mktemp -d`; para desinstalar a versão
+   anterior, move o binário novo para `/usr/local/bin` primeiro e roda `uninstall` de lá (o
+   `Uninstall()` só mexe no systemd, `service_linux.go:142-153`), depois `install`.
+4. **`visual-qa` também no estado vazio do tenant.** `components/tenant-empty-state.tsx:94` usa o
+   mesmo componente; o seletor aparece em `/app/teste-a0-rotacao` sem nenhum arquivo extra tocado.
+   **Recomendação: incluir** essa tela nas 3 larguras.
+5. **`download-exe` sem binário responde `500`** (`download-exe/route.ts:33-35`), não `503` como as
+   rotas novas e `download/route.ts:30-35`. **Recomendação: não mudar nesta sprint** (contrato
+   existente; o arquivo só é liberado para extrair o helper). Se o usuário quiser paridade, a troca é
+   uma linha com teste.
+
+### Divergências registradas
+
+1. **Rotas públicas novas exigem `proxy.ts`**, que não está na lista de arquivos permitidos (decisão
+   1). Vale para as duas rotas e para o arquivo estático `/inventario-agent-linux` que o script baixa.
+2. **`getAgentBinaryPath` não tem consumidor.** O briefing diz que o único consumidor de
+   `lib/agent-binary.ts` é o checkin: é verdade para `getAgentBinarySha256`. `download/route.ts:19`
+   e `download-exe/route.ts:28` repetem o caminho literal. As rotas novas devem usar
+   `getAgentBinaryPath('linux')`; as duas antigas ficam como estão (fora da lista).
+3. **`§8.4` não basta**: as rotas do Windows aparecem também na tabela resumo `docs/PRODUCT.md`
+   §8.1 (`:522-523`) e no UC 3.2 (`:125`). O item 14 inclui os três pontos.
+4. **`Install()` Linux recusa unidade existente** (`service_linux.go:113-115`, "Use 'uninstall'
+   primeiro"). "Desinstala versão anterior se existir" não é opcional: sem isso a reinstalação falha.
+5. **Rótulo do botão Windows muda** ("Baixar instalador para Windows" → "… (.exe)").
+   `tests/agent-install-package-copy.test.tsx` pode afirmar o texto atual.
+6. **Mensagem do autoinstall é de Windows**: `main.go:98` manda religar "pelo services.msc", também
+   no Linux. `agent-go/**` é proibido; fica registrado, não corrigido.
+
+### Restrições de compatibilidade
+
+- **Arquivos permitidos**: `scripts/build-agent.mjs`, `.gitignore` (uma linha), `lib/agent-binary.ts`,
+  `lib/provisioning.ts`, `app/api/agent/bootstrap/route.ts`, `app/api/agent/bootstrap-linux/**`,
+  `app/api/agent/download-linux/**`, `app/api/agent/download-exe/route.ts` (só para extrair o helper
+  do bloco), `app/admin/clients/types.ts`, `app/admin/clients/actions.ts` e
+  `app/api/clients/[id]/credentials/route.ts` (só o hash), `components/agent-install-package.tsx`,
+  `docs/`, `tests/`. **Condicionado**: `proxy.ts` (decisão 1).
+- **Proibido**: `agent-go/**`, `app/api/agent/checkin/route.ts`, `app/users/page.tsx`,
+  `prisma/schema.prisma` e qualquer migration.
+- `getAgentBinarySha256()` sem argumento devolve o mesmo valor de hoje: o auto-update (RF024) não
+  muda.
+- Contratos A1a intactos: `400` com `PROVISIONING_PARAMS_ERROR` e sem corpo de script/binário;
+  `provisioningParamsSchema` sem mudança.
+- `bootstrapUrl`, `bootstrapCommand` e `installCommand` com o mesmo texto de hoje para entradas
+  válidas.
+- Zero cor literal, zero `dark:` novo, nenhum `hover:scale`, nenhum ícone decorativo (`DESIGN.md`
+  §6 e §10).
+
+### Critérios de aceite
+
+- [x] **Build**: `node scripts/build-agent.mjs all` gera `public/inventario-agent.exe` e
+      `public/inventario-agent-linux`; `node scripts/build-agent.mjs linux` publica só o Linux; o
+      comentário de `buildLinux`/`publishLinux` não diz mais que os coletores Linux não existem. O
+      relatório traz os dois SHA-256.
+- [x] **`.gitignore`**: `git status --porcelain public/` não lista `inventario-agent-linux` depois do
+      build; o diff do `.gitignore` é uma linha.
+- [x] **agent-binary (TDD)**: teste afirma `getAgentBinaryPath()` = `public/inventario-agent.exe`,
+      `getAgentBinaryPath('linux')` = `public/inventario-agent-linux`; o hash de cada plataforma é o
+      do arquivo dela; o cache de uma plataforma não serve a outra; mudar o mtime recalcula; arquivo
+      ausente → `null`. `tests/agent-binary-sha256.test.ts` continua verde.
+- [x] **Escape bash (TDD)**: `escapeBashSingleQuoted` troca cada `'` por `'\''` (teste unitário).
+      Com bash disponível, `bash -c "printf %s '<escapado>'"` devolve o literal original para
+      valores com `'`, `$(id)`, backtick, `;`, `|`, `&` e `\n` (prova de que o escape não vira
+      comando).
+- [x] **Allowlist primeiro (TDD)**: `buildLinuxBootstrapScript` e `buildProvisioningArtifacts`
+      **lançam** para cada payload de `tests/provisioning-security.test.ts` em `client`, `key` e
+      `serverUrl` (inclusive `$` e backtick, exigidos pelas aspas duplas do `linuxInstallCommand`).
+- [x] **Hash obrigatório (TDD)**: `buildLinuxBootstrapScript` e `buildBootstrapScript` lançam com
+      `expectedSha256` ausente, vazio, com maiúsculas fora do padrão escolhido, com 63 ou 65
+      caracteres, ou com caractere fora de `[a-f0-9]`.
+- [x] **Script Linux (TDD)**: o texto gerado começa com `#!/usr/bin/env bash`, tem `set -euo
+      pipefail`, checagem de `id -u`, `mktemp -d` com `trap` de limpeza, `curl -fsSL` com fallback
+      `wget`, `sha256sum` com fallback `shasum -a 256`, comparação com o hash recebido, saída ≠ 0 na
+      divergência, `chmod 755`, desinstalação condicionada à unidade existente, destino
+      `/usr/local/bin/inventario-agent` e `install -server … -client … -key … -name "$(hostname)"`.
+      Conforme a decisão 3, nenhuma linha executa binário dentro do diretório temporário.
+- [x] **Parse**: com bash disponível (Git Bash está), `bash -n` no script gerado sai com 0. O
+      relatório mostra que o teste **rodou**, não foi pulado.
+- [x] **Hash divergente na prática**: com bash disponível, um teste roda o trecho de conferência do
+      script contra um arquivo cujo hash não bate e afirma saída ≠ 0, sem chegar ao `install`
+      (download e `install` substituídos por stub; nada instalado no ambiente).
+- [x] **N6 Windows (TDD)**: o `.ps1` tem `Get-FileHash -Algorithm SHA256` sobre `$downloadPath`
+      **depois** do `Invoke-WebRequest` e **antes** da primeira execução de `$downloadPath`, com
+      `Remove-Item` e `throw` na divergência (teste afirma a ordem das linhas). Os testes de escape
+      PowerShell da A1a continuam verdes.
+- [x] **`/api/agent/bootstrap` (TDD)**: com binário, `200` e o hash do `.exe` publicado no script;
+      sem binário, `503` sem script no corpo; parâmetro inválido continua `400` igual à A1a.
+- [x] **`/api/agent/bootstrap-linux` (TDD)**: um caso de teste por payload da A1a em `client` e em
+      `key` → `400` com `PROVISIONING_PARAMS_ERROR` e sem script; sem binário Linux → `503` sem
+      script; com slug e chave legítimos → `200`, `Content-Type: text/plain; charset=utf-8`,
+      `Content-Disposition: attachment; filename="install-<slug>.sh"`, `Cache-Control: no-store`,
+      e o hash do binário Linux no script; excesso de requisições → `429`.
+- [x] **`/api/agent/download-linux` (TDD)**: mesmos `400` por payload, sem bytes de binário no
+      corpo; sem binário → `503`; `200` com `application/octet-stream`,
+      `filename="inventario-agent-<slug>"`, `Cache-Control: no-store`, `Content-Length`, e o corpo é
+      o binário seguido do bloco `<<INV_CONFIG>>` idêntico ao de `download-exe` para os mesmos
+      parâmetros (teste de paridade). `download-exe` continua verde.
+- [x] **Proxy** (se a decisão 1 aprovar): `curl -sS -o /dev/null -w "%{http_code}"` sem sessão,
+      contra `next start` depois do `build:verify`, devolve `200` (ou `503`/`400` conforme o caso),
+      nunca `307`, em `/api/agent/bootstrap-linux`, `/api/agent/download-linux` e
+      `/inventario-agent-linux`. Resultado no relatório.
+- [x] **Pacote**: `buildProvisioningArtifacts` devolve `linuxBootstrapUrl`, `linuxBootstrapCommand`
+      (`curl -fsSL '<url>' | sudo bash`, URL escapada) e `linuxInstallCommand` (forma da decisão 2);
+      `bootstrapUrl`, `bootstrapCommand` e `installCommand` com o texto de hoje (teste de
+      não-regressão).
+- [x] **Hash na tela (ressalva 8)**: teste da action (criação e rotação) e da rota de credenciais
+      afirma `windowsSha256`/`linuxSha256` no pacote, `null` quando o binário falta; nenhum outro
+      campo da resposta nem do `AuditLog` muda.
+- [x] **UI (TDD)**: o seletor alterna Windows e Linux por clique e por teclado (setas, Home/End;
+      ou setas no `radiogroup`), com `aria-selected`/`aria-checked` corretos; cada aba mostra só os
+      seus comandos; o badge tem o rótulo "SHA-256 do binário publicado (sem configuração)", a nota
+      sobre o arquivo do botão e o `title` com o hash inteiro; hash `null` → "binário não publicado",
+      sem botão de download e sem comando de uma linha daquela plataforma; a caixa da chave é a
+      mesma da A2 (teste existente verde).
+- [x] **Regras do `DESIGN.md` no diff**: `rg "dark:|hover:scale|animate-ping"` e
+      `rg "#[0-9a-fA-F]{3,8}\b|rgb\(|oklch\("` nos arquivos tocados não acusam nada novo (grep no
+      relatório).
+- [x] **Docs**: `docs/PRODUCT.md` tem RF032, UC 3.2 atualizado, as rotas novas na §8.1 e na §8.4,
+      o `503` e o parágrafo do limite do N6 (HTTP no mesmo canal; MITM só com HTTPS).
+      `docs/SPEC.md` tem os dois contratos novos, o `503` do `bootstrap` e as linhas novas de rate
+      limit.
+- [x] **Segurança**: o `security-auditor` revisa o diff e confirma: rotas públicas novas com
+      allowlist antes de qualquer efeito e rate limit; nenhuma interpolação sem allowlist e escape;
+      script executado como root falha fechado (sem root, sem ferramenta de download, sem
+      ferramenta de hash, hash divergente → sai ≠ 0 sem instalar); hash obrigatório nos dois
+      builders; `503` sem script quando falta binário; nenhum segredo em log.
+- [x] **Verificação visual**: o `visual-qa` captura o pacote de `teste-a0-rotacao` (diálogo "Ver
+      credenciais" e, se a decisão 4 aprovar, o estado vazio em `/app/teste-a0-rotacao`) em **390,
+      1024 e 1440 px**, nas duas abas; `scrollWidth <= clientWidth`; foco visível no seletor;
+      contraste ≥ 4.5:1 no rótulo do badge. **Nada** em `core-ti-expert`.
+- [x] **Escopo de arquivos**: o diff toca só os arquivos permitidos e o condicionado aprovado;
+      `agent-go/**`, `app/api/agent/checkin/route.ts`, `app/users/page.tsx` e `prisma/` intactos.
+- [x] Portão 1: `npm run typecheck` limpo.
+- [x] Portão 2: `npm run lint` limpo.
+- [x] Portão 3: `npm run build:verify` limpo, com `/api/agent/bootstrap-linux` e
+      `/api/agent/download-linux` na listagem. **Não** rodar com o `next dev` de pé; o implementador
+      avisa o orquestrador antes do build.
+- [x] Portão 4: `npm test` verde com **mais de 970 testes** (baseline: 970 testes / 81 arquivos
+      depois de `2a4d138` — alcançado 1.250 testes em 86 arquivos).
+- [x] DoD (`docs/DEFINITION_OF_DONE.md`): os 10 itens conferidos um a um, com ✅ ou N/A e
+      justificativa. "Banco de dados e migrations" é N/A. "Validação Zod" cobre as duas rotas novas.
+      "RF/RN" cita RF032.
+- [x] Sem commit e sem push.
+
+### Fora de escopo desta sprint
+
+- **Auto-update Linux** (o checkin sempre anuncia o `.exe`): Backlog, item 24. Exige mudança no
+  agente Go, proibida aqui.
+- **Mensagem "services.msc" do autoinstall no Linux** (divergência 6): `agent-go/**`.
+- **`linux/arm64`** e outras arquiteturas: não pedidas; o rótulo diz "amd64".
+- **Defesa contra MITM** além do hash (assinatura do binário, pinagem): o limite fica documentado
+  (ressalva 5); a defesa é HTTPS.
+- **`download-exe` e `download` com `503`** (decisão 5) e com `getAgentBinaryPath`: contratos
+  existentes, fora da lista.
+- **Script antigo `scripts/agent/install-linux-agent.sh`** (modelo timer + oneshot): não é usado
+  pelo painel; remoção não pedida.
+- Backlog 14 e 15 (`slug` sem `.max(64)` e `%VAR%` no `installCommand`), mesmo estando em
+  `lib/provisioning.ts`: não pedidos.
+
+### Documentação que ficará desatualizada (não editada por este plano)
+
+- `PLANO_SPRINTS_COLABORACAO.md` §6 ainda põe o F4 na A3 (`:203`); `:538` já cita a A4. O documento
+  é do gerente; o planner não o edita.
+- `scripts/agent/install-linux-agent.sh` continua descrevendo o modelo antigo, sem aviso de que o
+  painel usa outro caminho; fora da lista liberada.
+- `CONTEXT.md` (glossário) não define "binário publicado" nem "bootstrap"; fora da lista liberada.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
@@ -3331,6 +3629,8 @@ duas consultas do portal, com teste.
 de decisão sobre publicar o binário Linux em `public/`, de um instalador que crie o serviço systemd
 atual (não o script antigo) e de auditoria de segurança do comando gerado.
 
+→ Planejada como Sprint A4.
+
 ---
 
 ### 20. Affordance de interação global (`cursor: pointer`) e descoberta da gestão de agentes (`/admin/clients/[id]/agents`) — ALTO (Feedback do Usuário em 2026-10-15)
@@ -3414,5 +3714,31 @@ atual (não o script antigo) e de auditoria de segurança do comando gerado.
    - A partir das tabelas ARP, MACs e vizinhos de switches (LLDP/CDP coletados via SNMP pelo Agente de Rede), renderizar visualmente o mapa da infraestrutura de rede da empresa.
 7. **Motor de Automação e Auto-Remediação (Self-Healing Rules)**:
    - Gatilhos automáticos baseados em métricas: *"Se o disco C: ultrapassar 90%, executar rotina de limpeza de arquivos temporários e logs antigos"*.
+
+---
+
+### 24. Auto-update do agente é só Windows — MÉDIO (achado do planejamento da Sprint A4)
+
+**Origem**: orquestrador, durante o planejamento da Sprint A4 (2026-10-19), conferido pelo
+`sprint-planner` contra o código depois de `2a4d138`.
+
+**Achado**:
+- `app/api/agent/checkin/route.ts:397-411` sempre responde
+  `updateMetadata.url: ${serverUrl}/inventario-agent.exe` com `sha256: getAgentBinarySha256()` do
+  `.exe`, sem considerar a plataforma do agente. O payload de check-in não informa a plataforma.
+- `agent-go/internal/app/updater/updater.go` grava `inventario-agent.update.exe` no diretório
+  temporário (`:19`) e troca o binário por um script PowerShell (`:62-85`) que para e reinicia o
+  serviço Windows `InventarioAgent`.
+- Hoje é inofensivo: `LATEST_AGENT_VERSION = "1.0.0"` (`route.ts:398`) e todos os agentes estão em
+  1.0.0, então `updateAvailable` é falso. Na primeira versão nova, os agentes Linux vão baixar o
+  `.exe` (o hash confere, porque é o hash do próprio `.exe`) e falhar na troca, pois não há
+  `powershell` (`updater.go:80-85`). O agente segue na versão antiga e repete o download inteiro a
+  cada check-in.
+
+**Por que fica pendente**: a correção exige mudar o agente Go (reportar a plataforma no check-in e um
+updater Linux que troque o binário e reinicie a unidade systemd) e a rota de check-in, os dois
+proibidos na Sprint A4. Depois da A4, o binário Linux publicado e
+`getAgentBinarySha256('linux')` já existem, então o lado do servidor fica pequeno: escolher URL e
+hash pela plataforma reportada. Precisa acontecer **antes** de subir `LATEST_AGENT_VERSION`.
 
 
