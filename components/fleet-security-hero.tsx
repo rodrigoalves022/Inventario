@@ -197,10 +197,9 @@ const INDICATOR_ICON: Record<FleetSecurityIndicatorKey, React.ComponentType<{ cl
 /**
  * Medidor de conformidade.
  *
- * Preenchimento CHAPADO no tom, e nao a escala em gradiente da barra de disco
- * (`disk-usage-scale`): la a cor por posicao significa sempre a mesma coisa
- * porque "mais" e' pior; aqui a semantica e' invertida (100% e' o alvo), entao
- * uma escala verde->vermelha da esquerda para a direita leria ao contrario.
+ * Preenchimento CHAPADO no tom, como a barra de disco de /storage
+ * (DISK_USAGE_TIER_BAR_CLASS) — mas com semantica invertida: aqui 100% e' o
+ * alvo, entao o tom vem de `getFleetComplianceTone`, nao do tier de disco.
  *
  * `role="img"` + `aria-label` porque cor nunca e' o unico canal (DESIGN.md §9).
  */

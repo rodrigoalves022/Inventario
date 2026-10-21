@@ -131,11 +131,13 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Rede</h1>
-        <p className="text-muted-foreground">
-          {segments.length} segmento{segments.length !== 1 ? 's' : ''} identificado{segments.length !== 1 ? 's' : ''} a partir das interfaces do tenant atual.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Rede</h1>
+          <p className="text-muted-foreground">
+            {segments.length} segmento{segments.length !== 1 ? 's' : ''} identificado{segments.length !== 1 ? 's' : ''} a partir das interfaces do tenant atual.
+          </p>
+        </div>
       </div>
 
       <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>

@@ -73,11 +73,13 @@ export default async function TenantStoragePage({ params, searchParams }: PagePr
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Armazenamento</h1>
-        <p className="text-muted-foreground">
-          {storageDevices.length} dispositivo{storageDevices.length !== 1 ? 's' : ''} com armazenamento reportado para a empresa atual.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Armazenamento</h1>
+          <p className="text-muted-foreground">
+            {storageDevices.length} dispositivo{storageDevices.length !== 1 ? 's' : ''} com armazenamento reportado para a empresa atual.
+          </p>
+        </div>
       </div>
 
       <TenantStorageTable

@@ -12,8 +12,7 @@ import type { DevicePresence } from '@/lib/inventory-alerts'
 import {
   computeDiskUsagePercent,
   getDiskUsageTier,
-  DISK_USAGE_SCALE_CLASS,
-  DISK_USAGE_THRESHOLDS,
+  DISK_USAGE_TIER_BAR_CLASS,
   DISK_USAGE_TIER_TEXT_CLASS,
 } from '@/lib/disk-usage'
 import {
@@ -345,25 +344,24 @@ export function TenantStorageTable({
                                   </span>
                                   <span className={cn('font-semibold', DISK_USAGE_TIER_TEXT_CLASS[tier])}>{disk.usagePercent}%</span>
                                 </div>
-                                {/* Medidor de uso. O gradiente pinta a escala INTEIRA
-                                    (0–100%) e a barra e' um recorte dela no percentual do
-                                    disco — por isso `clipPath` em vez de `width`: a cor
-                                    numa posicao significa sempre a mesma coisa, entre
-                                    discos e entre linhas. As duas marcas verticais ficam
-                                    exatamente em DISK_USAGE_THRESHOLDS (60% / 80%), a
-                                    mesma fonte de verdade de `getDiskUsageTier`, para que
-                                    marca e cor nunca possam divergir do tier calculado. */}
+                                {/* Medidor de uso: preenchimento por `width`, cor chapada
+                                    do tier e ponta `rounded-full` propria — nunca um
+                                    recorte de gradiente, que deixava aresta reta e cor
+                                    misturada na ponta (ver DISK_USAGE_TIER_BAR_CLASS). A
+                                    transicao so roda com `motion-safe`. */}
                                 <div
-                                  className="relative h-2 w-full overflow-hidden rounded-full bg-secondary"
+                                  className="h-2 w-full overflow-hidden rounded-full bg-secondary"
                                   role="img"
                                   aria-label={`${label}: ${disk.usagePercent}% usado`}
                                 >
                                   <div
-                                    className={cn('absolute inset-0', DISK_USAGE_SCALE_CLASS)}
-                                    style={{ clipPath: `inset(0 ${100 - Math.min(disk.usagePercent, 100)}% 0 0)` }}
+                                    data-disk-usage-fill
+                                    className={cn(
+                                      'h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out',
+                                      DISK_USAGE_TIER_BAR_CLASS[tier]
+                                    )}
+                                    style={{ width: `${Math.min(Math.max(disk.usagePercent, 0), 100)}%` }}
                                   />
-                                  <span className="disk-usage-mark" style={{ left: `${DISK_USAGE_THRESHOLDS.warning}%` }} />
-                                  <span className="disk-usage-mark" style={{ left: `${DISK_USAGE_THRESHOLDS.critical}%` }} />
                                 </div>
                               </div>
                             )

@@ -203,3 +203,58 @@ describe('TenantStorageTable — badge de presenca e filtros (RN010, item 7)', (
     expect(link?.getAttribute('href')).toBe('/app/cliente-a/assets/d1')
   })
 })
+
+describe('TenantStorageTable — medidor de uso de disco (Sprint V17, entrega 7)', () => {
+  /** Preenchimento de cada medidor, na ordem em que aparecem na tabela. */
+  function meterFills(): HTMLElement[] {
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-disk-usage-fill]'))
+  }
+
+  it('preenche por largura com a cor chapada do tier — sem clipPath sobre uma escala em gradiente', () => {
+    render(<TenantStorageTable devices={devices} />)
+
+    const fills = meterFills()
+    expect(fills.length).toBeGreaterThan(0)
+    for (const fill of fills) {
+      // O recorte reto do clipPath sobre o gradiente era o artefato "amarelado"
+      // visto a 66%: a borda direita do recorte cortava a transicao de cor.
+      expect(fill.style.clipPath).toBe('')
+      expect(fill.className).not.toContain('disk-usage-scale')
+      expect(fill.className).toContain('rounded-full')
+      expect(fill.className).toContain('h-full')
+    }
+    // Nenhuma marca de limiar desenhada sobre o preenchimento.
+    expect(document.querySelectorAll('.disk-usage-mark')).toHaveLength(0)
+  })
+
+  it('cada tier pinta a sua cor: verde ate 60%, ambar de 60 a 80%, vermelho acima de 80%', () => {
+    render(<TenantStorageTable devices={devices} />)
+
+    const byWidth = new Map(meterFills().map((fill) => [fill.style.width, fill.className]))
+    expect(byWidth.get('20%')).toContain('bg-success') // PC-OK
+    expect(byWidth.get('70%')).toContain('bg-warning') // PC-ALERTA
+    expect(byWidth.get('90%')).toContain('bg-destructive') // PC-CRITICO
+  })
+
+  it('limita a largura a 100% e anima so quando o usuario nao pediu movimento reduzido', () => {
+    render(
+      <TenantStorageTable
+        devices={[
+          {
+            id: 'over',
+            hostname: 'PC-CHEIO',
+            usuario: null,
+            disks: [{ unidade: 'C:', tipo: 'SSD', capacidadeGb: 100, usedGb: 130 }],
+            types: ['SSD'],
+            presence: 'online',
+            detailsPath: '/app/cliente-a/assets/over',
+          },
+        ]}
+      />
+    )
+
+    const [fill] = meterFills()
+    expect(fill.style.width).toBe('100%')
+    expect(fill.className).toContain('motion-safe:transition-[width]')
+  })
+})

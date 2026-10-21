@@ -127,7 +127,9 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
       <div className="space-y-6">
         {/* Mesmo h1 do caminho com maquinas: sem ele, esta tela ficava sem
             nenhum h1 depois que a marca da Sidebar deixou de ser h1 (A2). */}
-        <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
+        </div>
         <TenantEmptyState
           clientId={tenant.id}
           clientName={tenant.name}
@@ -190,17 +192,18 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
 
   return (
     <div className="space-y-6">
-      <div>
-        {/* O cabecalho fixo do shell (components/sidebar.tsx) renderiza apenas
-            breadcrumbs, paleta de comando, seletor de cliente e menu de perfil —
-            nenhum titulo de pagina. Esta era a unica das 12 telas do tenant sem
-            <h1>, o que quebrava a hierarquia semantica e fazia a tela principal
-            comecar um degrau abaixo das listagens. Mesma escala das irmas
-            (computers, servers, storage, ...): text-2xl font-bold. */}
-        <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
-        <p className="text-muted-foreground">
-          Monitoramento em tempo real dos ativos de TI da empresa <span className="font-medium text-foreground">{tenant.name}</span>.
-        </p>
+      {/* O titulo da pagina e' DESTA pagina: o cabecalho fixo do shell
+          (components/sidebar.tsx) renderiza apenas breadcrumbs, paleta de
+          comando, seletor de cliente e menu de perfil. Cabecalho no padrao
+          unico das 12 telas do tenant (Sprint V17): flex-wrap + h1 text-2xl +
+          subtitulo na escala do body. */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Visão geral</h1>
+          <p className="text-muted-foreground">
+            Monitoramento em tempo real dos ativos de TI da empresa <span className="font-medium text-foreground">{tenant.name}</span>.
+          </p>
+        </div>
       </div>
 
       <FleetSecurityHero

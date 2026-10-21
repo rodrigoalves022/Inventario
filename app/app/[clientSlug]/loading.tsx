@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { KpiCardSkeleton, PanelSkeleton, TableSkeleton } from '@/components/ui/skeleton-shapes'
 
 /**
  * O esqueleto acompanha a estrutura real da pagina (Overhaul visual — Fase 4):
@@ -9,16 +10,21 @@ import { Skeleton } from '@/components/ui/skeleton'
 export default function TenantDashboardLoading() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-4 w-96" />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="mt-1.5 h-4 w-96 max-w-full" />
+        </div>
+      </div>
 
       <div className="rounded-xl border border-surface-line bg-card">
-        <div className="space-y-2 px-6 pb-4 pt-6">
+        <div className="space-y-2 px-5 pb-4 pt-5">
           <Skeleton className="h-5 w-64" />
           <Skeleton className="h-3 w-full max-w-xl" />
         </div>
         <div className="grid grid-cols-1 divide-y divide-surface-line border-t border-surface-line md:grid-cols-3 md:divide-x md:divide-y-0">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="px-6 py-5">
+            <div key={index} className="px-5 py-5">
               <div className="flex items-center gap-3">
                 <Skeleton className="h-8 w-8 rounded-lg" />
                 <Skeleton className="h-3 w-32" />
@@ -31,26 +37,19 @@ export default function TenantDashboardLoading() {
         </div>
       </div>
 
+      {/* 5 cards ate a decisao da Sprint V17 sobre qual sai (ver docs/SPRINTS.md). */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {Array.from({ length: 5 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-surface-line bg-card p-4">
-            <div className="mb-2 flex items-start justify-between">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-10 w-10 rounded-lg" />
-            </div>
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="mt-1.5 h-3 w-28" />
-          </div>
+          <KpiCardSkeleton key={index} withSubtitle />
         ))}
       </div>
 
+      {/* Os graficos reais reservam 180px (dashboard-charts.tsx) — antes eram 224px aqui. */}
       <div className="grid gap-6 lg:grid-cols-2">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-surface-line bg-card p-6">
-            <Skeleton className="h-5 w-48" />
-            <Skeleton className="mt-2 h-3 w-64" />
-            <Skeleton className="mt-6 h-56 w-full" />
-          </div>
+          <PanelSkeleton key={index} withDescription>
+            <Skeleton className="h-[180px] w-full" />
+          </PanelSkeleton>
         ))}
       </div>
 
@@ -77,21 +76,11 @@ export default function TenantDashboardLoading() {
       </div>
 
       <div className="rounded-xl border border-surface-line bg-card">
-        <div className="border-b border-surface-line p-4">
-          <Skeleton className="h-4 w-40" />
+        <div className="space-y-2 px-5 pb-4 pt-5">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-3 w-64" />
         </div>
-        <div className="divide-y divide-surface-line">
-          {Array.from({ length: 6 }).map((_, row) => (
-            <div key={row} className="grid grid-cols-6 items-center gap-4 p-4">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-14" />
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-5 w-16 rounded-full" />
-            </div>
-          ))}
-        </div>
+        <TableSkeleton columns={6} flush />
       </div>
     </div>
   )

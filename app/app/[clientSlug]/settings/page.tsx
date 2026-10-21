@@ -49,15 +49,17 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-        <p className="text-muted-foreground">
-          Endpoints de webhook por evento, com assinatura HMAC-SHA256 — mecanismo adicional ao
-          webhook único configurado em Alertas, que continua funcionando sem alteração.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
+          <p className="text-muted-foreground">
+            Endpoints de webhook por evento, com assinatura HMAC-SHA256 — mecanismo adicional ao
+            webhook único configurado em Alertas, que continua funcionando sem alteração.
+          </p>
+        </div>
       </div>
 
-      <div className="rounded-xl border border-surface-line bg-card p-6">
+      <div className="rounded-xl border border-surface-line bg-card p-5">
         <h2 className="mb-1 text-lg font-semibold text-foreground">Webhooks</h2>
         <p className="mb-4 text-sm text-muted-foreground">
           Cada endpoint recebe apenas os eventos selecionados, com o payload assinado no header{' '}

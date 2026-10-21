@@ -27,3 +27,14 @@ describe('computeDiskUsagePercent', () => {
     expect(computeDiskUsagePercent(0, 0)).toBe(0)
   })
 })
+
+describe('DISK_USAGE_TIER_BAR_CLASS (Sprint V17)', () => {
+  it('mapeia cada tier para a cor chapada do token correspondente', async () => {
+    const { DISK_USAGE_TIER_BAR_CLASS } = await import('@/lib/disk-usage')
+    expect(DISK_USAGE_TIER_BAR_CLASS).toEqual({
+      ok: 'bg-success',
+      warning: 'bg-warning',
+      critical: 'bg-destructive',
+    })
+  })
+})

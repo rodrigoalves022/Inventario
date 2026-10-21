@@ -3301,6 +3301,58 @@ Fixture de verificação: `teste-a0-rotacao`. **Nada** é rotacionado, revogado 
 
 ---
 
+## Sprint V17 — Padronização visual do tenant (alinhamento, grid, cabeçalhos, esqueletos e medidor de disco)
+
+**Status**: 🟡 Implementada, **com 1 decisão pendente do usuário** (entrega 2, fileiras de 5 KPI) —
+executada em 2026-10-21 sobre `887bf0e`. Contexto: `docs/PROJETO-PADRONIZACAO-VISUAL.md` §§3–4 e o
+prompt da Sprint 17 (§10). Testes rodados localmente só nos arquivos tocados (104 testes, 4 arquivos,
+todos verdes); `tsc --noEmit` e `eslint` nos arquivos alterados limpos. Suíte completa e `build` ficam
+com o orquestrador. Nenhum arquivo proibido tocado (`app/admin/clients/**`, `app/users/page.tsx`,
+`prisma/schema.prisma`).
+
+### Plano (TDD)
+
+1. Red: `tests/tenant-visual-standard.test.ts` (novo, estrutural sobre o fonte — jsdom não calcula
+   layout, então grid/recuo/cabeçalho só são verificáveis pela classe), mais casos novos em
+   `tests/tenant-storage-table.test.tsx` (medidor) e `tests/disk-usage.test.ts`
+   (`DISK_USAGE_TIER_BAR_CLASS`). 30 falhas na primeira rodada.
+2. Green: entregas 1–7 abaixo. 104/104.
+
+### Entregas
+
+| # | Entrega | Resultado |
+|---|---|---|
+| 1 | Recuo de 20px | Hero da Visão Geral já estava em `px-5` desde a Sprint 16; o esqueleto dele ainda usava `px-6`/`pt-6` — corrigido. `/alerts` e `/settings` (página e esqueleto): `p-6` → `p-5`. Teste cobra que nenhuma página/esqueleto do tenant tenha superfície-card com `p-6`/`px-6` (botão excluído). |
+| 2 | Grid de KPI 3 ou 4 | `/storage`, `/processors`, `/reports` (4) e `/audit` (3) já obedeciam; os esqueletos de `/reports` usavam `sm:grid-cols-2` e passam a `md:`. **Visão Geral, `/computers` e `/assets` têm 5 cards — não alterados, aguardando decisão** (ver abaixo). |
+| 3 | `h1` na Visão Geral | O `h1` já existia nos dois caminhos (com e sem máquinas, Sprint A2). O comentário foi reescrito (sem "única tela sem h1") e o `h1` passou para o cabeçalho padrão. |
+| 4 | Cabeçalho único | As 12 telas usam `flex flex-wrap items-start justify-between gap-4` + `h1 text-2xl font-bold text-foreground` + subtítulo `text-muted-foreground`. Ajustadas: `/audit` (`items-center` sem `flex-wrap`, subtítulo `text-sm`), `/alerts`, `/network`, `/processors`, `/servers`, `/settings`, `/storage` e Visão Geral (estavam num `<div>` simples). |
+| 5 | Esqueletos com forma real | Novo `components/ui/skeleton-shapes.tsx` (`KpiCardSkeleton`, `PanelSkeleton`, `TableSkeleton`, `PageHeaderSkeleton`) importando as mesmas constantes das superfícies reais (`KPI_ICON_CHIP_CLASS`, `TABLE_SHELL_CLASS`, `TABLE_HEAD_ROW_CLASS`). `/storage` e `/processors` deixam de ser pilha de cartões `p-6` e viram fileira de 4 KPI + tabela; `/reports` ganha a grid `md:` e painéis `px-5`; Visão Geral: gráficos reservam 180px (era `h-56` = 224px), KPI com a anatomia do `KpiCard`, tabela final sem borda dupla. |
+| 6 | Espaçamento fantasma em `/servers` | Removido o `div` com só `{/* Action buttons... */}` (48px → 24px). |
+| 7 | Medidor de disco em `/storage` | Saiu o recorte `clip-path: inset(...)` sobre a escala em gradiente (`.disk-usage-scale`) e as marcas de limiar (`.disk-usage-mark`), ambos apagados de `globals.css`. Causa do artefato: aresta reta sem antialias sobre trilho `rounded-full`, caindo no meio da transição verde→âmbar entre 60–80% (o "amarelado" a 66%). Agora: preenchimento por `width` (limitado a 0–100%), `rounded-full` próprio, cor chapada do tier por `DISK_USAGE_TIER_BAR_CLASS` (`bg-success` ≤60%, `bg-warning` 60–80%, `bg-destructive` >80% — mesmos limiares exclusivos de `getDiskUsageTier`) e transição `motion-safe:transition-[width]`. |
+
+### Decisão pendente — fileiras de 5 KPI (entrega 2)
+
+O prompt da Sprint 17 proíbe remover card sem aprovação explícita. As três fileiras estão listadas em
+`KPI_ROWS_PENDING_APPROVAL` no teste novo (com os esqueletos correspondentes); quando a decisão for
+tomada, saem da lista e a regra passa a cobrá-las. Propostas:
+
+- **Visão Geral** (`app/app/[clientSlug]/page.tsx`): retirar **"Disco crítico"** da fileira. O mesmo
+  dado já aparece no gráfico "Uso de disco por máquina" e no painel de críticos, e o card do `/storage`
+  filtra a mesma faixa. Fica 4 cards (`md:grid-cols-2 lg:grid-cols-4`, sem `xl:grid-cols-5`).
+  Alternativa: deixar a recomposição para a Sprint 18 (duas faixas).
+- **`/computers` e `/assets`** (mesmo `components/tenant-computers-table.tsx`): retirar **"Total
+  Máquinas"**. A contagem já está no subtítulo do cabeçalho e a aba "Todos" limpa o filtro de status.
+  Atenção: hoje o card também limpa o filtro crítico (`clearCriticalFilter`); sem ele, os 4 cards de
+  filtro limpam a si mesmos no segundo clique (toggle), que já é o comportamento deles.
+
+### Fora de escopo (não feito)
+
+- Card dentro de card em `/alerts` e `/settings` (lista com `rounded-xl border` dentro da superfície)
+  e `h2 text-lg` desses blocos: Sprint 20 (telas remanescentes).
+- Ordem e composição da Visão Geral: Sprint 18.
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são

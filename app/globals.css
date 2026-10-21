@@ -331,35 +331,6 @@
       transparent 45%
     );
   }
-
-  /* Barra de uso de disco.
-     O gradiente e' de ESCALA, nao de estado: as paradas de cor ficam ancoradas
-     nos mesmos limiares de `getDiskUsageTier` (60% e 80%), e a barra e' um
-     recorte dessa escala. Consequencia: a cor na posicao X significa sempre a
-     mesma coisa, entre discos e entre linhas — e' um medidor, nao um badge
-     esticado. */
-  .disk-usage-scale {
-    background-image: linear-gradient(
-      90deg,
-      var(--success) 0%,
-      var(--success) 56%,
-      var(--warning) 64%,
-      var(--warning) 76%,
-      var(--destructive) 84%,
-      var(--destructive) 100%
-    );
-  }
-
-  /* Marcacao de limiar (60% / 80%) desenhada DENTRO do trilho. Branco
-     translucido porque precisa aparecer tanto sobre o trilho escuro quanto
-     sobre a parte preenchida saturada. */
-  .disk-usage-mark {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background-color: var(--surface-line-strong);
-  }
 }
 
 /* ============================================================================

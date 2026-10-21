@@ -8,7 +8,7 @@ export default function SettingsLoading() {
         <Skeleton className="mt-2 h-4 w-96" />
       </div>
 
-      <div className="rounded-xl border border-surface-line bg-card p-6">
+      <div className="rounded-xl border border-surface-line bg-card p-5">
         <Skeleton className="mb-1 h-5 w-24" />
         <Skeleton className="mb-4 h-4 w-full max-w-md" />
         <div className="divide-y rounded-xl border">

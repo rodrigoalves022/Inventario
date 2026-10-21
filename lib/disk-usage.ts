@@ -6,10 +6,9 @@
 export type DiskUsageTier = 'ok' | 'warning' | 'critical'
 
 /**
- * Fonte de verdade UNICA dos limiares. Existe porque a barra de uso agora
- * desenha marcacoes visiveis nessas mesmas posicoes (`disk-usage-mark` em
- * app/globals.css): se a marca ficasse com o numero colado no componente, a
- * marca e a cor poderiam divergir do tier calculado aqui sem nada acusar.
+ * Fonte de verdade UNICA dos limiares — a mesma usada pela cor da barra
+ * (DISK_USAGE_TIER_BAR_CLASS), pelo numero ao lado dela e pelo filtro por faixa
+ * dos cards de KPI, para que nenhum dos tres possa divergir do tier calculado.
  *
  * Semantica preservada de `getDiskUsageTier`: os limiares sao EXCLUSIVOS —
  * 60% ainda e' "ok" e 80% ainda e' "warning".
@@ -26,20 +25,22 @@ export function getDiskUsageTier(usedPercent: number): DiskUsageTier {
 }
 
 /**
- * Classe da barra de uso.
+ * Cor da barra de uso, por tier (Sprint V17).
  *
- * Substitui o antigo `DISK_USAGE_TIER_BAR_CLASS` (um mapa tier -> cor chapada).
- * O gradiente agora e' de ESCALA, nao de estado: `disk-usage-scale`
- * (app/globals.css) pinta a faixa inteira 0–100% com Emerald -> Amber ->
- * Crimson trocando exatamente sobre os limiares acima, e a barra e' um RECORTE
- * dessa escala no percentual do disco. Nao ha mais um valor por tier porque a
- * cor deixou de depender do tier: ela depende da POSICAO, e por isso significa
- * sempre a mesma coisa entre discos e entre linhas.
- *
- * O tier continua governando o NUMERO ao lado (DISK_USAGE_TIER_TEXT_CLASS) e o
- * filtro por faixa dos cards de KPI — o que mudou foi so como a barra pinta.
+ * Volta a ser cor CHAPADA de estado. A versao anterior pintava a escala inteira
+ * 0–100% num gradiente Emerald -> Amber -> Crimson e recortava essa escala com
+ * `clip-path: inset(...)` no percentual do disco. O recorte e' uma aresta reta
+ * sem antialias sobre um trilho `rounded-full`: entre 60% e 80% ele caia no
+ * meio da transicao de cor e deixava uma ponta quadrada, meio verde e meio
+ * ambar ("pixels amarelados" a 66%). Preenchimento por `width` com
+ * `rounded-full` proprio termina sempre numa ponta arredondada e de uma cor so
+ * — a mesma do numero ao lado (DISK_USAGE_TIER_TEXT_CLASS).
  */
-export const DISK_USAGE_SCALE_CLASS = 'disk-usage-scale'
+export const DISK_USAGE_TIER_BAR_CLASS: Record<DiskUsageTier, string> = {
+  ok: 'bg-success',
+  warning: 'bg-warning',
+  critical: 'bg-destructive',
+}
 
 export const DISK_USAGE_TIER_TEXT_CLASS: Record<DiskUsageTier, string> = {
   ok: 'text-success',
