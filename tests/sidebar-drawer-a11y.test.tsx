@@ -22,6 +22,13 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('next-auth/react', () => ({ signOut: vi.fn() }))
+// Sprint V21: o dialogo de conta importa as server actions, que puxam
+// next-auth — fora do runtime do Next isso quebra a resolucao de next/server.
+vi.mock('@/app/account/actions', () => ({
+  updateProfileNameAction: vi.fn(),
+  updateEmailAction: vi.fn(),
+  changePasswordAction: vi.fn(),
+}))
 
 /** Simula a largura da janela para a media query `(min-width: 1024px)` (lg). */
 function mockViewport(width: number) {

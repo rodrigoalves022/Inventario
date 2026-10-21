@@ -3488,6 +3488,40 @@ npx vitest run tests/tenant-visual-standard.test.ts tests/alert-rules-panel.test
 
 ---
 
+## Sprint V21 — Conta e menu de usuário
+
+**Status**: ✅ Implementada em 2026-10-21. Contexto: `docs/PROJETO-PADRONIZACAO-VISUAL.md` §7 e prompt da Sprint 21. Depende das Sprints V16 a V20. Nenhuma alteração de schema/migration (usa `User.name`, `email`, `passwordHash`); nenhum arquivo proibido tocado (`app/admin/clients/**`, `app/users/page.tsx`, `prisma/schema.prisma`).
+
+### Entregas
+
+| # | Entrega | Resultado |
+|---|---|---|
+| 1 | Server actions `app/account/actions.ts` | `updateProfileNameAction`, `updateEmailAction`, `changePasswordAction`. Zod estrito (nome 2–80 com regex de caracteres, e-mail normalizado em minúsculas e ≤254, senha 8–72 com letra e número, confirmação e "diferente da atual"). O `user.id` vem só de `auth()` e o usuário é relido do banco (precisa estar ativo); nenhum schema aceita id no payload (RNF004). Senha conferida e gerada com `bcryptjs` (custo 10, mesmo de `lib/auth-credentials.ts` e do signup). |
+| 2 | Alteração de e-mail | Exige senha atual; recusa e-mail já usado (checagem prévia + `P2002` do UNIQUE para corrida); reemite a sessão via `unstable_update`. |
+| 3 | Auditoria (RNF009) | `account.name_update` (nome anterior/novo), `account.email_update` (`previousEmail`/`newEmail`), `account.password_change` (só o e-mail, nunca senha ou hash). |
+| 4 | Reemissão do JWT (`auth.ts`) | Callback `jwt` em runtime Node: no `trigger: 'update'` relê nome/e-mail do banco pelo `sub` e **ignora o payload**, já que `POST /api/auth/session` também dispara update a partir do browser. `auth.config.ts` (proxy) intocado. |
+| 5 | `components/account-dialog.tsx` | Dialog acessível com abas "Perfil" (nome; e-mail + senha atual) e "Segurança" (senha atual, nova, confirmação). Mensagens em `role="alert"`/`status`; `router.refresh()` após sucesso de nome/e-mail. |
+| 6 | Menu de usuário (`components/sidebar.tsx`) | `ProfileMenu` do header e menu do rodapé da sidebar (telas sem tenant/mobile) ganham "Minha conta", "Alterar senha" (abre direto na aba Segurança), "Preferências" (atalho para `/app/<slug>/settings`, só com tenant) e separador antes de "Sair da conta". O dialog é montado fora do `DropdownMenuContent` para não desmontar junto com o menu. |
+
+### Decisões e pendências
+
+- Troca de senha **não** invalida outras sessões: sem `tokenVersion`/`passwordChangedAt` no `User`, invalidar exigiria mudança de schema, proibida nesta sprint. Fica para o Backlog.
+- Troca de e-mail usa senha atual (mínimo do §7), não confirmação por e-mail — o projeto não tem infraestrutura de envio.
+- As actions não têm rate limit próprio; exigem sessão válida, o que já limita a superfície de força bruta da senha atual.
+
+### Testes
+
+```
+npx vitest run tests/account-actions.test.ts tests/sidebar-drawer-a11y.test.tsx
+
+ Test Files  2 passed (2)
+      Tests  20 passed (20)
+```
+
+Também passaram os 5 arquivos que importam o shell (`components/sidebar`): 54 testes. `tests/account-actions.test.ts` (novo, 10 testes) cobre RNF004 (payload com `id`/`userId` de outra conta é ignorado), sessão ausente, usuário inativo, senha atual errada, e-mail duplicado/inválido, normalização, hash bcrypt, auditoria sem segredo e reemissão da sessão. `tests/sidebar-drawer-a11y.test.tsx` passou a mockar `@/app/account/actions` (next-auth fora do runtime do Next). `npx tsc --noEmit` limpo; `eslint` nos arquivos alterados com 0 erros e 0 avisos. Suíte completa e `build` ficam com o orquestrador.
+
+---
+
 ## Backlog — Achados Pendentes
 
 

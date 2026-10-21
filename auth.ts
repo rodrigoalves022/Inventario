@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { authConfig } from "./auth.config"
 import { recordAuditLog } from "./lib/audit-log"
 import { authorizeCredentials } from "./lib/auth-credentials"
+import prisma from "./lib/prisma"
 
 // A logica de authorize() vive em lib/auth-credentials.ts (sem import de
 // 'next-auth'), reexportada aqui so por compatibilidade — ver o comentario
@@ -11,8 +12,30 @@ import { authorizeCredentials } from "./lib/auth-credentials"
 // importado).
 export { authorizeCredentials }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    // Sprint V21: `unstable_update` (app/account/actions.ts) reemite o JWT
+    // depois de trocar nome/e-mail. O payload do update e IGNORADO de
+    // proposito — POST /api/auth/session tambem dispara `trigger: 'update'`
+    // a partir do browser, entao nome/e-mail sao relidos do banco pelo `sub`.
+    // Fica aqui (runtime Node) e nao em auth.config.ts, que roda no proxy.
+    async jwt(params) {
+      const token = await authConfig.callbacks.jwt(params)
+      if (params.trigger === 'update' && token.sub) {
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { name: true, email: true },
+        })
+        if (fresh) {
+          token.name = fresh.name
+          token.email = fresh.email
+        }
+      }
+      return token
+    },
+  },
   providers: [
     CredentialsProvider({
       name: "Credentials",

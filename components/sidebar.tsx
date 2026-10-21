@@ -7,7 +7,8 @@ import { signOut } from 'next-auth/react'
 import type { AppRole } from '@/lib/permissions'
 import { getPermissionUser } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { getTenantBasePath } from '@/lib/tenant-links'
+import { getTenantBasePath, getTenantPath } from '@/lib/tenant-links'
+import { AccountDialog, type AccountDialogTab } from '@/components/account-dialog'
 import { ONLINE_PRESENCE_MINUTES } from '@/lib/inventory-alerts'
 import {
   buildShellNavigation,
@@ -42,6 +43,9 @@ import {
   LogOut,
   Menu,
   X,
+  UserRound,
+  KeyRound,
+  Settings,
 } from 'lucide-react'
 
 type TenantShellInfo = ShellTenant
@@ -396,6 +400,8 @@ export function Sidebar({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [mobileOpen])
 
+  const account = useAccountDialog()
+
   const permissionUser = getPermissionUser({ role: user?.role ?? null })
   const sections = buildShellNavigation(tenant, permissionUser)
   const inventoryStatus = getInventoryStatus(lastCollectionAt, now)
@@ -536,58 +542,126 @@ export function Sidebar({
                     {user?.email ?? 'Não identificado'}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
-                    onClick={() => signOut({ callbackUrl: '/login' })}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sair da conta
-                  </DropdownMenuItem>
+                  <AccountMenuItems onOpenAccount={account.show} />
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
           </div>
         </div>
       </aside>
+      {user && (
+        <AccountDialog
+          open={account.open}
+          onOpenChange={account.setOpen}
+          tab={account.tab}
+          onTabChange={account.setTab}
+          user={user}
+        />
+      )}
+    </>
+  )
+}
+
+/**
+ * Sprint V21: estado do dialogo de conta. O dialogo e montado FORA do
+ * DropdownMenuContent pelo chamador — o conteudo do menu desmonta ao fechar,
+ * e o dialogo morreria junto.
+ */
+function useAccountDialog() {
+  const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState<AccountDialogTab>('profile')
+  return {
+    open,
+    setOpen,
+    tab,
+    setTab,
+    show(next: AccountDialogTab) {
+      setTab(next)
+      setOpen(true)
+    },
+  }
+}
+
+/** Itens de conta do menu do header e do menu do rodape da sidebar. */
+function AccountMenuItems({
+  onOpenAccount,
+  settingsHref,
+}: {
+  onOpenAccount: (tab: AccountDialogTab) => void
+  settingsHref?: string
+}) {
+  return (
+    <>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('profile')}>
+        <UserRound className="mr-2 h-4 w-4" />
+        Minha conta
+      </DropdownMenuItem>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('security')}>
+        <KeyRound className="mr-2 h-4 w-4" />
+        Alterar senha
+      </DropdownMenuItem>
+      {settingsHref && (
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href={settingsHref}>
+            <Settings className="mr-2 h-4 w-4" />
+            Preferências
+          </Link>
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+        onClick={() => signOut({ callbackUrl: '/login' })}
+      >
+        <LogOut className="mr-2 h-4 w-4" />
+        Sair da conta
+      </DropdownMenuItem>
     </>
   )
 }
 
 /** Acoes de perfil no header — so montado quando o chamador passa a sessao. */
-function ProfileMenu({ user }: { user: SidebarUser }) {
+function ProfileMenu({ user, tenant }: { user: SidebarUser; tenant?: TenantShellInfo }) {
   const label = user.name || user.email || 'Sessão'
+  const account = useAccountDialog()
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Conta de ${label}`}
-          className="flex h-9 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-            {getInitials(user)}
-          </span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="font-normal">
-          <span className="block truncate text-sm font-medium text-foreground">{label}</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {user.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
-          </span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
-          onClick={() => signOut({ callbackUrl: '/login' })}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sair da conta
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Conta de ${label}`}
+            className="flex h-9 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+              {getInitials(user)}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuLabel className="font-normal">
+            <span className="block truncate text-sm font-medium text-foreground">{label}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {user.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
+            </span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <AccountMenuItems
+            onOpenAccount={account.show}
+            settingsHref={tenant ? getTenantPath(tenant.slug, 'settings') : undefined}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AccountDialog
+        open={account.open}
+        onOpenChange={account.setOpen}
+        tab={account.tab}
+        onTabChange={account.setTab}
+        user={user}
+      />
+    </>
   )
 }
 
@@ -631,7 +705,7 @@ export function Header({
         {tenant && switchableClients && switchableClients.length > 1 && (
           <ClientSwitcher current={tenant} clients={switchableClients} />
         )}
-        {user && <ProfileMenu user={user} />}
+        {user && <ProfileMenu user={user} tenant={tenant} />}
       </div>
 
       {hasPalette && (
