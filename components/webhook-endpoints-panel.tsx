@@ -176,7 +176,7 @@ function EndpointRow({ tenantSlug, endpoint }: { tenantSlug: string; endpoint: W
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3">
         <div className="min-w-0 space-y-1">
           <p className="truncate text-sm font-medium text-foreground">{endpoint.url}</p>
           <p className="text-xs text-muted-foreground">
@@ -211,7 +211,7 @@ export function WebhookEndpointsPanel({ tenantSlug, endpoints }: { tenantSlug: s
           <Plus className="h-3.5 w-3.5" /> Nenhum webhook cadastrado ainda.
         </p>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className="divide-y divide-surface-line">
           {endpoints.map((endpoint) => (
             <EndpointRow key={endpoint.id} tenantSlug={tenantSlug} endpoint={endpoint} />
           ))}

@@ -1,5 +1,7 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { KpiCardSkeleton, TableSkeleton } from '@/components/ui/skeleton-shapes'
 
+/** Mesma regua da pagina real (Sprint V20): KPI, barra de filtros px-5 sem sombra, casca de tabela. */
 export default function AuditLoading() {
   return (
     <div className="space-y-6">
@@ -13,14 +15,11 @@ export default function AuditLoading() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="rounded-xl border bg-card p-4">
-            <Skeleton className="mb-2 h-3 w-28" />
-            <Skeleton className="h-7 w-10" />
-          </div>
+          <KpiCardSkeleton key={index} />
         ))}
       </div>
 
-      <div className="rounded-xl border bg-card p-4">
+      <div className="rounded-xl border border-surface-line bg-card px-5 py-4">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="space-y-2">
@@ -31,16 +30,7 @@ export default function AuditLoading() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card">
-        <div className="divide-y">
-          {Array.from({ length: 6 }).map((_, row) => (
-            <div key={row} className="flex items-center justify-between gap-4 p-4">
-              <Skeleton className="h-4 w-64" />
-              <Skeleton className="h-4 w-32" />
-            </div>
-          ))}
-        </div>
-      </div>
+      <TableSkeleton columns={5} />
     </div>
   )
 }

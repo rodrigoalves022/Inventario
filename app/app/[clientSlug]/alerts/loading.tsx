@@ -1,5 +1,7 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { PanelSkeleton } from '@/components/ui/skeleton-shapes'
 
+/** Mesma forma da pagina real (Sprint V20): dois Panels com titulo, subtitulo e linhas divide-y. */
 export default function AlertsLoading() {
   return (
     <div className="space-y-6">
@@ -8,11 +10,10 @@ export default function AlertsLoading() {
         <Skeleton className="mt-2 h-4 w-96" />
       </div>
 
-      <div className="rounded-xl border border-surface-line bg-card p-5">
-        <Skeleton className="mb-4 h-5 w-20" />
-        <div className="divide-y rounded-xl border">
+      <PanelSkeleton withDescription>
+        <div className="divide-y divide-surface-line">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="flex items-center justify-between gap-4 p-4">
+            <div key={index} className="flex items-center justify-between gap-4 py-3">
               <div className="space-y-1.5">
                 <Skeleton className="h-4 w-40" />
                 <Skeleton className="h-3 w-28" />
@@ -21,11 +22,10 @@ export default function AlertsLoading() {
             </div>
           ))}
         </div>
-      </div>
+      </PanelSkeleton>
 
-      <div className="rounded-xl border border-surface-line bg-card p-5">
-        <Skeleton className="mb-4 h-5 w-40" />
-        <div className="divide-y">
+      <PanelSkeleton withDescription>
+        <div className="divide-y divide-surface-line">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="flex items-center justify-between gap-3 py-3">
               <div className="space-y-1.5">
@@ -39,7 +39,7 @@ export default function AlertsLoading() {
             </div>
           ))}
         </div>
-      </div>
+      </PanelSkeleton>
     </div>
   )
 }

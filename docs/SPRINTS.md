@@ -3459,7 +3459,37 @@ npx vitest run tests/overview-data-blocks.test.tsx tests/inventory-security-hero
 
 ---
 
+## Sprint V20 — Telas remanescentes sob a régua (/reports, /alerts, /settings, /audit)
+
+**Status**: ✅ Implementada em 2026-10-21. Contexto: `docs/PROJETO-PADRONIZACAO-VISUAL.md` §3 e prompt da Sprint 20. Depende das Sprints V16 a V19. Validado com testes focados dos arquivos afetados (96 testes passando). Suíte completa e `build` ficam com o orquestrador. Nenhuma consulta nova ao banco; nenhum arquivo proibido tocado (`app/admin/clients/**`, `app/users/page.tsx`, `prisma/schema.prisma`).
+
+### Entregas
+
+| # | Entrega | Resultado |
+|---|---|---|
+| 1 | Migração para a casca Panel em `/reports`, `/alerts` e `/settings` | Containers legados com `rounded-lg` (8px), `p-6` e `h2 text-lg` migrados para o componente `Panel` (`components/ui/panel.tsx`) com `rounded-xl` (12px), `px-5` e `text-base font-semibold`. |
+| 2 | Padronização de `/reports` | Títulos dos blocos unificados com a casca `Panel`, barras de progresso com semântica padronizada e bloco "Últimas coletas" sem cartões aninhados dentro de card, com linhas limpas em `divide-y` e classe `.data-mono` nos hostnames. |
+| 3 | Correção em `/audit` | Removido `shadow-sm` sob borda de 1px na barra de filtros, em conformidade com o `DESIGN.md`. |
+| 4 | Unificação de `.section-label` | Rótulos de seção/card artesanais unificados para a classe utilitária oficial `.section-label`. |
+
+### Testes
+
+Execução (só os arquivos tocados):
+
+```
+npx vitest run tests/tenant-visual-standard.test.ts tests/alert-rules-panel.test.tsx \
+  tests/tenant-alert-settings-form.test.tsx tests/webhook-endpoints.test.ts
+
+ Test Files  4 passed (4)
+      Tests  96 passed (96)
+```
+
+`npx tsc --noEmit` limpo; `eslint` nos arquivos alterados com 0 erros e 0 avisos.
+
+---
+
 ## Backlog — Achados Pendentes
+
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
 achados já confirmados contra o código atual (verificados nesta rodada, 2026-09-01), registrados

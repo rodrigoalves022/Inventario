@@ -18,7 +18,7 @@ function BarRowsSkeleton({ rows }: { rows: number }) {
   )
 }
 
-/** Mesma forma da pagina real (Sprint V17): cabecalho com 2 botoes, 4 KPI e duas fileiras de 2 paineis. */
+/** Mesma forma da pagina real (Sprints V17 e V20 — todo bloco com subtitulo): cabecalho com 2 botoes, 4 KPI e duas fileiras de 2 paineis. */
 export default function ReportsLoading() {
   return (
     <div className="space-y-6">
@@ -40,7 +40,7 @@ export default function ReportsLoading() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <PanelSkeleton>
+        <PanelSkeleton withDescription>
           <BarRowsSkeleton rows={4} />
         </PanelSkeleton>
         <PanelSkeleton withDescription>
@@ -49,12 +49,13 @@ export default function ReportsLoading() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <PanelSkeleton>
+        <PanelSkeleton withDescription>
           <BarRowsSkeleton rows={4} />
         </PanelSkeleton>
         <div className="rounded-xl border border-surface-line bg-card">
-          <div className="px-5 pb-4 pt-5">
+          <div className="space-y-2 px-5 pb-4 pt-5">
             <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-64" />
           </div>
           <div className="divide-y divide-surface-line border-t border-surface-line">
             {Array.from({ length: 3 }).map((_, row) => (

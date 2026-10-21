@@ -121,11 +121,12 @@ export default async function TenantAuditPage({
         />
       </div>
 
-      {/* Filter Bar */}
-      <div className="rounded-xl border border-surface-line bg-card p-4">
+      {/* Filter Bar — rotulos em `.section-label` (Sprint V20), nao a variante
+          artesanal de 10px/widest. Sem shadow-sm: borda de 1px ja declara a superficie. */}
+      <div className="rounded-xl border border-surface-line bg-card px-5 py-4">
         <form method="GET" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-end">
           <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+            <label className="section-label flex items-center gap-1.5">
               <Filter className="h-3 w-3" /> Ação
             </label>
             <Select name="action" defaultValue={filters.action || "all"}>
@@ -141,7 +142,7 @@ export default async function TenantAuditPage({
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+            <label className="section-label flex items-center gap-1.5">
               <Search className="h-3 w-3" /> Usuário
             </label>
             <Input 
@@ -154,7 +155,7 @@ export default async function TenantAuditPage({
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Início</label>
+            <label className="section-label block">Início</label>
             <div className="relative">
               <CalendarIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input name="from" type="date" defaultValue={filters.from ?? ''} className="h-9 pl-8 bg-muted/40" />
@@ -163,7 +164,7 @@ export default async function TenantAuditPage({
 
           <div className="flex gap-2">
             <div className="space-y-2 flex-1">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Até</label>
+              <label className="section-label block">Até</label>
               <div className="relative">
                 <CalendarIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input name="to" type="date" defaultValue={filters.to ?? ''} className="h-9 pl-8 bg-muted/40" />

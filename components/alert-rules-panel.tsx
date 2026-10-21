@@ -164,9 +164,9 @@ export function AlertRulesPanel({ tenantSlug, rules }: { tenantSlug: string; rul
           Nenhuma regra configurada. Sem regras, nada é registrado no histórico abaixo.
         </p>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className="divide-y divide-surface-line">
           {rules.map((rule) => (
-            <div key={rule.id} className="flex items-center justify-between gap-4 p-4">
+            <div key={rule.id} className="flex items-center justify-between gap-4 py-3">
               <div className="min-w-0 space-y-0.5">
                 <p className="truncate text-sm font-medium text-foreground">{rule.name}</p>
                 <p className="text-xs text-muted-foreground">

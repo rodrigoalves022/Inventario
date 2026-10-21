@@ -64,7 +64,7 @@ export function TenantAlertSettingsForm({
 
           <div className="grid gap-6 md:grid-cols-4">
             <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Capacidade</h3>
+              <h3 className="section-label">Capacidade</h3>
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="alertDiskThresholdGb" className="text-xs">Disco mínimo livre (GB)</Label>
@@ -78,7 +78,7 @@ export function TenantAlertSettingsForm({
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Disponibilidade</h3>
+              <h3 className="section-label">Disponibilidade</h3>
               <div className="space-y-1.5">
                 <Label htmlFor="alertOfflineHours" className="text-xs">Considerar Offline após (horas)</Label>
                 <Input id="alertOfflineHours" name="alertOfflineHours" type="number" min={1} max={720} defaultValue={settings.alertOfflineHours} className="h-8" />
@@ -92,7 +92,7 @@ export function TenantAlertSettingsForm({
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <h3 className="section-label flex items-center gap-1.5">
                 <Webhook className="h-3 w-3" /> External Notification
               </h3>
               <div className="space-y-3">
@@ -110,7 +110,7 @@ export function TenantAlertSettingsForm({
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Métricas</h3>
+              <h3 className="section-label">Métricas</h3>
               <div className="space-y-1.5">
                 <Label htmlFor="metricsRetentionDays" className="text-xs">Retenção da série temporal (dias)</Label>
                 <Input
@@ -130,7 +130,7 @@ export function TenantAlertSettingsForm({
           </div>
 
           <div className="space-y-3 rounded-md border border-warning/30 bg-warning/5 p-4">
-            <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <h3 className="section-label flex items-center gap-1.5">
               <Radar className="h-3 w-3" /> Descoberta de Rede
             </h3>
             <div className="flex items-start gap-2">

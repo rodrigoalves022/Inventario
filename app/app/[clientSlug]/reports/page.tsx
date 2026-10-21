@@ -90,9 +90,23 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
         />
       </div>
 
+      {/*
+        Regua dos quatro blocos (Sprint V20): todo Panel tem titulo E
+        subtitulo — antes tres eram titulo seco e um so tinha paragrafo.
+
+        Regra de cor das barras: a barra mede QUANTIDADE, nao estado, entao o
+        preenchimento padrao e' `bg-primary` nos tres blocos. A unica excecao
+        e' semantica de estado declarada: a faixa critica de disco usa
+        `bg-destructive`, a mesma cor do rotulo dela. RAM deixou de usar
+        `bg-info` — azul de "informacao" num histograma de capacidade nao
+        dizia nada que o primary ja nao dissesse.
+      */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>
-          <PanelHeader title="Distribuição de sistemas operacionais" />
+          <PanelHeader
+            title="Distribuição de sistemas operacionais"
+            description="Máquinas por sistema operacional reportado, em proporção do parque."
+          />
           <PanelBody className="space-y-3">
             {summary.osDistribution.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum sistema operacional reportado ainda.</p>
@@ -121,40 +135,43 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
             description="Quantidade de máquinas por faixa de uso — discos de tamanhos diferentes não se resumem a um único percentual somado."
           />
           <PanelBody>
-          {summary.diskUsageDistribution.every((bucket) => bucket.count === 0) ? (
-            <p className="text-sm text-muted-foreground">Nenhum disco reportado ainda.</p>
-          ) : (
-            <div className="space-y-3">
-              {summary.diskUsageDistribution.map((bucket) => {
-                const maxCount = Math.max(...summary.diskUsageDistribution.map((b) => b.count), 1)
-                const percent = Math.round((bucket.count / maxCount) * 100)
-                const critical = bucket.label.includes('crítico')
-                return (
-                  <div key={bucket.label}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className={critical ? 'font-medium text-destructive' : 'text-foreground'}>
-                        {bucket.label}
-                      </span>
-                      <span className="text-muted-foreground">{bucket.count}</span>
+            {summary.diskUsageDistribution.every((bucket) => bucket.count === 0) ? (
+              <p className="text-sm text-muted-foreground">Nenhum disco reportado ainda.</p>
+            ) : (
+              <div className="space-y-3">
+                {summary.diskUsageDistribution.map((bucket) => {
+                  const maxCount = Math.max(...summary.diskUsageDistribution.map((b) => b.count), 1)
+                  const percent = Math.round((bucket.count / maxCount) * 100)
+                  const critical = bucket.label.includes('crítico')
+                  return (
+                    <div key={bucket.label}>
+                      <div className="mb-1 flex items-center justify-between text-sm">
+                        <span className={critical ? 'font-medium text-destructive' : 'text-foreground'}>
+                          {bucket.label}
+                        </span>
+                        <span className="text-muted-foreground">{bucket.count}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-secondary">
+                        <div
+                          className={`h-full rounded-full ${critical ? 'bg-destructive' : 'bg-primary'}`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 rounded-full bg-secondary">
-                      <div
-                        className={`h-full rounded-full ${critical ? 'bg-destructive' : 'bg-primary'}`}
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )}
           </PanelBody>
         </Panel>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>
-          <PanelHeader title="Distribuição de RAM" />
+          <PanelHeader
+            title="Distribuição de RAM"
+            description="Quantidade de máquinas por faixa de memória instalada."
+          />
           <PanelBody className="space-y-3">
             {summary.ramDistribution.every((item) => item.count === 0) ? (
               <p className="text-sm text-muted-foreground">Nenhuma informação de memória reportada ainda.</p>
@@ -169,7 +186,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
                       <span className="text-muted-foreground">{item.count}</span>
                     </div>
                     <div className="h-2 rounded-full bg-secondary">
-                      <div className="h-full rounded-full bg-info" style={{ width: `${percent}%` }} />
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
                     </div>
                   </div>
                 )
@@ -179,7 +196,10 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
         </Panel>
 
         <Panel>
-          <PanelHeader title="Últimas coletas" />
+          <PanelHeader
+            title="Últimas coletas"
+            description="As 10 coletas mais recentes enviadas pelos agentes."
+          />
           {/* Linhas com `divide-y`, nao cartoezinhos com borda propria: o
               Panel proibe card dentro de card (borda dentro de borda e'
               elevacao declarada duas vezes). `flush` porque cada linha ja

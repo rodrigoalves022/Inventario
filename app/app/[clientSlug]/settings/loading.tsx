@@ -1,5 +1,7 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { PanelSkeleton } from '@/components/ui/skeleton-shapes'
 
+/** Mesma forma da pagina real (Sprint V20): um Panel com titulo, subtitulo e linhas divide-y. */
 export default function SettingsLoading() {
   return (
     <div className="space-y-6">
@@ -8,12 +10,10 @@ export default function SettingsLoading() {
         <Skeleton className="mt-2 h-4 w-96" />
       </div>
 
-      <div className="rounded-xl border border-surface-line bg-card p-5">
-        <Skeleton className="mb-1 h-5 w-24" />
-        <Skeleton className="mb-4 h-4 w-full max-w-md" />
-        <div className="divide-y rounded-xl border">
+      <PanelSkeleton withDescription>
+        <div className="divide-y divide-surface-line">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="flex items-center justify-between gap-4 p-4">
+            <div key={index} className="flex items-center justify-between gap-4 py-3">
               <div className="space-y-1.5">
                 <Skeleton className="h-4 w-56" />
                 <Skeleton className="h-3 w-40" />
@@ -22,7 +22,7 @@ export default function SettingsLoading() {
             </div>
           ))}
         </div>
-      </div>
+      </PanelSkeleton>
     </div>
   )
 }
