@@ -154,29 +154,24 @@ export function CriticalDevicesPanel({
 
   return (
     <Panel aria-labelledby="critical-devices-title" className="flex h-full flex-col">
-      <PanelHeader>
-        <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h2 id="critical-devices-title" className="text-base font-semibold text-card-foreground">
-            Dispositivos em alerta crítico
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Menos de {alertDiskThresholdGb} GB livres em algum disco, ou sem coleta há {alertOfflineHours}h ou
-            mais.
-          </p>
-        </div>
-        <span
-          className={cn(
-            'shrink-0 rounded-full border px-2.5 py-1 text-sm font-bold tabular-nums',
-            totalCritical > 0
-              ? 'border-destructive/35 bg-destructive/10 text-destructive'
-              : 'border-success/35 bg-success/10 text-success'
-          )}
-        >
-          {totalCritical}
-        </span>
-        </div>
-      </PanelHeader>
+      {/* Cabecalho pelas props do PanelHeader, nao por filhos customizados:
+          o painel de atividade ao lado sai do mesmo caminho, entao titulo,
+          descricao e acao ficam na mesma regua nos dois (Sprint V19). */}
+      <PanelHeader
+        titleId="critical-devices-title"
+        title="Dispositivos em alerta crítico"
+        description={`Menos de ${alertDiskThresholdGb} GB livres em algum disco, ou sem coleta há ${alertOfflineHours}h ou mais.`}
+        action={
+          <span
+            className={cn(
+              'inline-flex rounded-full px-2.5 py-1 text-sm font-bold tabular-nums',
+              totalCritical > 0 ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'
+            )}
+          >
+            {totalCritical}
+          </span>
+        }
+      />
 
       {entries.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 border-t border-surface-line px-5 py-10 text-center">
@@ -193,7 +188,7 @@ export function CriticalDevicesPanel({
             <li key={entry.hostname}>
               <Link
                 href={entry.href}
-                className="row-interactive flex items-start justify-between gap-4 px-5 py-3.5 transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="row-interactive flex items-start justify-between gap-4 px-5 py-3 transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <div className="min-w-0 space-y-1.5">
                   <p className="data-mono truncate text-sm font-medium text-foreground">{entry.hostname}</p>

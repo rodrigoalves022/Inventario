@@ -247,8 +247,11 @@ function IndicatorBlock({ indicator }: { indicator: SecurityIndicator }) {
         <p className="section-label">{indicator.label}</p>
       </div>
 
+      {/* Mesma escala (text-4xl) nos dois estados: com "Sem dado" em text-3xl a
+          linha ficava 8px mais baixa, o medidor daquela coluna subia e as tres
+          barras deixavam de ficar na mesma horizontal (Sprint V19). */}
       {indicator.percentLabel === null ? (
-        <p className={cn('mt-4 text-3xl font-bold tracking-tight', TONE_VALUE_CLASS[tone])}>Sem dado</p>
+        <p className={cn('mt-4 text-4xl font-bold tracking-tight', TONE_VALUE_CLASS[tone])}>Sem dado</p>
       ) : (
         <p className={cn('mt-4 text-4xl font-bold tabular-nums tracking-tight', TONE_VALUE_CLASS[tone])}>
           {indicator.percentLabel}
@@ -263,13 +266,16 @@ function IndicatorBlock({ indicator }: { indicator: SecurityIndicator }) {
         knownCount={indicator.knownCount}
       />
 
-      <p className="mt-2.5 text-xs text-muted-foreground">
-        {indicator.knownCount === 0
-          ? `Nenhuma das ${indicator.totalDevices} máquinas reportou este dado`
-          : `${indicator.knownCount} de ${indicator.totalDevices} máquinas com dado apurado`}
-      </p>
-
-      {indicator.note ? <p className="mt-1 text-xs text-muted-foreground/80">{indicator.note}</p> : null}
+      {/* Altura reservada para base de calculo + nota: o firewall nao tem nota,
+          e sem a reserva a terceira coluna terminava antes das outras duas. */}
+      <div data-slot="indicator-footer" className="mt-2.5 min-h-[3.25rem] space-y-1">
+        <p className="text-xs text-muted-foreground">
+          {indicator.knownCount === 0
+            ? `Nenhuma das ${indicator.totalDevices} máquinas reportou este dado`
+            : `${indicator.knownCount} de ${indicator.totalDevices} máquinas com dado apurado`}
+        </p>
+        {indicator.note ? <p className="text-xs text-muted-foreground/80">{indicator.note}</p> : null}
+      </div>
     </div>
   )
 }
@@ -289,25 +295,26 @@ export function InventorySecurityHero({
           paineis do bloco duplo, na mesma largura, e comecava o texto 4px mais
           a direita que eles — desalinhamento visivel entre superficies
           verticalmente adjacentes. Agora os tres saem do mesmo PanelHeader. */}
-      <PanelHeader className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h2 id="inventory-security-hero-title" className="text-base font-semibold text-card-foreground">
-            Postura de segurança do parque
-          </h2>
-          <p className="max-w-xl text-sm text-muted-foreground">
+      <PanelHeader
+        titleId="inventory-security-hero-title"
+        title="Postura de segurança do parque"
+        description={
+          <span className="block max-w-xl">
             {totalDevices} máquina{totalDevices === 1 ? '' : 's'} no inventário. Cada percentual é calculado
             sobre as máquinas que reportaram o dado — &ldquo;não apurado&rdquo; nunca entra como
             &ldquo;desativado&rdquo;.
-          </p>
-        </div>
-        <Link
-          href={reportsHref}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md text-sm font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Relatório completo
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </PanelHeader>
+          </span>
+        }
+        action={
+          <Link
+            href={reportsHref}
+            className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Relatório completo
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        }
+      />
 
       <div className="grid grid-cols-1 divide-y divide-surface-line border-t border-surface-line md:grid-cols-3 md:divide-x md:divide-y-0">
         {indicators.map((indicator) => (

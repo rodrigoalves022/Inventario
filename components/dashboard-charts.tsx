@@ -18,7 +18,7 @@ interface OsChartProps {
 
 const COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
 
-/** Tooltip tematizado (dark) reaproveitado pelos dois donuts — mesmos tokens
+/** Tooltip tematizado (dark) do donut — mesmos tokens
  * de var(--popover)/var(--border) ja usados no Tooltip do BarChart abaixo. */
 function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: ChartData }> }) {
   if (!active || !payload?.length) return null
@@ -53,6 +53,39 @@ function ActivePieSector(props: PieSectorDataItem) {
   )
 }
 
+/**
+ * Quantos SOs a legenda mostra antes de agrupar o resto em "+ N outros".
+ *
+ * A area do donut e' fixa em 180px, mas a legenda era uma lista sem limite: num
+ * parque com muitos sistemas o card de SO crescia e o vizinho da mesma fileira
+ * esticava com vazio no fundo. 4 linhas + a linha de agrupamento cabem nos
+ * 180px do grafico, entao a altura do card nao depende mais do parque
+ * (Sprint V19).
+ */
+export const OS_LEGEND_MAX_ITEMS = 4
+
+/** Cor das fatias agrupadas em "outros" — a mesma do marcador da linha. */
+const OTHERS_COLOR = 'var(--muted-foreground)'
+
+/** Separa os itens visiveis da legenda do resto agrupado. `data` ja chega
+ * ordenado por quantidade (buildDeviceReportSummary), entao os primeiros sao
+ * os maiores. Com ate `max + 1` itens nao agrupa: trocar um item por uma linha
+ * "+ 1 outro" so esconderia informacao sem economizar espaco. */
+export function splitLegendItems(data: ChartData[], max = OS_LEGEND_MAX_ITEMS) {
+  if (data.length <= max + 1) return { visible: data, hiddenCount: 0, hiddenValue: 0 }
+  const hidden = data.slice(max)
+  return {
+    visible: data.slice(0, max),
+    hiddenCount: hidden.length,
+    hiddenValue: hidden.reduce((acc, item) => acc + item.value, 0),
+  }
+}
+
+function getSliceColor(entry: ChartData, index: number, visibleCount: number) {
+  if (index >= visibleCount) return OTHERS_COLOR
+  return entry.fill || COLORS[index % COLORS.length]
+}
+
 interface OsDistributionChartProps extends OsChartProps {
   /** Caminho da listagem de maquinas do tenant (ex: getTenantPath(slug, 'computers')).
    * Sem essa prop o grafico fica so informativo, sem navegacao — mantem o
@@ -64,6 +97,7 @@ export function OsDistributionChart({ data, computersPath }: OsDistributionChart
   const total = data.reduce((acc, item) => acc + item.value, 0)
   const router = useRouter()
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined)
+  const legend = splitLegendItems(data)
 
   function goToFilteredComputers(osName: string) {
     if (!computersPath) return
@@ -95,15 +129,15 @@ export function OsDistributionChart({ data, computersPath }: OsDistributionChart
                   onClick={computersPath ? (entry) => goToFilteredComputers(entry.name) : undefined}
                 >
                   {data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill || COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${index}`} fill={getSliceColor(entry, index, legend.visible.length)} />
                   ))}
                 </Pie>
                 <Tooltip content={<PieTooltip />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex-1 space-y-3">
-            {data.map((item, index) => (
+          <div className="min-w-0 flex-1 space-y-1.5">
+            {legend.visible.map((item, index) => (
               <div
                 key={item.name}
                 role={computersPath ? 'button' : undefined}
@@ -125,12 +159,14 @@ export function OsDistributionChart({ data, computersPath }: OsDistributionChart
                   computersPath ? 'cursor-pointer hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring' : ''
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <div
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: item.fill || COLORS[index % COLORS.length] }}
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: getSliceColor(item, index, legend.visible.length) }}
                   />
-                  <span className="text-sm text-muted-foreground">{item.name}</span>
+                  <span className="truncate text-sm text-muted-foreground" title={item.name}>
+                    {item.name}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-card-foreground">{item.value}</span>
@@ -140,98 +176,27 @@ export function OsDistributionChart({ data, computersPath }: OsDistributionChart
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      </PanelBody>
-    </Panel>
-  )
-}
-
-interface StatusChartProps extends OsChartProps {
-  /** Caminho da listagem de maquinas do tenant — mesma prop/convencao do OsDistributionChart. */
-  computersPath?: string
-}
-
-export function StatusChart({ data, computersPath }: StatusChartProps) {
-  const total = data.reduce((acc, item) => acc + item.value, 0)
-  const router = useRouter()
-  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined)
-
-  function goToFilteredComputers(statusName: string) {
-    if (!computersPath) return
-    router.push(`${computersPath}?status=${encodeURIComponent(statusName.toLowerCase())}`)
-  }
-
-  return (
-    <Panel>
-      <PanelHeader title="Status dos Dispositivos" description="Estado atual da rede" />
-      <PanelBody>
-        <div className="flex items-center gap-6">
-          <div className="h-[180px] w-[180px] outline-none [&_.recharts-surface]:outline-none [&_*]:outline-none">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                  strokeWidth={0}
-                  cursor={computersPath ? 'pointer' : 'default'}
-                  activeIndex={activeIndex}
-                  activeShape={ActivePieSector}
-                  onMouseEnter={(_, index) => setActiveIndex(index)}
-                  onMouseLeave={() => setActiveIndex(undefined)}
-                  onClick={computersPath ? (entry) => goToFilteredComputers(entry.name) : undefined}
-                >
-                  {data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill || COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<PieTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex-1 space-y-3">
-            {data.map((item, index) => (
+            {legend.hiddenCount > 0 ? (
               <div
-                key={item.name}
-                role={computersPath ? 'button' : undefined}
-                tabIndex={computersPath ? 0 : undefined}
-                onClick={computersPath ? () => goToFilteredComputers(item.name) : undefined}
-                onMouseEnter={() => setActiveIndex(index)}
-                onMouseLeave={() => setActiveIndex(undefined)}
-                onKeyDown={
-                  computersPath
-                    ? (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          goToFilteredComputers(item.name)
-                        }
-                      }
-                    : undefined
-                }
-                className={`flex items-center justify-between rounded-md px-1.5 py-1 -mx-1.5 transition-colors ${
-                  computersPath ? 'cursor-pointer hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring' : ''
-                }`}
+                data-slot="legend-others"
+                className="flex items-center justify-between px-1.5 py-1 -mx-1.5"
               >
                 <div className="flex items-center gap-2">
-                  <div
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: item.fill || COLORS[index % COLORS.length] }}
-                  />
-                  <span className="text-sm text-muted-foreground">{item.name}</span>
+                  <div className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: OTHERS_COLOR }} />
+                  {/* Sem link: "outros" nao e' um valor de ?os= — cada SO
+                      escondido continua clicavel na propria fatia do donut. */}
+                  <span className="text-sm text-muted-foreground">
+                    + {legend.hiddenCount} outros
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-card-foreground">{item.value}</span>
+                  <span className="text-sm font-medium text-card-foreground">{legend.hiddenValue}</span>
                   <span className="text-xs text-muted-foreground">
-                    ({Math.round((item.value / total) * 100)}%)
+                    ({Math.round((legend.hiddenValue / total) * 100)}%)
                   </span>
                 </div>
               </div>
-            ))}
+            ) : null}
           </div>
         </div>
       </PanelBody>

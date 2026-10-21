@@ -19,11 +19,6 @@ export const OsDistributionChart = dynamic(
   { ssr: false, loading: ChartSkeleton }
 )
 
-export const StatusChart = dynamic(
-  () => import('@/components/dashboard-charts').then((mod) => mod.StatusChart),
-  { ssr: false, loading: ChartSkeleton }
-)
-
 export const RamDistributionChart = dynamic(
   () => import('@/components/dashboard-charts').then((mod) => mod.RamDistributionChart),
   { ssr: false, loading: ChartSkeleton }

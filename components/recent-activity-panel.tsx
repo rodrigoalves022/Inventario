@@ -113,26 +113,27 @@ function BlockHeader({
 }) {
   // `PanelHeader` no lugar do padding solto: este bloco usava `pb-3` enquanto o
   // painel de alerta critico ao lado usava `pb-4`, entao os dois titulos
-  // ficavam a distancias diferentes da primeira linha da lista, lado a lado na
-  // mesma fileira. Agora o recuo vem de um lugar so.
+  // ficavam a distancias diferentes da primeira linha da lista. Desde a V19 os
+  // dois montam o cabecalho pelas MESMAS props (title/description/action), sem
+  // markup proprio — o recuo e a escala vem de um lugar so.
+  //
+  // `h2` e nao `h3`: os dois blocos deste painel sao irmaos do titulo do painel
+  // de alerta critico ao lado (o PanelHeader ja renderiza `<h2>`).
   return (
-    <PanelHeader className={cn('flex items-start justify-between gap-4', className)}>
-      <div className="space-y-1">
-        {/* `h2` e nao `h3`: os dois blocos deste painel sao irmaos do titulo do
-            painel de alerta critico ao lado, e o `h1` da tela e' o da propria
-            pagina. Pular para h3 aqui abriria um buraco na arvore de titulos
-            que leitor de tela navega. */}
-        <h2 className="text-base font-semibold text-card-foreground">{title}</h2>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-      <Link
-        href={href}
-        className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {linkLabel}
-        <ArrowRight className="h-4 w-4" />
-      </Link>
-    </PanelHeader>
+    <PanelHeader
+      className={className}
+      title={title}
+      description={description}
+      action={
+        <Link
+          href={href}
+          className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {linkLabel}
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      }
+    />
   )
 }
 

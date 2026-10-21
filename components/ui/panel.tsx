@@ -37,6 +37,7 @@ export function Panel({
 
 export function PanelHeader({
   title,
+  titleId,
   description,
   action,
   className,
@@ -44,6 +45,9 @@ export function PanelHeader({
 }: {
   /** Titulo do bloco. Renderizado como `<h2>` — ver a nota sobre hierarquia. */
   title?: React.ReactNode
+  /** `id` do `<h2>`, para a casca apontar `aria-labelledby` para o titulo
+   * sem o painel precisar reescrever o cabecalho a mao (Sprint V19). */
+  titleId?: string
   description?: React.ReactNode
   /** Acao a direita do titulo (link "ver todos", botao, badge de contagem). */
   action?: React.ReactNode
@@ -60,7 +64,7 @@ export function PanelHeader({
               `<h2>` e nao `<h3>`: a pagina abre em `<h1>` e os blocos sao seus
               filhos diretos na hierarquia semantica. Nao ha nivel intermediario.
             */}
-            {title && <h2 className="text-base font-semibold text-card-foreground">{title}</h2>}
+            {title && <h2 id={titleId} className="text-base font-semibold text-card-foreground">{title}</h2>}
             {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </div>
           {action && <div className="shrink-0">{action}</div>}

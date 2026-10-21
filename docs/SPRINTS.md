@@ -3409,6 +3409,56 @@ npx vitest run tests/tenant-visual-standard.test.ts tests/tenant-overview-two-ba
 
 ---
 
+## Sprint V19 — Blocos de dado da Visão Geral
+
+**Status**: ✅ Implementada em 2026-10-21 sobre `7fd396d`. Contexto: `docs/PROJETO-PADRONIZACAO-VISUAL.md`
+§3 e prompt da Sprint 19. Depende da Sprint V18. Por determinação do usuário, **a suíte inteira não foi
+rodada neste contexto** — só os testes dos arquivos tocados (abaixo). Suíte completa e `build` ficam com
+o orquestrador. Nenhuma consulta nova ao banco; nenhum arquivo proibido tocado (`app/admin/clients/**`,
+`app/users/page.tsx`, `prisma/schema.prisma`).
+
+### Entregas
+
+| # | Entrega | Resultado |
+|---|---|---|
+| 1 | Legenda do donut com altura previsível | `components/dashboard-charts.tsx`: `splitLegendItems` mostra no máximo `OS_LEGEND_MAX_ITEMS` (4) SOs e agrupa o resto numa linha **"+ N outros"** com a soma de máquinas e o %. Com até 5 itens não agrupa (trocar 1 item por "+ 1 outro" não economiza espaço). Espaçamento `space-y-3` → `space-y-1.5`: 5 linhas cabem nos 180px do donut, então a altura do card não depende do parque. As fatias agrupadas usam a cor do marcador "outros" (`var(--muted-foreground)`) e continuam clicáveis no donut (filtro `?os=` por SO); a linha "outros" não navega, porque "outros" não é um valor de filtro. Nomes longos com `truncate` + `title`. |
+| 2 | `StatusChart` removido | Componente morto desde a V18 apagado de `dashboard-charts.tsx` e de `dashboard-charts-lazy.tsx`. `grep -rn StatusChart app components lib tests` → só o teste que trava a ausência. |
+| 3 | Hero — mesma escala | `components/inventory-security-hero.tsx`: "Sem dado" passa de `text-3xl` para `text-4xl` (a mesma do percentual), então os três medidores ficam na mesma horizontal. |
+| 4 | Hero — rodapé reservado | Base de cálculo + nota agora dentro de `div[data-slot=indicator-footer]` com `min-h-[3.25rem]` nas três colunas; o firewall (sem nota) não termina antes das outras. |
+| 5 | Cabeçalhos pela casca `Panel` | `PanelHeader` ganha `titleId` (id do `<h2>`, para `aria-labelledby`). Hero, painel de críticos e os dois blocos da atividade recente montam o cabeçalho **pelas props** `title`/`description`/`action`, sem markup próprio — mesmo recuo e mesma escala de título nos três. |
+| 6 | Sem borda dentro de borda | Badge de contagem do painel de críticos perde a `border` (fica só o fundo tonal). Listas de críticos, descobertas e auditoria seguem `divide-y` com linhas limpas; a linha de crítico passa de `py-3.5` para `py-3`, o mesmo respiro da atividade recente ao lado. |
+
+### Testes
+
+Novo: `tests/overview-data-blocks.test.tsx` (10 casos) — `splitLegendItems` (agrupa acima do limite e
+soma; não agrupa com max + 1), render do donut com 7 SOs (4 linhas clicáveis + "+ 3 outros" com 12
+máquinas), ausência de `StatusChart` no módulo; "Sem dado" e percentual em `text-4xl` (critério de aceite
+do projeto); três rodapés com a mesma classe `min-h-*`; região do hero nomeada pelo título; títulos dos
+dois painéis no mesmo `PanelHeader` (`pt-5 pb-4`); nenhuma `border` dentro das listas `divide-y`; linhas
+com o mesmo `py-3`; badge sem borda.
+
+Execução (só os arquivos tocados e os que renderizam a Visão Geral):
+
+```
+npx vitest run tests/overview-data-blocks.test.tsx tests/inventory-security-hero.test.tsx \
+  tests/critical-devices-panel.test.tsx tests/recent-activity-panel.test.tsx \
+  tests/tenant-overview-two-bands.test.tsx tests/admin-and-tenant-pages-h1.test.tsx \
+  tests/tenant-visual-standard.test.ts
+
+ Test Files  7 passed (7)
+      Tests  124 passed (124)
+```
+
+`npx tsc --noEmit` limpo; `eslint` nos arquivos de aplicação alterados com 0 erros e 0 avisos.
+
+### Fora de escopo (não feito)
+
+- `StatsGrid` morto (§5 do projeto) — não é da Visão Geral; segue pendente de OK.
+- Validação visual no navegador (visual-qa) em 1440/1024/390 px.
+- Suíte completa e `next build` (orquestrador).
+
+---
+
 ## Backlog — Achados Pendentes
 
 Itens abaixo **não** são sprints numeradas e **não** têm status "Planejada"/"Em execução" — são
