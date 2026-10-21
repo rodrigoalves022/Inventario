@@ -1,7 +1,13 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+/* Variante `dark:` INERTE de proposito (Sprint V22). Os componentes shadcn
+   trazem ajustes `dark:` (bg-input/30, ring-destructive/40...) que nunca
+   aplicaram: ate a V22 nenhuma classe .dark existia no <html>. O tema escuro
+   aprovado e' o que se via SEM eles. Agora que next-themes poe .dark no <html>,
+   ligar a variante mudaria o escuro aprovado. Diferenca entre temas entra
+   SO por token (:root / .dark abaixo); para religar, use (&:is(.dark *)). */
+@custom-variant dark (&:is([data-dark-variant] *));
 
 /* ============================================================================
    PALETA — Overhaul visual, Fase 1 (2026-09-04). Ver DESIGN.md na raiz.
@@ -16,11 +22,76 @@
    aproximacao a olho.
    ============================================================================ */
 
+/* ============================================================================
+   TEMA CLARO (Sprint V22). Paleta autorada token a token — nao e' inversao do
+   escuro. Hues da Fase 1 preservados; luminosidade dos tons semanticos desce
+   para que funcionem como TEXTO sobre branco (>= 4.5:1, inclusive sobre o
+   proprio tom a 10-20% que os badges usam) e o preenchimento solido aceita
+   tinta branca. Razoes medidas em docs/SPRINTS.md, Sprint V22.
+   ============================================================================ */
 :root {
-  /* App e' dark-only (:root e .dark tem os mesmos valores) — sem isso, controles
-     nativos do navegador (spinner de <input type="number">, popup de <select>,
-     date picker) renderizam com chrome claro do SO, quebrando a coerencia visual
-     mesmo com toda a UI custom já em tema escuro. */
+  color-scheme: light;
+
+  --background: oklch(0.985 0.003 260);
+  --foreground: oklch(0.21 0.03 266); /* 17.0:1 no fundo */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 266);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.03 266);
+  --secondary: oklch(0.955 0.006 260);
+  --secondary-foreground: oklch(0.32 0.03 264);
+  --muted: oklch(0.955 0.006 260);
+  --muted-foreground: oklch(0.5 0.025 260); /* 6.0:1 no card, 5.3:1 no muted */
+  --accent: oklch(0.95 0.02 235); /* superficie de hover, com o mesmo puxao ciano */
+  --accent-foreground: oklch(0.21 0.03 266);
+
+  --primary: oklch(0.5 0.13 240); /* ciano escurecido: 5.8:1 como texto e com tinta branca */
+  --primary-foreground: oklch(0.99 0 0);
+  --success: oklch(0.49 0.115 163);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.5 0.115 62);
+  --warning-foreground: oklch(0.99 0 0);
+  --info: oklch(0.5 0.1 220);
+  --info-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.5 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-solid: oklch(0.5 0.2 25);
+
+  --border: oklch(0.91 0.008 260);
+  --input: oklch(0.66 0.015 260); /* aresta de campo >= 3:1 (WCAG 1.4.11) */
+  --ring: oklch(0.5 0.13 240);
+
+  --surface-line: rgb(15 23 42 / 0.1);
+  --surface-line-strong: rgb(15 23 42 / 0.18);
+  --surface-hover: rgb(15 23 42 / 0.035);
+  --surface-raise: rgb(15 23 42 / 0.025);
+  --surface-shadow: rgb(15 23 42 / 0.22);
+
+  /* Series: mesmos hues; luminosidade ajustada para >= 3:1 sobre o card
+     (objeto grafico, WCAG 1.4.11). */
+  --chart-1: oklch(0.6 0.15 237);
+  --chart-2: oklch(0.62 0.15 163);
+  --chart-3: oklch(0.64 0.15 62);
+  --chart-4: oklch(0.6 0.2 25);
+  --chart-5: oklch(0.58 0.18 310);
+
+  --radius: 0.5rem;
+
+  --sidebar: oklch(0.97 0.005 260);
+  --sidebar-foreground: oklch(0.32 0.03 264);
+  --sidebar-primary: oklch(0.5 0.13 240);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.01 260);
+  --sidebar-accent-foreground: oklch(0.21 0.03 266);
+  --sidebar-border: oklch(0.9 0.008 260);
+  --sidebar-ring: oklch(0.5 0.13 240);
+}
+
+:root.dark,
+.dark {
+  /* Tema ESCURO (Sprint V22: deixou de ser o unico). Paleta da Fase 1 intacta.
+     color-scheme acompanha o tema para os controles nativos (spinner de
+     <input type="number">, popup de <select>, date picker, scrollbar). */
   color-scheme: dark;
 
   /* --- Chao e superficies (familia "Void Obsidian", hue ~266) ------------- */
@@ -81,6 +152,8 @@
   --surface-line-strong: rgb(255 255 255 / 0.16);
   --surface-hover: rgb(255 255 255 / 0.03);
   --surface-raise: rgb(255 255 255 / 0.025);
+  /* Sombra de profundidade do hover de .surface-interactive. */
+  --surface-shadow: rgb(0 0 0 / 0.75);
 
   /* --- Series de dados ----------------------------------------------------
      Hues espacados de proposito (237 / 163 / 70 / 25 / 310): as quatro
@@ -97,52 +170,6 @@
 
   /* --- Sidebar (segunda camada neutra, um degrau ABAIXO do conteudo) ------ */
   --sidebar: oklch(0.14 0.02 266); /* #060911 */
-  --sidebar-foreground: oklch(0.87 0.01 260);
-  --sidebar-primary: oklch(0.685 0.148 237);
-  --sidebar-primary-foreground: oklch(0.17 0.03 250);
-  --sidebar-accent: oklch(0.215 0.024 266);
-  --sidebar-accent-foreground: oklch(0.965 0.005 260);
-  --sidebar-border: oklch(0.25 0.02 266);
-  --sidebar-ring: oklch(0.685 0.148 237);
-}
-
-.dark {
-  --background: oklch(0.16 0.02 266);
-  --foreground: oklch(0.965 0.005 260);
-  --card: oklch(0.18 0.026 270);
-  --card-foreground: oklch(0.965 0.005 260);
-  --popover: oklch(0.205 0.026 268);
-  --popover-foreground: oklch(0.965 0.005 260);
-  --secondary: oklch(0.235 0.024 266);
-  --secondary-foreground: oklch(0.87 0.01 260);
-  --muted: oklch(0.255 0.022 266);
-  --muted-foreground: oklch(0.735 0.018 258);
-  --accent: oklch(0.255 0.035 240);
-  --accent-foreground: oklch(0.965 0.005 260);
-  --primary: oklch(0.685 0.148 237);
-  --primary-foreground: oklch(0.17 0.03 250);
-  --success: oklch(0.696 0.149 163);
-  --success-foreground: oklch(0.17 0.03 250);
-  --warning: oklch(0.769 0.165 70);
-  --warning-foreground: oklch(0.17 0.03 250);
-  --info: oklch(0.715 0.126 215);
-  --info-foreground: oklch(0.17 0.03 250);
-  --destructive: oklch(0.637 0.208 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --destructive-solid: oklch(0.565 0.195 25);
-  --border: oklch(0.27 0.02 266);
-  --input: oklch(0.29 0.022 266);
-  --ring: oklch(0.685 0.148 237);
-  --surface-line: rgb(255 255 255 / 0.08);
-  --surface-line-strong: rgb(255 255 255 / 0.16);
-  --surface-hover: rgb(255 255 255 / 0.03);
-  --surface-raise: rgb(255 255 255 / 0.025);
-  --chart-1: oklch(0.685 0.148 237);
-  --chart-2: oklch(0.696 0.149 163);
-  --chart-3: oklch(0.769 0.165 70);
-  --chart-4: oklch(0.637 0.208 25);
-  --chart-5: oklch(0.72 0.15 310);
-  --sidebar: oklch(0.14 0.02 266);
   --sidebar-foreground: oklch(0.87 0.01 260);
   --sidebar-primary: oklch(0.685 0.148 237);
   --sidebar-primary-foreground: oklch(0.17 0.03 250);
@@ -312,7 +339,7 @@
   .surface-interactive:hover {
     border-color: color-mix(in oklab, var(--surface-glow) 40%, transparent);
     box-shadow:
-      0 10px 24px -14px rgb(0 0 0 / 0.75),
+      0 10px 24px -14px var(--surface-shadow),
       0 0 20px -4px color-mix(in oklab, var(--surface-glow) 30%, transparent);
     transform: translateY(-2px);
   }
@@ -431,7 +458,7 @@ html {
   background: transparent;
 }
 
-/* Fix autofill colors for dark theme */
+/* Autofill sem o fundo amarelo do navegador, em qualquer tema */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,

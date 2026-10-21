@@ -3522,6 +3522,68 @@ Também passaram os 5 arquivos que importam o shell (`components/sidebar`): 54 t
 
 ---
 
+## Sprint V22 — Tema claro (Claro / Escuro / Sistema)
+
+**Status:** implementada. Depende de V16 e V21.
+
+**Entregas**
+- `app/globals.css`: `:root` agora é o tema **claro**, autorado token a token (superfícies, linhas
+  translúcidas, tons semânticos, séries de gráfico, sidebar, nova `--surface-shadow`). `.dark`
+  (e `:root.dark`) guarda a paleta escura da Fase 1 **sem alteração de valor**. `:root` vem antes
+  de `.dark` (mesma especificidade — a ordem decide). `color-scheme: light`/`dark` por tema.
+- Variante `dark:` mantida **inerte** de propósito: os ajustes `dark:` dos componentes shadcn
+  nunca aplicaram (não existia `.dark` no `<html>`); ligá-la agora mudaria o escuro aprovado.
+  Diferença entre temas entra só por token.
+- `app/layout.tsx`: `ThemeProvider` (attribute="class", defaultTheme="dark", enableSystem,
+  disableTransitionOnChange) + `suppressHydrationWarning` no `<html>`. O script do next-themes
+  aplica a classe antes da primeira pintura — sem flash; escolha persiste em `localStorage.theme`.
+- `components/sidebar.tsx`: submenu **Aparência** em `AccountMenuItems` (usado pelo ProfileMenu do
+  header e pelo menu do rodapé da sidebar) com rádio Tema claro / Tema escuro / Usar do sistema.
+- Cor literal eliminada de componentes: `hsl(var(--sidebar-*))` quebrado (token é OKLCH) em
+  `ui/sidebar.tsx`; `text-white` → `text-destructive-foreground` (button, badge);
+  `bg-white` → `bg-background` (slider); `rgb(0 0 0 / .75)` do hover → `--surface-shadow`.
+- Gráficos/esqueletos: Recharts já recebiam `var(--card|--border|--muted-foreground|--chart-n)`
+  e o Skeleton usa `bg-muted` — passam a seguir o tema sem mudança de código.
+
+**Contraste medido — tema claro (WCAG 2.1, texto ≥ 4.5:1; objeto gráfico ≥ 3:1)**
+
+| Par | Razão |
+|---|---|
+| foreground / background | 17.00 |
+| card-foreground / card | 17.74 |
+| muted-foreground / card | 6.00 |
+| muted-foreground / background | 5.74 |
+| muted-foreground / muted (= secondary) | 5.26 |
+| muted-foreground / accent | 5.20 |
+| muted-foreground / sidebar | 5.50 |
+| secondary-foreground / secondary | 11.14 |
+| primary / card · primary-foreground / primary | 5.81 · 5.81 |
+| success / card · branco / success | ≥ 5.5 |
+| warning / card · branco / warning | ≥ 5.5 |
+| info / card · branco / info | ≥ 5.3 |
+| destructive / card · branco / destructive-solid | 6.48 · 6.48 |
+| tom a 12% sobre card (success / warning / info / primary) | 4.90 / 5.21 / 4.82 / 4.88 |
+| destructive sobre destructive/20 | 4.59 |
+| sidebar-accent-foreground / sidebar-accent | 14.44 |
+| chart-1…5 / card | 3.79 / 3.33 / 3.50 / 4.36 / 4.67 |
+| input (aresta de campo) / card | ≥ 3.0 |
+
+Par mais apertado de texto: destructive sobre `bg-destructive/20` (4.59:1). O escuro segue com o
+piso de 5.00:1 já medido na Fase 1.
+
+**Testes** — `tests/theme-v22.test.tsx` (34 casos): ordem `:root`→`.dark` e `color-scheme`;
+paleta clara cobre todos os tokens do escuro; razões acima recalculadas a partir do CSS
+(OKLCH→sRGB) e travadas ≥ 4.5 / ≥ 3; varredura sem hex/rgb/hsl literal em `app/` e `components/`
+(fora das pastas proibidas); escolha persiste em localStorage e sobrevive a remontagem; padrão
+escuro; opções do menu. Rodados só os arquivos tocados: `theme-v22` + `sidebar-drawer-a11y`
+(44/44). `tsc --noEmit` limpo, eslint limpo nos arquivos tocados, `next build` ok. Suíte completa
+**não** executada nesta sessão (ordem do usuário).
+
+**Pendente para aceite:** auditoria `designer-ui` / `visual-qa` no tema claro (critério da
+Sprint 22 no documento de padronização) — não rodada nesta sessão.
+
+---
+
 ## Backlog — Achados Pendentes
 
 
@@ -3962,5 +4024,45 @@ updater Linux que troque o binário e reinicie a unidade systemd) e a rota de ch
 proibidos na Sprint A4. Depois da A4, o binário Linux publicado e
 `getAgentBinarySha256('linux')` já existem, então o lado do servidor fica pequeno: escolher URL e
 hash pela plataforma reportada. Precisa acontecer **antes** de subir `LATEST_AGENT_VERSION`.
+
+---
+
+### 25. Gestão Corporativa de Conta e Empresa (Benchmark Bitdefender GravityZone / Kaspersky Security Center) — ALTO (Sugestão de Produto, 2026-10-21)
+
+**Origem**: crítica e visão estratégica do usuário sobre a insuficiência de um menu que só ofereça "nome, e-mail e senha". Plataformas líderes de segurança e monitoramento enterprise (Bitdefender GravityZone, Kaspersky Security Center, CrowdStrike Falcon) estruturam dados profundos de contato institucional, perfil operacional e governança corporativa.
+
+**Estudo Comparativo de Recursos (Benchmark)**:
+
+1. **Perfil do Usuário / Operador (Identidade & Operações)**:
+   - *Identificação profissional*: Nome completo, Iniciais/Avatar, Cargo/Função (ex.: "Analista de Segurança Pleno", "Gerente de TI"), Departamento.
+   - *Canais de acionamento imediato*: Telefone de contato direto, Celular/WhatsApp institucional para escalonamento de incidentes.
+   - *Preferências de localização*: Fuso horário (`Timezone` — fundamental para alinhamento de timestamps de incidentes e gráficos de telemetria), formato de data/hora (24h/12h, DD/MM/AAAA) e idioma da interface.
+   - *Postura de segurança individual*:
+     - Autenticação de dois fatores (2FA/MFA via TOTP Google/Microsoft Authenticator).
+     - Gerenciamento de sessões ativas (lista com IP de origem, dispositivo, navegador, última atividade e botão *"Desconectar outras sessões"*).
+   - *Preferências de notificações*: Matriz de alertas pessoais (quais severidades receber por e-mail, resumo diário executivo).
+
+2. **Perfil da Empresa / Tenant (Organização & Governança)**:
+   - *Dados cadastrais institucionais*: Razão Social, Nome Fantasia, CNPJ/Tax ID, Endereço da sede e unidades.
+   - *Pontos de contato de emergência (NOC / SOC / Plantão)*:
+     - Responsável Técnico Principal (Nome, E-mail, Telefone 24/7).
+     - Ponto de contato alternativo / Escalonamento para desastres.
+     - E-mail corporativo consolidado para envio de relatórios e faturamento.
+   - *Políticas globais de segurança (Security Policies)*:
+     - Tempo limite de inatividade para encerramento automático de sessão (ex.: 15m, 30m, 1h).
+     - Bloqueio por tentativas consecutivas de login incorreto.
+     - Allowlist de endereços IP para acesso ao painel administrativo.
+     - Retenção de histórico de telemetria e logs de auditoria (LGPD: 30, 90, 180, 365 dias).
+   - *Identidade Visual & Relatórios (White-labeling)*:
+     - Logotipo personalizado da empresa para aplicação automática em cabeçalhos de relatórios executivos em PDF gerados pelo sistema.
+
+**Arquitetura e Implementação Sugerida**:
+- **Banco de Dados (`prisma/schema.prisma`)**:
+  - Extensão do modelo `User`: campos `phone`, `jobTitle`, `department`, `timezone`, `mfaSecret`, `mfaEnabled`.
+  - Extensão do modelo `Client`: campos `legalName`, `taxId` (CNPJ), `phone`, `emergencyContactName`, `emergencyContactEmail`, `emergencyContactPhone`, `logoUrl`, `sessionTimeoutMinutes`.
+- **Interface**:
+  - Aba ou tela `/settings/organization` (Dados da Empresa, Contatos de Emergência, Políticas).
+  - Diálogo enriquecido de "Minha Conta" com 4 abas estruturadas: **Perfil Profissional**, **Segurança & 2FA**, **Sessões Ativas** e **Preferências**.
+
 
 

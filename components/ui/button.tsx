@@ -14,7 +14,7 @@ const buttonVariants = cva(
         // `--destructive` de sinal (#EF4444). Branco sobre #EF4444 da 3.4:1 e
         // reprovaria em contraste; sobre o solido da 5.0:1. Ver DESIGN.md.
         destructive:
-          'bg-destructive-solid text-white hover:bg-destructive-solid/90 focus-visible:ring-destructive/30',
+          'bg-destructive-solid text-destructive-foreground hover:bg-destructive-solid/90 focus-visible:ring-destructive/30',
         outline:
           'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
         secondary:

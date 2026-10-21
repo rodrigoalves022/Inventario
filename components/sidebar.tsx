@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { signOut } from 'next-auth/react'
+import { useTheme } from 'next-themes'
 import type { AppRole } from '@/lib/permissions'
 import { getPermissionUser } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
@@ -30,7 +31,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -46,6 +52,10 @@ import {
   UserRound,
   KeyRound,
   Settings,
+  Sun,
+  Moon,
+  Laptop,
+  SunMoon,
 } from 'lucide-react'
 
 type TenantShellInfo = ShellTenant
@@ -608,6 +618,7 @@ function AccountMenuItems({
           </Link>
         </DropdownMenuItem>
       )}
+      <ThemeMenuItems />
       <DropdownMenuSeparator />
       <DropdownMenuItem
         className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
@@ -617,6 +628,40 @@ function AccountMenuItems({
         Sair da conta
       </DropdownMenuItem>
     </>
+  )
+}
+
+/**
+ * Sprint V22: seletor de tema. A escolha persiste em localStorage via
+ * next-themes, e o script que ele injeta no <head> aplica a classe antes da
+ * primeira pintura — sem flash. O conteudo do submenu so monta com o menu
+ * aberto (client), entao `theme` ja esta resolvido aqui.
+ */
+export const THEME_OPTIONS = [
+  { value: 'light', label: 'Tema claro', icon: Sun },
+  { value: 'dark', label: 'Tema escuro', icon: Moon },
+  { value: 'system', label: 'Usar do sistema', icon: Laptop },
+] as const
+
+function ThemeMenuItems() {
+  const { theme, setTheme } = useTheme()
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="cursor-pointer">
+        <SunMoon className="mr-2 h-4 w-4" />
+        Aparência
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-48">
+        <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+          {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+            <DropdownMenuRadioItem key={value} value={value} className="cursor-pointer">
+              <Icon className="mr-2 h-4 w-4" />
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   )
 }
 

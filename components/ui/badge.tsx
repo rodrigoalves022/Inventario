@@ -16,7 +16,7 @@ const badgeVariants = cva(
         // Mesmo motivo do botao: preenchimento solido usa
         // `--destructive-solid`, que passa em contraste com branco.
         destructive:
-          'border-transparent bg-destructive-solid text-white [a&]:hover:bg-destructive-solid/90 focus-visible:ring-destructive/30',
+          'border-transparent bg-destructive-solid text-destructive-foreground [a&]:hover:bg-destructive-solid/90 focus-visible:ring-destructive/30',
         outline:
           'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
       },
