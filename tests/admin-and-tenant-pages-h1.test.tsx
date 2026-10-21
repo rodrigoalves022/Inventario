@@ -53,7 +53,6 @@ vi.mock('@/components/tenant-empty-state', () => ({
 }))
 vi.mock('@/components/dashboard-charts-lazy', () => ({
   OsDistributionChart: () => null,
-  StatusChart: () => null,
   RamDistributionChart: () => null,
 }))
 

@@ -56,7 +56,7 @@ export type DeviceReportSummary = {
    * discos de tamanhos bem diferentes nao representa nenhuma maquina real. */
   ramDistribution: UsageBucket[]
   diskUsageDistribution: UsageBucket[]
-  /** Somas brutas da frota — informativas, sem alegar uma proporcao "usada". */
+  /** Somas brutas do parque — informativas, sem alegar uma proporcao "usada". */
   storageCapacityGb: number
   storageFreeGb: number
   storageUsedGb: number
@@ -66,9 +66,9 @@ export type DeviceReportSummary = {
   /**
    * Sprint 13. Conformidade de seguranca ("Resumo Executivo" do PDF). Cada
    * percentual e calculado sobre o denominador de maquinas com dado APURADO
-   * (nao sobre o total da frota) — mesma logica ja usada em toda a base para
+   * (nao sobre o total do parque) — mesma logica ja usada em toda a base para
    * nao confundir "nao apurado" com "desativado" (ex.: formatBoolCsv abaixo,
-   * SecurityInfo). Uma frota com metade das maquinas sem coleta de seguranca
+   * SecurityInfo). Um parque com metade das maquinas sem coleta de seguranca
    * não deve fazer os 2 outros 50% carregarem sozinhos uma % artificialmente
    * baixa nem alta — o *KnownCount ao lado de cada percentual deixa a base
    * de calculo explicita para quem le o relatorio.
@@ -511,7 +511,7 @@ export function renderDeviceReportPdf(
     )
     if (summary.storageCapacityGb > 0) {
       doc.text(
-        `Armazenamento (soma da frota): ${summary.storageFreeGb} GB livres de ${summary.storageCapacityGb} GB — total informativo, não uma % de uso (máquinas com discos de tamanhos diferentes não se resumem a um único número)`
+        `Armazenamento (soma do parque): ${summary.storageFreeGb} GB livres de ${summary.storageCapacityGb} GB — total informativo, não uma % de uso (máquinas com discos de tamanhos diferentes não se resumem a um único número)`
       )
     }
     const diskBucketsWithData = summary.diskUsageDistribution.filter((bucket) => bucket.count > 0)

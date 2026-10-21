@@ -253,23 +253,23 @@ function formatRelative(iso: string | null | undefined, now?: string): string {
 }
 
 /**
- * Estado da frota derivado do UNICO dado de coleta que o shell ja tem em
+ * Estado do parque derivado do UNICO dado de coleta que o shell ja tem em
  * maos (`lastCollectionAt`, uma consulta que o layout do tenant ja fazia).
  * Nenhuma consulta nova entra aqui: contar agentes online por faixa seria um
  * agregado por navegacao no layout, custo permanente por uma pilula.
  *
  * O limiar e `ONLINE_PRESENCE_MINUTES` — a MESMA constante de
- * `getDevicePresence`. Sem isso, a pilula poderia dizer "frota ativa"
+ * `getDevicePresence`. Sem isso, a pilula poderia dizer "parque ativo"
  * enquanto a tabela ao lado ja mostra todas as maquinas como "ausente".
  */
-function getFleetStatus(
+function getInventoryStatus(
   lastCollectionAt: string | null | undefined,
   now?: string
 ): { tone: StatusPillTone; label: string } {
   if (!lastCollectionAt) return { tone: 'neutral', label: 'Sem coletas' }
   const reference = now ? new Date(now).getTime() : Date.now()
   const ageMinutes = (reference - new Date(lastCollectionAt).getTime()) / 60000
-  if (ageMinutes <= ONLINE_PRESENCE_MINUTES) return { tone: 'success', label: 'Frota ativa' }
+  if (ageMinutes <= ONLINE_PRESENCE_MINUTES) return { tone: 'success', label: 'Parque ativo' }
   return { tone: 'warning', label: 'Coleta atrasada' }
 }
 
@@ -318,7 +318,7 @@ export function Sidebar({
    *
    * Sidebar comeca com 'use client', mas como todo componente client ele e
    * renderizado no servidor (SSR) e depois hidratado no browser. Se
-   * `formatRelative`/`getFleetStatus` chamassem `Date.now()` direto, o SSR
+   * `formatRelative`/`getInventoryStatus` chamassem `Date.now()` direto, o SSR
    * calcularia "ha 17 min" com o relogio do servidor e a hidratacao
    * recalcularia com o relogio do client alguns instantes depois — sempre que
    * essa janela cruzasse uma fronteira de minuto/hora/dia, o texto do
@@ -398,7 +398,7 @@ export function Sidebar({
 
   const permissionUser = getPermissionUser({ role: user?.role ?? null })
   const sections = buildShellNavigation(tenant, permissionUser)
-  const fleet = getFleetStatus(lastCollectionAt, now)
+  const inventoryStatus = getInventoryStatus(lastCollectionAt, now)
   const userLabel = user?.name || user?.email || 'Sessão'
   const tenantUserLine = `${userLabel}${user?.role ? ` · ${ROLE_LABELS[user.role]}` : ''}`
 
@@ -482,7 +482,7 @@ export function Sidebar({
           <div className="border-t border-sidebar-border p-3">
             {tenant ? (
               /*
-                Rodape do tenant: sessao ativa + estado da frota. O menu de
+                Rodape do tenant: sessao ativa + estado do parque. O menu de
                 perfil (sair da conta) migrou pro header nesta fase — ver
                 `Header`. As telas administrativas, que nao tem tenant,
                 continuam com o menu aqui, no ramo `else`.
@@ -499,7 +499,7 @@ export function Sidebar({
                 </div>
 
                 <div className="flex items-center justify-between gap-2 border-t border-surface-line pt-2.5">
-                  <StatusPill tone={fleet.tone} label={fleet.label} />
+                  <StatusPill tone={inventoryStatus.tone} label={inventoryStatus.label} />
                   {appVersion && (
                     <span
                       className="data-mono text-[11px] text-muted-foreground"

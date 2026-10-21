@@ -23,7 +23,7 @@ const devices: RecentDeviceRow[] = [
   },
 ]
 
-describe('TenantRecentDevicesTable ("Últimas atualizações" do dashboard) — linha inteira clicavel', () => {
+describe('TenantRecentDevicesTable ("Últimas coletas" do dashboard) — linha inteira clicavel', () => {
   it('clicar em qualquer celula da linha (ex: coluna Sistema) navega para o detalhe do dispositivo', () => {
     render(<TenantRecentDevicesTable devices={devices} />)
 

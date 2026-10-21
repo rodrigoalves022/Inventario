@@ -14,7 +14,7 @@ import {
 // tests/device-report.test.ts (RN010) e tests/device-report-rn013.test.ts
 // (bucket-nao-soma) nao cobrem: a agregacao de BitLocker por maquina, a
 // classificacao computador/servidor, o percentual de conformidade sobre o
-// denominador "apurado" (nao o total da frota), a lista de discos criticos
+// denominador "apurado" (nao o total do parque), a lista de discos criticos
 // achatada com hostname, e o historico de software nao autorizado por tenant.
 
 type FakeDisk = { unidade: string | null; capacidadeGb: number | null; espacoLivreGb: number | null; criptografia: string | null }
@@ -240,7 +240,7 @@ describe('buildDeviceReportSummary — securityCompliance (Sprint 13): percentua
     expect(summary.securityCompliance.firewallKnownCount).toBe(3)
   })
 
-  it('frota inteira sem dado apurado: percentual "0.0" (sem NaN nem divisao por zero), knownCount 0', () => {
+  it('parque inteiro sem dado apurado: percentual "0.0" (sem NaN nem divisao por zero), knownCount 0', () => {
     const rows = [makeRow({ hostname: 'A' }), makeRow({ hostname: 'B' })]
     const summary = buildDeviceReportSummary(rows)
 

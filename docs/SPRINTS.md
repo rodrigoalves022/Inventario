@@ -3349,7 +3349,63 @@ tomada, saem da lista e a regra passa a cobrá-las. Propostas:
 
 - Card dentro de card em `/alerts` e `/settings` (lista com `rounded-xl border` dentro da superfície)
   e `h2 text-lg` desses blocos: Sprint 20 (telas remanescentes).
-- Ordem e composição da Visão Geral: Sprint 18.
+- Ordem e composição da Visão Geral: Sprint 18 (feita — ver Sprint V18; a decisão dos 5 KPI da Visão Geral foi resolvida lá com 3 + 2).
+
+---
+
+## Sprint V18 — Visão Geral em duas faixas e o fim do termo "frota"
+
+**Status**: ✅ Implementada em 2026-10-21 sobre `936ed96`. Contexto: `docs/PROJETO-PADRONIZACAO-VISUAL.md`
+§§5–6. Depende das Sprints 16 e 17. Por determinação do usuário, **a suíte inteira não foi rodada
+neste contexto** — só os testes dos arquivos tocados (abaixo). Suíte completa e `build` ficam com o
+orquestrador. Nenhum arquivo proibido tocado (`app/admin/clients/**`, `app/users/page.tsx`,
+`prisma/schema.prisma`).
+
+### Entregas
+
+| # | Entrega | Resultado |
+|---|---|---|
+| 1 | Faixa 1 — Ação | `<section aria-label="Ação imediata">`: grid `md:grid-cols-3` com **Em atenção**, **Sem coleta recente** e **Disco crítico**, seguida do painel **Dispositivos em alerta crítico** em largura total (antes dividia a linha com a atividade recente). |
+| 2 | Separador | `<section>` do retrato com `border-t border-surface-line pt-6` e `h2.section-label` "Retrato do parque". |
+| 3 | Faixa 2 — Retrato | Hero de conformidade (antivírus, BitLocker, firewall) → grid `md:grid-cols-2` com **Máquinas monitoradas** e **Online agora** → 3 gráficos (SO, RAM, uso de disco; `lg:grid-cols-2 xl:grid-cols-3`, o terceiro ocupa a linha inteira em `lg` para não ficar órfão) → **Atividade recente** ao lado de **Últimas coletas** (`xl:grid-cols-2`; título do painel era "Últimas atualizações"). |
+| 4 | Cards órfãos | Os 5 KPIs passam a 3 + 2 por significado (decisão × contexto), sem inventar um sexto card e sem remover nenhum. A Visão Geral e o esqueleto dela saem de `KPI_ROWS_PENDING_APPROVAL` em `tests/tenant-visual-standard.test.ts`; a fileira de 2 é permitida **só** na Visão Geral (`KPI_GRID_2_ALLOWED`). `/computers` e `/assets` continuam pendentes (decisão da V17). |
+| 5 | Donut de Status removido | `StatusChart` sai da página (repetia os 3 KPIs de status). O componente continua exportado em `components/dashboard-charts*.tsx`, agora sem consumidor — candidato a remoção junto com o `StatsGrid` morto. |
+| 6 | Pico tipográfico único | `text-4xl` só existe no hero (`components/inventory-security-hero.tsx`); nenhum outro em `app/` ou `components/`. |
+| 7 | Esqueleto | `app/app/[clientSlug]/loading.tsx` reescrito na forma das duas faixas (3 KPI + painel, separador, hero, 2 KPI, 3 gráficos, atividade + tabela). |
+| 8 | "Frota" → "parque" | Arquivos: `components/fleet-security-hero.tsx` → `components/inventory-security-hero.tsx`, `lib/dashboard/fleet-overview.ts` → `lib/dashboard/inventory-overview.ts`, `tests/fleet-security-hero.test.tsx` → `tests/inventory-security-hero.test.tsx` (`git mv`). Identificadores: `FleetSecurityHero` → `InventorySecurityHero`, `buildFleetSecurityIndicators` → `buildSecurityIndicators`, `FleetSecurityIndicator(Key)` → `SecurityIndicator(Key)`, `FleetComplianceTone` → `ComplianceTone`, `getFleetComplianceTone` → `getComplianceTone`, `FLEET_COMPLIANCE_TONE_THRESHOLDS` → `COMPLIANCE_TONE_THRESHOLDS`, `getFleetStatus` → `getInventoryStatus` (sidebar), id `fleet-security-hero-title` → `inventory-security-hero-title`. Textos com concordância ajustada: "Postura de segurança do parque", pílula do rodapé "Parque ativo", "soma do parque" no PDF, aviso de webhooks em `/settings` ("cujo parque inteiro fica mudo"). `grep -rniE "fleet|frota" app components lib` → vazio. |
+
+Regras mantidas: todo número continua vindo de `getDeviceReportRows` / `buildDeviceReportSummary`
+(e `countCriticalDiskDevices` para o disco crítico, como antes); todo KPI navega para a mesma listagem
+de antes; o estado vazio (`totalDevices === 0`) não mudou.
+
+### Testes
+
+Novo: `tests/tenant-overview-two-bands.test.tsx` (5 casos) — renderiza a página com máquinas e trava
+a ordem faixa de ação → "Retrato do parque" → retrato, 3 KPIs no grid de 3 e 2 no grid de 2 (nada de
+`lg:grid-cols-4`/`xl:grid-cols-5`), o separador `border-t` + `h2.section-label`, os 5 `href` dos KPIs, e
+a ausência de `text-4xl` fora do hero e de "frota" no HTML.
+
+Execução (só os arquivos tocados):
+
+```
+npx vitest run tests/tenant-visual-standard.test.ts tests/tenant-overview-two-bands.test.tsx \
+  tests/admin-and-tenant-pages-h1.test.tsx tests/inventory-security-hero.test.tsx \
+  tests/critical-devices-panel.test.tsx tests/tenant-recent-devices-table.test.tsx \
+  tests/device-report-rn013.test.ts tests/device-report-sprint13.test.ts \
+  tests/sidebar-drawer-a11y.test.tsx tests/availability-alerts.test.ts
+
+ Test Files  10 passed (10)
+      Tests  161 passed (161)
+```
+
+`npx tsc --noEmit` limpo; `eslint` nos arquivos de aplicação alterados com 0 erros e 0 avisos.
+
+### Fora de escopo (não feito)
+
+- Docs fora de `app/`, `components/` e `lib/` (ex.: `CONTEXT.md`, `.agents/skills/inventario-ui/SKILL.md`)
+  ainda citam "frota"/`fleet-security-hero` — não estavam no critério do grep.
+- Remoção do `StatusChart` agora sem uso e do `StatsGrid` (§5 do projeto): pede OK explícito.
+- Validação visual no navegador (visual-qa) em 1440/1024/390 px.
 
 ---
 

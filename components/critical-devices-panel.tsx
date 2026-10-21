@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, HardDrive, ShieldCheck, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatRelativeAge } from '@/lib/dashboard/fleet-overview'
+import { formatRelativeAge } from '@/lib/dashboard/inventory-overview'
 import type { DeviceReportRow } from '@/lib/reports/device-report'
 import { Panel, PanelFooter, PanelHeader } from '@/components/ui/panel'
 

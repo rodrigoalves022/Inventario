@@ -13,7 +13,7 @@ import { dispatchClientWebhookEndpoints, type WebhookEvent } from '@/lib/webhook
  * check-in (nao ha cron/job agendado neste projeto — ver RNF007).
  *
  * Limite conhecido e aceito (nao e' bug): um cliente com um unico
- * dispositivo, ou cuja frota inteira fica muda ao mesmo tempo, nunca aciona
+ * dispositivo, ou cujo parque inteiro fica mudo ao mesmo tempo, nunca aciona
  * esta varredura — documentado em
  * components/tenant-alert-settings-form.tsx.
  */

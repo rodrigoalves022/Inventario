@@ -2,10 +2,10 @@ import { auth } from '@/auth'
 import { HardDrive, Monitor, TriangleAlert, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { KpiCard } from '@/components/ui/kpi-card'
-import { OsDistributionChart, StatusChart, RamDistributionChart } from '@/components/dashboard-charts-lazy'
+import { OsDistributionChart, RamDistributionChart } from '@/components/dashboard-charts-lazy'
 import { TenantEmptyState } from '@/components/tenant-empty-state'
 import { TenantRecentDevicesTable, type RecentDeviceRow } from '@/components/tenant-recent-devices-table'
-import { FleetSecurityHero, buildFleetSecurityIndicators } from '@/components/fleet-security-hero'
+import { InventorySecurityHero, buildSecurityIndicators } from '@/components/inventory-security-hero'
 import { CriticalDevicesPanel, buildCriticalDeviceEntries } from '@/components/critical-devices-panel'
 import {
   RecentActivityPanel,
@@ -28,7 +28,7 @@ import {
   countCriticalDiskDevices,
   createDeviceHrefResolver,
   formatRelativeAge,
-} from '@/lib/dashboard/fleet-overview'
+} from '@/lib/dashboard/inventory-overview'
 
 async function getRecentDevices(tenantSlug: string) {
   return prisma.device.findMany({
@@ -108,7 +108,7 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
   const [recentDevicesRaw, rows, deviceDiskFootprints, discoveredRaw, auditLogs] = await Promise.all([
     getRecentDevices(tenantSlug),
     // Mesma consulta usada pelos relatorios (lib/reports/device-report.ts):
-    // uma so fonte de verdade para agregados de frota, em vez de cada tela
+    // uma so fonte de verdade para agregados do parque, em vez de cada tela
     // somar hardware/disco do jeito dela. `alertDiskThresholdGb` do tenant
     // agora e' passado explicitamente porque `criticalDisks` alimenta o painel
     // de alerta critico — sem ele o painel usaria o default de 10 GB e
@@ -157,7 +157,7 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
     }
   })
 
-  const securityIndicators = buildFleetSecurityIndicators(summary, rows)
+  const securityIndicators = buildSecurityIndicators(summary, rows)
   const criticalDiskDevices = countCriticalDiskDevices(deviceDiskFootprints)
   const { entries: criticalEntries, totalCritical } = buildCriticalDeviceEntries({
     rows,
@@ -182,11 +182,6 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
   }))
 
   const osData = summary.osDistribution.map((item) => ({ name: item.name, value: item.value }))
-  const statusData = [
-    { name: 'Online', value: summary.online },
-    { name: 'Offline', value: summary.offline },
-    { name: 'Warning', value: summary.warning },
-  ]
   const ramData = summary.ramDistribution.map((bucket) => ({ name: bucket.label, value: bucket.count }))
   const diskData = summary.diskUsageDistribution.map((bucket) => ({ name: bucket.label, value: bucket.count }))
 
@@ -206,86 +201,57 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
         </div>
       </div>
 
-      <FleetSecurityHero
-        indicators={securityIndicators}
-        totalDevices={summary.totalDevices}
-        reportsHref={getTenantPath(tenantSlug, 'reports')}
-      />
-
       {/*
-        Grid de KPI. Cada card navega para a listagem que mostra EXATAMENTE a
-        populacao que ele conta — por isso os tres cards de status apontam para
-        `/assets` (computadores + servidores), e nao para `/computers`, que
-        exclui servidores por definicao e devolveria menos linhas do que o
-        numero do card promete. `/storage?faixa=critical` fecha o mesmo
-        contrato pelo lado do disco (ver `countCriticalDiskDevices`).
+        Duas faixas com hierarquia explicita (Sprint V18): primeiro o que exige
+        intervencao, depois o retrato consolidado do parque. Os 5 KPIs se
+        dividem 3 + 2 por significado — decisao (atencao, sem coleta, disco
+        critico) versus contexto (total, online) —, o que tambem elimina o card
+        orfao do antigo grid de 5 sem inventar um sexto.
 
-        Nenhum card leva micro-tendencia: nao existe serie temporal AGREGADA de
-        frota nesta base (`MetricSample` e' por dispositivo), e um sparkline
+        Cada card navega para a listagem que mostra EXATAMENTE a populacao que
+        ele conta — por isso os cards de status apontam para `/assets`
+        (computadores + servidores), e nao para `/computers`, que exclui
+        servidores por definicao e devolveria menos linhas do que o numero do
+        card promete. `/storage?faixa=critical` fecha o mesmo contrato pelo lado
+        do disco (ver `countCriticalDiskDevices`).
+
+        Nenhum card leva micro-tendencia: nao existe serie temporal AGREGADA do
+        parque nesta base (`MetricSample` e' por dispositivo), e um sparkline
         alimentado por dado sintetico num painel de operacao seria informacao
         fabricada. O contexto de cada card e' um percentual ou uma contagem
         real.
       */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-        <KpiCard
-          label="Máquinas monitoradas"
-          value={summary.totalDevices}
-          subtitle={`${summary.computadores} computador${summary.computadores === 1 ? '' : 'es'} · ${summary.servidores} servidor${summary.servidores === 1 ? '' : 'es'}`}
-          icon={<Monitor />}
-          tone="primary"
-          href={assetsPath}
-        />
-        <KpiCard
-          label="Online agora"
-          value={summary.online}
-          subtitle={`${summary.availabilityPercent}% de disponibilidade`}
-          icon={<Wifi />}
-          tone="success"
-          href={`${assetsPath}?status=online`}
-        />
-        <KpiCard
-          label="Em atenção"
-          value={summary.warning}
-          subtitle={`Disco abaixo de ${alertDiskThresholdGb} GB livres ou RAM abaixo do limiar`}
-          icon={<TriangleAlert />}
-          tone="warning"
-          emphasizeValue={summary.warning > 0}
-          href={`${assetsPath}?status=warning`}
-        />
-        <KpiCard
-          label="Sem coleta recente"
-          value={summary.offline}
-          subtitle={`Sem contato há ${alertOfflineHours}h ou mais`}
-          icon={<WifiOff />}
-          tone="destructive"
-          emphasizeValue={summary.offline > 0}
-          href={`${assetsPath}?status=offline`}
-        />
-        <KpiCard
-          label="Disco crítico"
-          value={criticalDiskDevices}
-          subtitle={`Pior disco acima de ${DISK_USAGE_THRESHOLDS.critical}% usado`}
-          icon={<HardDrive />}
-          tone="destructive"
-          emphasizeValue={criticalDiskDevices > 0}
-          href={`${getTenantPath(tenantSlug, 'storage')}?faixa=critical`}
-        />
-      </div>
+      <section aria-label="Ação imediata" className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          <KpiCard
+            label="Em atenção"
+            value={summary.warning}
+            subtitle={`Disco abaixo de ${alertDiskThresholdGb} GB livres ou RAM abaixo do limiar`}
+            icon={<TriangleAlert />}
+            tone="warning"
+            emphasizeValue={summary.warning > 0}
+            href={`${assetsPath}?status=warning`}
+          />
+          <KpiCard
+            label="Sem coleta recente"
+            value={summary.offline}
+            subtitle={`Sem contato há ${alertOfflineHours}h ou mais`}
+            icon={<WifiOff />}
+            tone="destructive"
+            emphasizeValue={summary.offline > 0}
+            href={`${assetsPath}?status=offline`}
+          />
+          <KpiCard
+            label="Disco crítico"
+            value={criticalDiskDevices}
+            subtitle={`Pior disco acima de ${DISK_USAGE_THRESHOLDS.critical}% usado`}
+            icon={<HardDrive />}
+            tone="destructive"
+            emphasizeValue={criticalDiskDevices > 0}
+            href={`${getTenantPath(tenantSlug, 'storage')}?faixa=critical`}
+          />
+        </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <OsDistributionChart data={osData} computersPath={getTenantPath(tenantSlug, 'computers')} />
-        <StatusChart data={statusData} computersPath={getTenantPath(tenantSlug, 'computers')} />
-        <RamDistributionChart data={ramData} />
-        <RamDistributionChart
-          data={diskData}
-          title="Uso de disco por máquina"
-          description="Quantidade de máquinas por faixa de uso — não soma capacidade"
-        />
-      </div>
-
-      {/* Painel duplo: o que exige acao (esquerda) ao lado do que aconteceu
-          (direita). */}
-      <div className="grid gap-6 lg:grid-cols-2">
         <CriticalDevicesPanel
           entries={criticalEntries}
           totalCritical={totalCritical}
@@ -293,30 +259,81 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
           alertOfflineHours={alertOfflineHours}
           allDevicesHref={`${assetsPath}?status=offline`}
         />
-        <RecentActivityPanel
-          discovery={{
-            enabled: discoveryEnabled,
-            items: discoveredItems,
-            href: getTenantPath(tenantSlug, 'network'),
-          }}
-          audit={canViewAudit ? { items: auditItems, href: getTenantPath(tenantSlug, 'audit') } : null}
-        />
-      </div>
+      </section>
 
-      <Panel>
-        <PanelHeader
-          title="Últimas atualizações"
-          description="Somente dispositivos pertencentes ao tenant atual"
+      <section aria-labelledby="inventory-portrait-title" className="space-y-6 border-t border-surface-line pt-6">
+        <h2 id="inventory-portrait-title" className="section-label">
+          Retrato do parque
+        </h2>
+
+        {/* Unico pico tipografico da tela: o `text-4xl` vive so no hero. */}
+        <InventorySecurityHero
+          indicators={securityIndicators}
+          totalDevices={summary.totalDevices}
+          reportsHref={getTenantPath(tenantSlug, 'reports')}
         />
-        {/* `flush`: a tabela sangra ate a borda do painel. O recuo de 20px e'
-            das CELULAS (TABLE_CELL_CLASS ja usa px-5) — envolver numa segunda
-            borda aqui seria card dentro de card, que o Panel proibe. */}
-        <PanelBody flush>
-          <div className="overflow-x-auto">
-            <TenantRecentDevicesTable devices={recentDevices} />
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <KpiCard
+            label="Máquinas monitoradas"
+            value={summary.totalDevices}
+            subtitle={`${summary.computadores} computador${summary.computadores === 1 ? '' : 'es'} · ${summary.servidores} servidor${summary.servidores === 1 ? '' : 'es'}`}
+            icon={<Monitor />}
+            tone="primary"
+            href={assetsPath}
+          />
+          <KpiCard
+            label="Online agora"
+            value={summary.online}
+            subtitle={`${summary.availabilityPercent}% de disponibilidade`}
+            icon={<Wifi />}
+            tone="success"
+            href={`${assetsPath}?status=online`}
+          />
+        </div>
+
+        {/* Sem o donut de Status: ele repetia exatamente os tres numeros dos
+            KPIs de status, que ja estao maiores e clicaveis nesta mesma tela.
+            Tres graficos: em lg o terceiro ocupa a linha inteira em vez de
+            ficar orfao ao lado de um vazio. */}
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          <OsDistributionChart data={osData} computersPath={getTenantPath(tenantSlug, 'computers')} />
+          <RamDistributionChart data={ramData} />
+          <div className="lg:col-span-2 xl:col-span-1">
+            <RamDistributionChart
+              data={diskData}
+              title="Uso de disco por máquina"
+              description="Quantidade de máquinas por faixa de uso — não soma capacidade"
+            />
           </div>
-        </PanelBody>
-      </Panel>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <RecentActivityPanel
+            discovery={{
+              enabled: discoveryEnabled,
+              items: discoveredItems,
+              href: getTenantPath(tenantSlug, 'network'),
+            }}
+            audit={canViewAudit ? { items: auditItems, href: getTenantPath(tenantSlug, 'audit') } : null}
+          />
+
+          <Panel>
+            <PanelHeader
+              title="Últimas coletas"
+              description="Somente dispositivos pertencentes ao tenant atual"
+            />
+            {/* `flush`: a tabela sangra ate a borda do painel. O recuo de 20px e'
+                das CELULAS (TABLE_CELL_CLASS ja usa px-5) — envolver numa segunda
+                borda aqui seria card dentro de card, que o Panel proibe. */}
+            <PanelBody flush>
+              <div className="overflow-x-auto">
+                <TenantRecentDevicesTable devices={recentDevices} />
+              </div>
+            </PanelBody>
+          </Panel>
+        </div>
+      </section>
     </div>
   )
 }

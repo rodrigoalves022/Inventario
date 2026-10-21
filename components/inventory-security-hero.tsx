@@ -5,7 +5,7 @@ import type { DeviceReportRow, DeviceReportSummary } from '@/lib/reports/device-
 import { Panel, PanelHeader } from '@/components/ui/panel'
 
 /**
- * Hero de POSTURA DE SEGURANCA da frota (Overhaul visual — Fase 4).
+ * Hero de POSTURA DE SEGURANCA do parque (Overhaul visual — Fase 4).
  *
  * ---------------------------------------------------------------------------
  * De onde vem cada numero
@@ -13,7 +13,7 @@ import { Panel, PanelHeader } from '@/components/ui/panel'
  *
  * Nada aqui e' recalculado a partir do banco. O componente COMPOE por cima de
  * `buildDeviceReportSummary` (lib/reports/device-report.ts, Sprint 13), que ja
- * e' a fonte de verdade dos agregados de frota e ja e' testada:
+ * e' a fonte de verdade dos agregados do parque e ja e' testada:
  *
  * - BitLocker  -> `securityCompliance.bitlockerActivePercent` / `bitlockerKnownCount`.
  *                 A agregacao por maquina ("pior caso": so conta como ativo se
@@ -34,25 +34,25 @@ import { Panel, PanelHeader } from '@/components/ui/panel'
  * A regra que o hero existe para nao violar (RN013 e correlatas)
  * ---------------------------------------------------------------------------
  *
- * Conformidade e' percentual sobre as maquinas com dado APURADO, nunca sobre a
- * frota inteira: "nao apurado" nao e' "desativado". Por isso todo indicador
+ * Conformidade e' percentual sobre as maquinas com dado APURADO, nunca sobre o
+ * parque inteiro: "nao apurado" nao e' "desativado". Por isso todo indicador
  * carrega a base de calculo visivel ("42 de 51 maquinas com dado apurado") —
  * um percentual de conformidade sem denominador e' um numero que o operador
  * nao consegue auditar.
  *
  * E o caso limite: `computeBooleanCompliance` devolve a string '0.0' quando
  * NENHUMA maquina tem o dado apurado, porque um `.toFixed(1)` precisa devolver
- * alguma coisa. Renderizar isso como "0%" seria afirmar que a frota inteira
+ * alguma coisa. Renderizar isso como "0%" seria afirmar que o parque inteiro
  * esta sem BitLocker quando a verdade e' que ninguem reportou. `knownCount`
  * existe exatamente para desfazer essa ambiguidade, e e' o que
- * `buildFleetSecurityIndicators` usa para transformar o percentual em `null` —
+ * `buildSecurityIndicators` usa para transformar o percentual em `null` —
  * o estado "sem dado", que nao e' 0% nem NaN.
  */
 
-export type FleetSecurityIndicatorKey = 'bitlocker' | 'antivirus' | 'firewall'
+export type SecurityIndicatorKey = 'bitlocker' | 'antivirus' | 'firewall'
 
-export type FleetSecurityIndicator = {
-  key: FleetSecurityIndicatorKey
+export type SecurityIndicator = {
+  key: SecurityIndicatorKey
   label: string
   /** Percentual numerico, para a barra e para o tom. `null` = nenhuma maquina
    * com dado apurado (NUNCA 0 nesse caso). */
@@ -62,7 +62,7 @@ export type FleetSecurityIndicator = {
   percentLabel: string | null
   /** Denominador: maquinas com o dado apurado. */
   knownCount: number
-  /** Frota inteira — o contraste entre os dois e' a base de calculo. */
+  /** Parque inteiro — o contraste entre os dois e' a base de calculo. */
   totalDevices: number
   /** Segunda leitura do mesmo bloco, quando existe (hoje so o antivirus tem). */
   note: string | null
@@ -74,19 +74,19 @@ export type FleetSecurityIndicator = {
  * verde, ambar ou vermelha. Ficam nomeados aqui, uma vez, em vez de espalhados
  * como numeros magicos dentro do JSX.
  */
-export const FLEET_COMPLIANCE_TONE_THRESHOLDS = {
+export const COMPLIANCE_TONE_THRESHOLDS = {
   /** >= 90% conforme: saudavel. */
   success: 90,
   /** >= 70% conforme: atencao. Abaixo disso, falha. */
   warning: 70,
 } as const
 
-export type FleetComplianceTone = 'success' | 'warning' | 'destructive' | 'neutral'
+export type ComplianceTone = 'success' | 'warning' | 'destructive' | 'neutral'
 
-export function getFleetComplianceTone(percent: number | null): FleetComplianceTone {
+export function getComplianceTone(percent: number | null): ComplianceTone {
   if (percent === null) return 'neutral'
-  if (percent >= FLEET_COMPLIANCE_TONE_THRESHOLDS.success) return 'success'
-  if (percent >= FLEET_COMPLIANCE_TONE_THRESHOLDS.warning) return 'warning'
+  if (percent >= COMPLIANCE_TONE_THRESHOLDS.success) return 'success'
+  if (percent >= COMPLIANCE_TONE_THRESHOLDS.warning) return 'warning'
   return 'destructive'
 }
 
@@ -106,13 +106,13 @@ function computeKnownCompliance(values: Array<boolean | null>) {
 /** `'78.3'` + `knownCount` -> indicador de exibicao. `knownCount === 0` vira
  * `percent: null` (estado "sem dado"), nunca 0% e nunca NaN. */
 function toIndicator(
-  key: FleetSecurityIndicatorKey,
+  key: SecurityIndicatorKey,
   label: string,
   percentLabel: string | null,
   knownCount: number,
   totalDevices: number,
   note: string | null
-): FleetSecurityIndicator {
+): SecurityIndicator {
   const hasData = knownCount > 0 && percentLabel !== null
   const parsed = hasData ? Number.parseFloat(percentLabel) : Number.NaN
 
@@ -127,10 +127,10 @@ function toIndicator(
   }
 }
 
-export function buildFleetSecurityIndicators(
+export function buildSecurityIndicators(
   summary: Pick<DeviceReportSummary, 'securityCompliance' | 'totalDevices'>,
   rows: Array<Pick<DeviceReportRow, 'antivirusAtivo'>>
-): FleetSecurityIndicator[] {
+): SecurityIndicator[] {
   const { securityCompliance: compliance, totalDevices } = summary
   const antivirusActive = computeKnownCompliance(rows.map((row) => row.antivirusAtivo))
 
@@ -167,28 +167,28 @@ export function buildFleetSecurityIndicators(
   ]
 }
 
-const TONE_ICON_CLASS: Record<FleetComplianceTone, string> = {
+const TONE_ICON_CLASS: Record<ComplianceTone, string> = {
   success: 'bg-success/12 text-success',
   warning: 'bg-warning/12 text-warning',
   destructive: 'bg-destructive/12 text-destructive',
   neutral: 'bg-muted text-muted-foreground',
 }
 
-const TONE_VALUE_CLASS: Record<FleetComplianceTone, string> = {
+const TONE_VALUE_CLASS: Record<ComplianceTone, string> = {
   success: 'text-success',
   warning: 'text-warning',
   destructive: 'text-destructive',
   neutral: 'text-muted-foreground',
 }
 
-const TONE_METER_CLASS: Record<FleetComplianceTone, string> = {
+const TONE_METER_CLASS: Record<ComplianceTone, string> = {
   success: 'bg-success',
   warning: 'bg-warning',
   destructive: 'bg-destructive',
   neutral: 'bg-transparent',
 }
 
-const INDICATOR_ICON: Record<FleetSecurityIndicatorKey, React.ComponentType<{ className?: string }>> = {
+const INDICATOR_ICON: Record<SecurityIndicatorKey, React.ComponentType<{ className?: string }>> = {
   bitlocker: Lock,
   antivirus: ShieldCheck,
   firewall: BrickWall,
@@ -199,7 +199,7 @@ const INDICATOR_ICON: Record<FleetSecurityIndicatorKey, React.ComponentType<{ cl
  *
  * Preenchimento CHAPADO no tom, como a barra de disco de /storage
  * (DISK_USAGE_TIER_BAR_CLASS) — mas com semantica invertida: aqui 100% e' o
- * alvo, entao o tom vem de `getFleetComplianceTone`, nao do tier de disco.
+ * alvo, entao o tom vem de `getComplianceTone`, nao do tier de disco.
  *
  * `role="img"` + `aria-label` porque cor nunca e' o unico canal (DESIGN.md §9).
  */
@@ -210,7 +210,7 @@ function ComplianceMeter({
   knownCount,
 }: {
   percent: number | null
-  tone: FleetComplianceTone
+  tone: ComplianceTone
   label: string
   knownCount: number
 }) {
@@ -234,8 +234,8 @@ function ComplianceMeter({
   )
 }
 
-function IndicatorBlock({ indicator }: { indicator: FleetSecurityIndicator }) {
-  const tone = getFleetComplianceTone(indicator.percent)
+function IndicatorBlock({ indicator }: { indicator: SecurityIndicator }) {
+  const tone = getComplianceTone(indicator.percent)
   const Icon = INDICATOR_ICON[indicator.key]
 
   return (
@@ -274,25 +274,25 @@ function IndicatorBlock({ indicator }: { indicator: FleetSecurityIndicator }) {
   )
 }
 
-export function FleetSecurityHero({
+export function InventorySecurityHero({
   indicators,
   totalDevices,
   reportsHref,
 }: {
-  indicators: FleetSecurityIndicator[]
+  indicators: SecurityIndicator[]
   totalDevices: number
   reportsHref: string
 }) {
   return (
-    <Panel aria-labelledby="fleet-security-hero-title">
+    <Panel aria-labelledby="inventory-security-hero-title">
       {/* Recuo de 20px, nao 24px. O hero ficava imediatamente acima dos dois
           paineis do bloco duplo, na mesma largura, e comecava o texto 4px mais
           a direita que eles — desalinhamento visivel entre superficies
           verticalmente adjacentes. Agora os tres saem do mesmo PanelHeader. */}
       <PanelHeader className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
-          <h2 id="fleet-security-hero-title" className="text-base font-semibold text-card-foreground">
-            Postura de segurança da frota
+          <h2 id="inventory-security-hero-title" className="text-base font-semibold text-card-foreground">
+            Postura de segurança do parque
           </h2>
           <p className="max-w-xl text-sm text-muted-foreground">
             {totalDevices} máquina{totalDevices === 1 ? '' : 's'} no inventário. Cada percentual é calculado

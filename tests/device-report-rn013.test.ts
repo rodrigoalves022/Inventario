@@ -45,7 +45,7 @@ function makeRow(overrides: Partial<DeviceReportRow>): DeviceReportRow {
 // Parque heterogeneo de verdade: capacidades bem diferentes entre si, nao
 // multiplos redondos da mesma faixa (evita que um bug de soma "acerte por
 // coincidencia" um numero que tambem seria uma contagem plausivel).
-const HETEROGENEOUS_FLEET: DeviceReportRow[] = [
+const HETEROGENEOUS_INVENTORY: DeviceReportRow[] = [
   makeRow({ hostname: 'NOTE-11GB', ramTotalGb: 11, discoCapacidadeGb: 128, discoLivreGb: 96 }), // disco: 25% usado
   makeRow({ hostname: 'DESK-18GB-A', ramTotalGb: 18, discoCapacidadeGb: 512, discoLivreGb: 435 }), // 15% usado
   makeRow({ hostname: 'DESK-18GB-B', ramTotalGb: 18, discoCapacidadeGb: 2048, discoLivreGb: 122 }), // ~94% usado
@@ -55,7 +55,7 @@ const HETEROGENEOUS_FLEET: DeviceReportRow[] = [
 
 describe('RN013 — ramDistribution conta maquinas por valor exato de RAM, nunca soma GB', () => {
   it('produz sempre uma lista de { label, count } onde count e numero de maquinas', () => {
-    const summary = buildDeviceReportSummary(HETEROGENEOUS_FLEET)
+    const summary = buildDeviceReportSummary(HETEROGENEOUS_INVENTORY)
 
     for (const bucket of summary.ramDistribution) {
       expect(bucket).toHaveProperty('label')
@@ -64,13 +64,13 @@ describe('RN013 — ramDistribution conta maquinas por valor exato de RAM, nunca
       // Nenhum bucket individual pode ter mais maquinas do que o parque
       // inteiro — pega de forma grosseira um count que na verdade e uma
       // soma de GB (ex.: "18" de dois notes de 18GB somados vira 36).
-      expect(bucket.count).toBeLessThanOrEqual(HETEROGENEOUS_FLEET.length)
+      expect(bucket.count).toBeLessThanOrEqual(HETEROGENEOUS_INVENTORY.length)
       expect(bucket.count).toBeGreaterThan(0)
     }
   })
 
   it('agrupa corretamente por valor exato: dois dispositivos com o mesmo RAM viram um bucket de count=2', () => {
-    const summary = buildDeviceReportSummary(HETEROGENEOUS_FLEET)
+    const summary = buildDeviceReportSummary(HETEROGENEOUS_INVENTORY)
 
     const bucket18gb = summary.ramDistribution.find((b) => b.label === '18 GB')
     expect(bucket18gb).toBeDefined()
@@ -84,22 +84,22 @@ describe('RN013 — ramDistribution conta maquinas por valor exato de RAM, nunca
   })
 
   it('a soma de todos os count em ramDistribution bate exatamente com N (nenhuma maquina duplicada nem perdida)', () => {
-    const summary = buildDeviceReportSummary(HETEROGENEOUS_FLEET)
+    const summary = buildDeviceReportSummary(HETEROGENEOUS_INVENTORY)
     const totalCounted = summary.ramDistribution.reduce((sum, bucket) => sum + bucket.count, 0)
-    expect(totalCounted).toBe(HETEROGENEOUS_FLEET.length)
+    expect(totalCounted).toBe(HETEROGENEOUS_INVENTORY.length)
   })
 
   it('dispositivos sem ramTotalGb (null) sao excluidos da distribuicao, nao contados como 0 GB', () => {
-    const fleetWithMissingRam = [
-      ...HETEROGENEOUS_FLEET,
+    const inventoryWithMissingRam = [
+      ...HETEROGENEOUS_INVENTORY,
       makeRow({ hostname: 'SEM-HARDWARE-COLETADO', ramTotalGb: null }),
     ]
-    const summary = buildDeviceReportSummary(fleetWithMissingRam)
+    const summary = buildDeviceReportSummary(inventoryWithMissingRam)
     const totalCounted = summary.ramDistribution.reduce((sum, bucket) => sum + bucket.count, 0)
     // Total de maquinas com dado valido continua 5, nao 6 — a maquina sem
     // coleta de hardware nao vira um bucket "0 GB" nem e ignorada em silencio
     // de um jeito que quebraria a paridade com o total de dispositivos.
-    expect(totalCounted).toBe(HETEROGENEOUS_FLEET.length)
+    expect(totalCounted).toBe(HETEROGENEOUS_INVENTORY.length)
     expect(summary.ramDistribution.find((b) => b.label === '0 GB')).toBeUndefined()
   })
 
@@ -142,29 +142,29 @@ describe('RN013 — diskUsageDistribution classifica cada maquina pela propria %
   })
 
   it('a soma de todos os count em diskUsageDistribution bate com o numero de dispositivos com dado valido de disco', () => {
-    const summary = buildDeviceReportSummary(HETEROGENEOUS_FLEET)
+    const summary = buildDeviceReportSummary(HETEROGENEOUS_INVENTORY)
     const totalCounted = summary.diskUsageDistribution.reduce((sum, bucket) => sum + bucket.count, 0)
-    expect(totalCounted).toBe(HETEROGENEOUS_FLEET.length)
+    expect(totalCounted).toBe(HETEROGENEOUS_INVENTORY.length)
   })
 
   it('dispositivos sem disco reportado (capacidade ou livre null/zero) sao excluidos, nunca contados numa faixa arbitraria', () => {
-    const fleetWithMissingDisk = [
-      ...HETEROGENEOUS_FLEET,
+    const inventoryWithMissingDisk = [
+      ...HETEROGENEOUS_INVENTORY,
       makeRow({ hostname: 'SEM-DISCO-COLETADO', discoCapacidadeGb: null, discoLivreGb: null }),
       makeRow({ hostname: 'DISCO-CAPACIDADE-ZERO', discoCapacidadeGb: 0, discoLivreGb: 0 }),
     ]
-    const summary = buildDeviceReportSummary(fleetWithMissingDisk)
+    const summary = buildDeviceReportSummary(inventoryWithMissingDisk)
     const totalCounted = summary.diskUsageDistribution.reduce((sum, bucket) => sum + bucket.count, 0)
-    expect(totalCounted).toBe(HETEROGENEOUS_FLEET.length)
+    expect(totalCounted).toBe(HETEROGENEOUS_INVENTORY.length)
   })
 })
 
-describe('RN013 — exceção documentada: storageCapacityGb/storageFreeGb/storageUsedGb SÃO soma bruta da frota, de propósito', () => {
+describe('RN013 — exceção documentada: storageCapacityGb/storageFreeGb/storageUsedGb SÃO soma bruta do parque, de propósito', () => {
   it('storageCapacityGb e storageFreeGb somam os valores absolutos de todas as maquinas (nao sao bucket)', () => {
-    const summary = buildDeviceReportSummary(HETEROGENEOUS_FLEET)
+    const summary = buildDeviceReportSummary(HETEROGENEOUS_INVENTORY)
 
-    const expectedCapacity = HETEROGENEOUS_FLEET.reduce((sum, row) => sum + (row.discoCapacidadeGb ?? 0), 0)
-    const expectedFree = HETEROGENEOUS_FLEET.reduce((sum, row) => sum + (row.discoLivreGb ?? 0), 0)
+    const expectedCapacity = HETEROGENEOUS_INVENTORY.reduce((sum, row) => sum + (row.discoCapacidadeGb ?? 0), 0)
+    const expectedFree = HETEROGENEOUS_INVENTORY.reduce((sum, row) => sum + (row.discoLivreGb ?? 0), 0)
 
     expect(summary.storageCapacityGb).toBe(expectedCapacity)
     expect(summary.storageFreeGb).toBe(expectedFree)
@@ -178,8 +178,8 @@ describe('RN013 — exceção documentada: storageCapacityGb/storageFreeGb/stora
     // "corrigido" para bucket por engano. Confirma que o valor bate com a
     // soma (nao com N, que seria o resultado se alguem trocasse a soma por
     // contagem de maquinas por engano).
-    const summary = buildDeviceReportSummary(HETEROGENEOUS_FLEET)
-    const naiveDeviceCount = HETEROGENEOUS_FLEET.length
+    const summary = buildDeviceReportSummary(HETEROGENEOUS_INVENTORY)
+    const naiveDeviceCount = HETEROGENEOUS_INVENTORY.length
 
     expect(summary.storageCapacityGb).not.toBe(naiveDeviceCount)
     expect(summary.storageCapacityGb).toBeGreaterThan(naiveDeviceCount)

@@ -54,7 +54,7 @@ function PresenceBadge({ presence }: { presence: DevicePresence }) {
 }
 
 /**
- * Tabela "Últimas atualizações" do dashboard. Componente client separado do
+ * Tabela "Últimas coletas" do dashboard. Componente client separado do
  * Server Component da pagina (app/app/[clientSlug]/page.tsx) so para poder
  * usar useRouter() e tornar a linha inteira clicavel — mesmo padrao aplicado
  * em tenant-computers-table.tsx e tenant-servers-table.tsx.

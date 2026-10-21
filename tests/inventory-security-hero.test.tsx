@@ -3,23 +3,23 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { buildDeviceReportSummary, type DeviceReportRow } from '@/lib/reports/device-report'
 import {
-  FleetSecurityHero,
-  buildFleetSecurityIndicators,
-  getFleetComplianceTone,
-  type FleetSecurityIndicator,
-} from '@/components/fleet-security-hero'
+  InventorySecurityHero,
+  buildSecurityIndicators,
+  getComplianceTone,
+  type SecurityIndicator,
+} from '@/components/inventory-security-hero'
 
 /**
  * Overhaul visual — Fase 4, hero de postura de seguranca do dashboard.
  *
  * A regra que este arquivo trava e a mesma de RN013 aplicada a conformidade:
  * percentual sobre o denominador de maquinas com dado APURADO, nunca sobre a
- * frota inteira. "Nao apurado" nao e "desativado".
+ * parque inteiro. "Nao apurado" nao e "desativado".
  *
  * O caso limite e o motivo de o hero nao consumir `securityCompliance` cru:
  * `buildDeviceReportSummary` devolve a string '0.0' quando NENHUMA maquina tem
  * o dado apurado (um `.toFixed(1)` precisa devolver alguma coisa), e
- * renderizar isso como "0%" afirmaria que a frota inteira esta sem BitLocker
+ * renderizar isso como "0%" afirmaria que o parque inteiro esta sem BitLocker
  * quando a verdade e' que ninguem reportou. O `knownCount` desfaz a
  * ambiguidade, e o hero tem que usa-lo.
  */
@@ -49,7 +49,7 @@ function makeRow(overrides: Partial<DeviceReportRow>): DeviceReportRow {
 }
 
 /**
- * Frota de 5 maquinas com cobertura de dado DELIBERADAMENTE desigual — e' o
+ * Parque de 5 maquinas com cobertura de dado DELIBERADAMENTE desigual — e' o
  * caso real de um parque em que a coleta de seguranca nao chegou em todo mundo:
  *
  * - bitlocker:  on, on, off, ?, ?   -> 3 apuradas, 2 ativas  -> 66.7% (nao 40%)
@@ -57,7 +57,7 @@ function makeRow(overrides: Partial<DeviceReportRow>): DeviceReportRow {
  * - firewall:   ?, ?, ?, ?, ?       -> 0 apuradas            -> SEM DADO
  * - av atualizado: on, off, ?, ?, ? -> 2 apuradas, 1 ativa   -> 50.0%
  */
-const FLEET: DeviceReportRow[] = [
+const INVENTORY: DeviceReportRow[] = [
   makeRow({ hostname: 'PC-01', bitlockerAtivo: true, antivirusAtivo: true, antivirusAtualizado: true }),
   makeRow({ hostname: 'PC-02', bitlockerAtivo: true, antivirusAtivo: true, antivirusAtualizado: false }),
   makeRow({ hostname: 'PC-03', bitlockerAtivo: false, antivirusAtivo: true }),
@@ -67,8 +67,8 @@ const FLEET: DeviceReportRow[] = [
 
 function indicatorsOf(rows: DeviceReportRow[]) {
   const summary = buildDeviceReportSummary(rows)
-  const indicators = buildFleetSecurityIndicators(summary, rows)
-  const byKey = (key: FleetSecurityIndicator['key']) => {
+  const indicators = buildSecurityIndicators(summary, rows)
+  const byKey = (key: SecurityIndicator['key']) => {
     const found = indicators.find((indicator) => indicator.key === key)
     if (!found) throw new Error(`indicador ausente: ${key}`)
     return found
@@ -77,8 +77,8 @@ function indicatorsOf(rows: DeviceReportRow[]) {
 }
 
 describe('Hero de conformidade — percentual sobre o denominador de dado apurado', () => {
-  it('BitLocker: 2 ativas entre 3 apuradas = 66.7%, e NAO 2 entre 5 da frota (40%)', () => {
-    const { byKey } = indicatorsOf(FLEET)
+  it('BitLocker: 2 ativas entre 3 apuradas = 66.7%, e NAO 2 entre 5 do parque (40%)', () => {
+    const { byKey } = indicatorsOf(INVENTORY)
     const bitlocker = byKey('bitlocker')
 
     expect(bitlocker.percentLabel).toBe('66.7')
@@ -89,7 +89,7 @@ describe('Hero de conformidade — percentual sobre o denominador de dado apurad
   })
 
   it('Antivirus ativo: 3 ativas entre 4 apuradas = 75.0%, e a nota traz o "atualizado" do relatorio', () => {
-    const { summary, byKey } = indicatorsOf(FLEET)
+    const { summary, byKey } = indicatorsOf(INVENTORY)
     const antivirus = byKey('antivirus')
 
     expect(antivirus.percentLabel).toBe('75.0')
@@ -101,7 +101,7 @@ describe('Hero de conformidade — percentual sobre o denominador de dado apurad
   })
 
   it('BitLocker e Firewall saem do summary sem recalculo (mesma string do relatorio/PDF)', () => {
-    const { summary, byKey } = indicatorsOf(FLEET)
+    const { summary, byKey } = indicatorsOf(INVENTORY)
 
     expect(byKey('bitlocker').percentLabel).toBe(summary.securityCompliance.bitlockerActivePercent)
     expect(byKey('bitlocker').knownCount).toBe(summary.securityCompliance.bitlockerKnownCount)
@@ -111,7 +111,7 @@ describe('Hero de conformidade — percentual sobre o denominador de dado apurad
 
 describe('Hero de conformidade — nenhuma maquina com dado apurado nao vira 0% nem NaN', () => {
   it('percent e percentLabel viram null quando knownCount e 0 (mesmo o summary devolvendo "0.0")', () => {
-    const { summary, byKey } = indicatorsOf(FLEET)
+    const { summary, byKey } = indicatorsOf(INVENTORY)
     const firewall = byKey('firewall')
 
     // O summary devolve a string '0.0' — e' esse valor que nao pode chegar cru na tela.
@@ -121,7 +121,7 @@ describe('Hero de conformidade — nenhuma maquina com dado apurado nao vira 0% 
     expect(firewall.percentLabel).toBeNull()
   })
 
-  it('a frota inteira sem nenhum dado de seguranca produz tres indicadores "sem dado", nunca 0%', () => {
+  it('o parque inteiro sem nenhum dado de seguranca produz tres indicadores "sem dado", nunca 0%', () => {
     const semDado = [makeRow({ hostname: 'A' }), makeRow({ hostname: 'B' })]
     const { indicators } = indicatorsOf(semDado)
 
@@ -136,10 +136,10 @@ describe('Hero de conformidade — nenhuma maquina com dado apurado nao vira 0% 
   })
 
   it('o bloco sem dado renderiza "Sem dado" e a base de calculo — e nenhum "0%" ou "NaN" na tela', () => {
-    const { byKey } = indicatorsOf(FLEET)
+    const { byKey } = indicatorsOf(INVENTORY)
 
     const { container } = render(
-      <FleetSecurityHero
+      <InventorySecurityHero
         indicators={[byKey('firewall')]}
         totalDevices={5}
         reportsHref="/app/cliente-a/reports"
@@ -155,10 +155,10 @@ describe('Hero de conformidade — nenhuma maquina com dado apurado nao vira 0% 
 
 describe('Hero de conformidade — a base de calculo aparece ao lado do numero', () => {
   it('mostra "3 de 5 máquinas com dado apurado" junto do percentual de BitLocker', () => {
-    const { byKey } = indicatorsOf(FLEET)
+    const { byKey } = indicatorsOf(INVENTORY)
 
     render(
-      <FleetSecurityHero
+      <InventorySecurityHero
         indicators={[byKey('bitlocker')]}
         totalDevices={5}
         reportsHref="/app/cliente-a/reports"
@@ -172,10 +172,10 @@ describe('Hero de conformidade — a base de calculo aparece ao lado do numero',
   })
 
   it('a barra de conformidade nunca comunica so por cor: leva aria-label com o percentual e a base', () => {
-    const { byKey } = indicatorsOf(FLEET)
+    const { byKey } = indicatorsOf(INVENTORY)
 
     render(
-      <FleetSecurityHero
+      <InventorySecurityHero
         indicators={[byKey('bitlocker'), byKey('firewall')]}
         totalDevices={5}
         reportsHref="/app/cliente-a/reports"
@@ -188,16 +188,16 @@ describe('Hero de conformidade — a base de calculo aparece ao lado do numero',
 })
 
 describe('Tom do medidor de conformidade', () => {
-  it('sem dado e neutro — nunca vermelho, que leria como "frota reprovada"', () => {
-    expect(getFleetComplianceTone(null)).toBe('neutral')
+  it('sem dado e neutro — nunca vermelho, que leria como "parque reprovado"', () => {
+    expect(getComplianceTone(null)).toBe('neutral')
   })
 
   it('90%+ verde, 70–89.9% ambar, abaixo de 70% vermelho', () => {
-    expect(getFleetComplianceTone(100)).toBe('success')
-    expect(getFleetComplianceTone(90)).toBe('success')
-    expect(getFleetComplianceTone(89.9)).toBe('warning')
-    expect(getFleetComplianceTone(70)).toBe('warning')
-    expect(getFleetComplianceTone(69.9)).toBe('destructive')
-    expect(getFleetComplianceTone(0)).toBe('destructive')
+    expect(getComplianceTone(100)).toBe('success')
+    expect(getComplianceTone(90)).toBe('success')
+    expect(getComplianceTone(89.9)).toBe('warning')
+    expect(getComplianceTone(70)).toBe('warning')
+    expect(getComplianceTone(69.9)).toBe('destructive')
+    expect(getComplianceTone(0)).toBe('destructive')
   })
 })

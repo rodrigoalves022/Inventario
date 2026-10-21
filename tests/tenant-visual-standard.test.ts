@@ -34,6 +34,13 @@ const TENANT_COMPONENTS = [
 const PAGE_HEADER_CLASS = 'flex flex-wrap items-start justify-between gap-4'
 const KPI_GRID_4 = 'grid gap-4 md:grid-cols-2 lg:grid-cols-4'
 const KPI_GRID_3 = 'grid gap-4 md:grid-cols-3'
+/**
+ * Sprint V18: a Visao Geral divide os 5 KPIs em 3 (faixa de acao) + 2 (faixa
+ * de retrato do parque). A fileira de 2 so e' valida ali — em qualquer outra
+ * tela continua valendo a regra de 3 ou 4.
+ */
+const KPI_GRID_2 = 'grid gap-4 md:grid-cols-2'
+const KPI_GRID_2_ALLOWED = ['app/app/[clientSlug]/page.tsx']
 
 /**
  * Fileiras de 5 KPI que ainda existem e AGUARDAM DECISAO do usuario sobre qual
@@ -42,10 +49,9 @@ const KPI_GRID_3 = 'grid gap-4 md:grid-cols-3'
  * for tomada, o arquivo sai desta lista e passa a ser cobrado pela regra.
  */
 const KPI_ROWS_PENDING_APPROVAL = [
-  'app/app/[clientSlug]/page.tsx',
+  // A Visao Geral saiu da lista na Sprint V18 (duas faixas, 3 + 2).
   'components/tenant-computers-table.tsx',
   // Os esqueletos acompanham a tela real ate a decisao (entrega 5).
-  'app/app/[clientSlug]/loading.tsx',
   'app/app/[clientSlug]/computers/loading.tsx',
   'app/app/[clientSlug]/assets/loading.tsx',
 ]
@@ -82,7 +88,8 @@ describe('V17 — regra unica de grid de KPI (3 ou 4, nunca 5)', () => {
     // Toda grid cujo primeiro filho e' um KpiCard e' uma fileira de KPI.
     const rows = Array.from(source.matchAll(/<div className="(grid [^"]*)">\s*(?:\{\/\*[\s\S]*?\*\/\}\s*)?<KpiCard/g))
     for (const [, className] of rows) {
-      expect([KPI_GRID_4, KPI_GRID_3]).toContain(className)
+      const allowed = KPI_GRID_2_ALLOWED.includes(name) ? [KPI_GRID_4, KPI_GRID_3, KPI_GRID_2] : [KPI_GRID_4, KPI_GRID_3]
+      expect(allowed).toContain(className)
     }
   })
 
