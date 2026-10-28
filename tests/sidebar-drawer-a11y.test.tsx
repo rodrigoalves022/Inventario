@@ -28,6 +28,9 @@ vi.mock('@/app/account/actions', () => ({
   updateProfileNameAction: vi.fn(),
   updateEmailAction: vi.fn(),
   changePasswordAction: vi.fn(),
+  updateAccountProfileDetailsAction: vi.fn(),
+  updateAccountPreferencesAction: vi.fn(),
+  getAccountOverviewAction: vi.fn(async () => null),
 }))
 
 /** Simula a largura da janela para a media query `(min-width: 1024px)` (lg). */

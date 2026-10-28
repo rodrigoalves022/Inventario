@@ -210,3 +210,192 @@ export async function changePasswordAction(
   })
   return { status: 'success', message: 'Senha alterada.' }
 }
+
+/*
+ * Sprint V24 — metadados estendidos da conta (cargo/contato e preferencias).
+ * Sem coluna nova em `User`: cada gravacao e um AuditLog e a leitura pega o
+ * ultimo registro da action. O historico de alteracoes sai de graca.
+ */
+
+export type AccountProfileDetails = { jobTitle: string; department: string; phone: string }
+
+const ACCOUNT_TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'UTC', 'Europe/Lisbon'] as const
+
+export type AccountPreferences = {
+  timezone: (typeof ACCOUNT_TIMEZONES)[number]
+  dateFormat: '24h' | '12h'
+  notifyOffline: boolean
+  notifyHardware: boolean
+  notifySecurity: boolean
+}
+
+export type AccountRecentEvent = { id: string; action: string; targetType: string; createdAt: string }
+
+export type AccountOverview = {
+  profileDetails: AccountProfileDetails
+  preferences: AccountPreferences
+  recentEvents: AccountRecentEvent[]
+}
+
+const PROFILE_DETAILS_ACTION = 'account.profile_details_update'
+const PREFERENCES_ACTION = 'account.preferences_update'
+const RECENT_EVENTS_LIMIT = 8
+
+const DEFAULT_PROFILE_DETAILS: AccountProfileDetails = { jobTitle: '', department: '', phone: '' }
+const DEFAULT_PREFERENCES: AccountPreferences = {
+  timezone: 'America/Sao_Paulo',
+  dateFormat: '24h',
+  notifyOffline: true,
+  notifyHardware: true,
+  notifySecurity: true,
+}
+
+const profileDetailsSchema = z.object({
+  jobTitle: z.string().trim().max(80, 'O cargo pode ter no máximo 80 caracteres.'),
+  department: z.string().trim().max(80, 'O departamento pode ter no máximo 80 caracteres.'),
+  phone: z
+    .string()
+    .trim()
+    .max(30, 'O telefone pode ter no máximo 30 caracteres.')
+    .regex(/^[0-9+\-() .]*$/, 'Telefone contém caracteres inválidos.'),
+})
+
+const preferencesSchema = z.object({
+  timezone: z.enum(ACCOUNT_TIMEZONES, { message: 'Fuso horário inválido.' }),
+  dateFormat: z.enum(['24h', '12h'], { message: 'Formato de data inválido.' }),
+  notifyOffline: z.boolean(),
+  notifyHardware: z.boolean(),
+  notifySecurity: z.boolean(),
+})
+
+/** Campo opcional ausente vira '' (o schema decide o resto). */
+function text(formData: FormData, key: string) {
+  const value = formData.get(key)
+  return typeof value === 'string' ? value : ''
+}
+
+function checked(formData: FormData, key: string) {
+  const value = formData.get(key)
+  return value === 'on' || value === 'true'
+}
+
+function parseMetadata(raw: string | null | undefined): Record<string, unknown> | null {
+  if (!raw) return null
+  try {
+    const value: unknown = JSON.parse(raw)
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+export async function updateAccountProfileDetailsAction(
+  _previous: AccountActionState,
+  formData: FormData,
+): Promise<AccountActionState> {
+  const parsed = profileDetailsSchema.safeParse({
+    jobTitle: text(formData, 'jobTitle'),
+    department: text(formData, 'department'),
+    phone: text(formData, 'phone'),
+  })
+  if (!parsed.success) return fail(parsed.error)
+
+  const ctx = await loadSessionUser()
+  if (!ctx) return UNAUTHENTICATED
+  const { session, user } = ctx
+
+  await recordAuditLog({
+    action: PROFILE_DETAILS_ACTION,
+    targetType: 'user',
+    targetId: user.id,
+    actor: getSessionAuditActor(session.user),
+    metadata: parsed.data,
+  })
+  return { status: 'success', message: 'Dados de contato atualizados.' }
+}
+
+export async function updateAccountPreferencesAction(
+  _previous: AccountActionState,
+  formData: FormData,
+): Promise<AccountActionState> {
+  const parsed = preferencesSchema.safeParse({
+    timezone: formData.get('timezone'),
+    dateFormat: formData.get('dateFormat'),
+    notifyOffline: checked(formData, 'notifyOffline'),
+    notifyHardware: checked(formData, 'notifyHardware'),
+    notifySecurity: checked(formData, 'notifySecurity'),
+  })
+  if (!parsed.success) return fail(parsed.error)
+
+  const ctx = await loadSessionUser()
+  if (!ctx) return UNAUTHENTICATED
+  const { session, user } = ctx
+
+  await recordAuditLog({
+    action: PREFERENCES_ACTION,
+    targetType: 'user',
+    targetId: user.id,
+    actor: getSessionAuditActor(session.user),
+    metadata: parsed.data,
+  })
+  return { status: 'success', message: 'Preferências salvas.' }
+}
+
+async function findLatestUserMetadata(userId: string, action: string) {
+  // Defensivo: mocks de prisma antigos nao implementam findFirst.
+  if (typeof prisma.auditLog.findFirst !== 'function') return null
+  try {
+    const row = await prisma.auditLog.findFirst({
+      where: { action, targetType: 'user', targetId: userId },
+      orderBy: { createdAt: 'desc' },
+      select: { metadataJson: true },
+    })
+    return parseMetadata(row?.metadataJson)
+  } catch (error) {
+    console.error(`[Account] Falha ao ler ${action}:`, error)
+    return null
+  }
+}
+
+async function findRecentEvents(userId: string): Promise<AccountRecentEvent[]> {
+  if (typeof prisma.auditLog.findMany !== 'function') return []
+  try {
+    const rows = await prisma.auditLog.findMany({
+      where: { OR: [{ actorUserId: userId }, { targetType: 'user', targetId: userId }] },
+      orderBy: { createdAt: 'desc' },
+      take: RECENT_EVENTS_LIMIT,
+      select: { id: true, action: true, targetType: true, createdAt: true },
+    })
+    return (rows ?? []).map((row) => ({
+      id: row.id,
+      action: row.action,
+      targetType: row.targetType,
+      createdAt: new Date(row.createdAt).toISOString(),
+    }))
+  } catch (error) {
+    console.error('[Account] Falha ao ler atividade recente:', error)
+    return []
+  }
+}
+
+export async function getAccountOverviewAction(): Promise<AccountOverview | null> {
+  const ctx = await loadSessionUser()
+  if (!ctx) return null
+  const { user } = ctx
+
+  const [rawDetails, rawPreferences, recentEvents] = await Promise.all([
+    findLatestUserMetadata(user.id, PROFILE_DETAILS_ACTION),
+    findLatestUserMetadata(user.id, PREFERENCES_ACTION),
+    findRecentEvents(user.id),
+  ])
+
+  // Revalida o que vem do banco: um registro antigo/corrompido cai no default.
+  const details = profileDetailsSchema.safeParse({ ...DEFAULT_PROFILE_DETAILS, ...rawDetails })
+  const preferences = preferencesSchema.safeParse({ ...DEFAULT_PREFERENCES, ...rawPreferences })
+
+  return {
+    profileDetails: details.success ? details.data : DEFAULT_PROFILE_DETAILS,
+    preferences: preferences.success ? preferences.data : DEFAULT_PREFERENCES,
+    recentEvents,
+  }
+}

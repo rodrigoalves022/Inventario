@@ -264,3 +264,121 @@ export async function toggleWebhookEndpointAction(
   revalidatePath(getTenantPath(parsed.data.tenantSlug, 'settings'))
   return { status: 'success', message: null, secret: null }
 }
+
+/*
+ * Sprint V24 — dados da empresa e contatos de emergencia (NOC). Sem coluna
+ * nova em `Client`: cada gravacao e um AuditLog `tenant.company_profile_update`
+ * e a leitura pega o ultimo registro do tenant.
+ */
+
+export type CompanyProfileData = {
+  legalName: string
+  taxId: string
+  sector: string
+  nocContactName: string
+  nocContactEmail: string
+  nocContactPhone: string
+  maintenanceWindow: string
+  updatedAt: string | null
+}
+
+export type CompanyProfileActionState = {
+  status: 'idle' | 'success' | 'error'
+  message: string | null
+}
+
+const COMPANY_PROFILE_ACTION = 'tenant.company_profile_update'
+
+const companyProfileSchema = z.object({
+  tenantSlug: z.string().trim().min(1),
+  legalName: z
+    .string()
+    .trim()
+    .min(2, 'Informe a razão social ou nome da empresa.')
+    .max(120, 'A razão social pode ter no máximo 120 caracteres.'),
+  taxId: z.string().trim().max(32, 'CNPJ/identificador longo demais.'),
+  sector: z.string().trim().max(60, 'O setor pode ter no máximo 60 caracteres.'),
+  nocContactName: z.string().trim().max(80, 'O nome do responsável pode ter no máximo 80 caracteres.'),
+  nocContactEmail: z
+    .string()
+    .trim()
+    .max(254, 'E-mail longo demais.')
+    .refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Informe um e-mail de escalonamento válido.'),
+  nocContactPhone: z.string().trim().max(30, 'O telefone pode ter no máximo 30 caracteres.'),
+  maintenanceWindow: z.string().trim().max(80, 'A janela de manutenção pode ter no máximo 80 caracteres.'),
+})
+
+function formText(formData: FormData, key: string) {
+  const value = formData.get(key)
+  return typeof value === 'string' ? value : ''
+}
+
+export async function updateTenantCompanyProfileAction(
+  _previousState: CompanyProfileActionState,
+  formData: FormData
+): Promise<CompanyProfileActionState> {
+  const parsed = companyProfileSchema.safeParse({
+    tenantSlug: formText(formData, 'tenantSlug'),
+    legalName: formText(formData, 'legalName'),
+    taxId: formText(formData, 'taxId'),
+    sector: formText(formData, 'sector'),
+    nocContactName: formText(formData, 'nocContactName'),
+    nocContactEmail: formText(formData, 'nocContactEmail'),
+    nocContactPhone: formText(formData, 'nocContactPhone'),
+    maintenanceWindow: formText(formData, 'maintenanceWindow'),
+  })
+
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+
+  const tenant = await authorize(parsed.data.tenantSlug)
+  if (!tenant) {
+    return { status: 'error', message: 'Você não tem permissão para alterar os dados desta empresa.' }
+  }
+
+  const session = await auth()
+  const { tenantSlug, ...metadata } = parsed.data
+
+  await recordAuditLog({
+    action: COMPANY_PROFILE_ACTION,
+    targetType: 'client',
+    targetId: tenant.id,
+    clientId: tenant.id,
+    actor: getSessionAuditActor(getSessionPermissionUser(session)),
+    metadata,
+  })
+
+  revalidatePath(getTenantPath(tenantSlug, 'settings'))
+  return { status: 'success', message: 'Dados da empresa e contatos de emergência atualizados.' }
+}
+
+export async function getTenantCompanyProfile(clientId: string, defaultName: string): Promise<CompanyProfileData> {
+  const row = await prisma.auditLog.findFirst({
+    where: { clientId, action: COMPANY_PROFILE_ACTION },
+    orderBy: { createdAt: 'desc' },
+    select: { metadataJson: true, createdAt: true },
+  })
+
+  let metadata: Record<string, unknown> = {}
+  if (row?.metadataJson) {
+    try {
+      const value: unknown = JSON.parse(row.metadataJson)
+      if (value && typeof value === 'object' && !Array.isArray(value)) metadata = value as Record<string, unknown>
+    } catch (error) {
+      console.error(`[settings] metadataJson invalido em ${COMPANY_PROFILE_ACTION} (${clientId}):`, error)
+    }
+  }
+
+  const read = (key: string) => (typeof metadata[key] === 'string' ? (metadata[key] as string) : '')
+  return {
+    legalName: read('legalName') || defaultName,
+    taxId: read('taxId'),
+    sector: read('sector'),
+    nocContactName: read('nocContactName'),
+    nocContactEmail: read('nocContactEmail'),
+    nocContactPhone: read('nocContactPhone'),
+    maintenanceWindow: read('maintenanceWindow'),
+    updatedAt: row ? new Date(row.createdAt).toISOString() : null,
+  }
+}

@@ -10,6 +10,14 @@ export type AppRole = 'PLATFORM_ADMIN' | 'ORG_ADMIN' | 'ORG_OPERATOR' | 'CLIENT_
 
 const APP_ROLES: readonly AppRole[] = ['PLATFORM_ADMIN', 'ORG_ADMIN', 'ORG_OPERATOR', 'CLIENT_VIEWER']
 
+/** Rotulo PT-BR de cada papel — usado no menu de usuario e no dialogo de conta. */
+export const ROLE_LABELS: Record<AppRole, string> = {
+  PLATFORM_ADMIN: 'Administrador da plataforma',
+  ORG_ADMIN: 'Administrador da conta',
+  ORG_OPERATOR: 'Operador',
+  CLIENT_VIEWER: 'Portal do cliente',
+}
+
 export type PermissionUser = {
   id: string | null
   email: string | null

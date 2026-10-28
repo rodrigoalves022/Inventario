@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { signOut } from 'next-auth/react'
 import { useTheme } from 'next-themes'
-import type { AppRole } from '@/lib/permissions'
+import { ROLE_LABELS, type AppRole } from '@/lib/permissions'
 import { getPermissionUser } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { getTenantBasePath, getTenantPath } from '@/lib/tenant-links'
@@ -51,6 +51,8 @@ import {
   X,
   UserRound,
   KeyRound,
+  SlidersHorizontal,
+  History,
   Settings,
   Sun,
   Moon,
@@ -169,13 +171,6 @@ export type SidebarUser = {
   name?: string | null
   email?: string | null
   role?: AppRole | null
-}
-
-const ROLE_LABELS: Record<AppRole, string> = {
-  PLATFORM_ADMIN: 'Administrador da plataforma',
-  ORG_ADMIN: 'Administrador da conta',
-  ORG_OPERATOR: 'Operador',
-  CLIENT_VIEWER: 'Portal do cliente',
 }
 
 function getInitials(user: SidebarUser) {
@@ -597,15 +592,23 @@ function AccountMenuItems({
         <UserRound className="mr-2 h-4 w-4" />
         Minha conta
       </DropdownMenuItem>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('preferences')}>
+        <SlidersHorizontal className="mr-2 h-4 w-4" />
+        Preferências da conta
+      </DropdownMenuItem>
       <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('security')}>
         <KeyRound className="mr-2 h-4 w-4" />
         Alterar senha
+      </DropdownMenuItem>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('sessions')}>
+        <History className="mr-2 h-4 w-4" />
+        Acessos e atividade
       </DropdownMenuItem>
       {settingsHref && (
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link href={settingsHref}>
             <Settings className="mr-2 h-4 w-4" />
-            Preferências
+            Configurações da empresa
           </Link>
         </DropdownMenuItem>
       )}

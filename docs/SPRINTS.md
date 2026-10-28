@@ -4029,6 +4029,8 @@ hash pela plataforma reportada. Precisa acontecer **antes** de subir `LATEST_AGE
 
 ### 25. Gestão Corporativa de Conta e Empresa (Benchmark Bitdefender GravityZone / Kaspersky Security Center) — ALTO (Sugestão de Produto, 2026-10-21)
 
+**Status**: ✅ Entregue na **Sprint V24** (2026-10-28) — ver seção "Sprint V24" no fim deste arquivo. Parte do benchmark (2FA/TOTP, lista de sessões com IP/dispositivo, políticas globais de segurança, white-label) continua pendente e exige schema.
+
 **Origem**: crítica e visão estratégica do usuário sobre a insuficiência de um menu que só ofereça "nome, e-mail e senha". Plataformas líderes de segurança e monitoramento enterprise (Bitdefender GravityZone, Kaspersky Security Center, CrowdStrike Falcon) estruturam dados profundos de contato institucional, perfil operacional e governança corporativa.
 
 **Estudo Comparativo de Recursos (Benchmark)**:
@@ -4109,6 +4111,27 @@ hash pela plataforma reportada. Precisa acontecer **antes** de subir `LATEST_AGE
 5. **Testes Focados**:
    - Validar exclusivamente o teste de tema/accent e dos componentes `KpiCard`/`Panel`, sem rodar a suíte inteira de 1.300 testes.
 
+---
 
+## Sprint V24 — Menu de Conta Enterprise, Acessos Recentes e Dados da Empresa/NOC
 
+**Status**: ✅ Implementada (2026-10-28). Origem: Item 25 do backlog.
+**Restrição**: `prisma/schema.prisma` intocado. Metadados estendidos de perfil e do tenant são gravados com `recordAuditLog` e lidos do último registro (`prisma.auditLog.findFirst`) — o histórico de alterações vem de graça.
 
+### Escopo entregue
+
+1. **`app/account/actions.ts`**: `updateAccountProfileDetailsAction` (`account.profile_details_update` — cargo, departamento, telefone de plantão), `updateAccountPreferencesAction` (`account.preferences_update` — fuso, formato 24h/12h, 3 flags de notificação) e `getAccountOverviewAction` (hidrata perfil/preferências do último registro, revalidando com Zod e caindo nos defaults; últimos 8 eventos onde a conta é ator ou alvo). RNF004: id sempre de `auth()`.
+2. **`components/account-dialog.tsx`**: 4 abas — Perfil (nome, cargo & contato, e-mail), Preferências (selects nativos de fuso/formato + checkboxes), Segurança (badge do papel + capacidades RBAC + alterar senha), Acessos (sessão atual com "Encerrar sessão" e atividade recente traduzida, data no fuso/formato escolhidos). Rótulos V21 preservados.
+3. **`components/sidebar.tsx`**: menu de usuário com "Minha conta", "Preferências da conta", "Alterar senha", "Acessos e atividade" e "Configurações da empresa" (quando há tenant). `ROLE_LABELS` movido para `lib/permissions.ts` (compartilhado com o diálogo).
+4. **`/app/[clientSlug]/settings`**: `updateTenantCompanyProfileAction` (`tenant.company_profile_update`, guard `canManageTenantAlerts`) + `getTenantCompanyProfile` (fallback de razão social = nome do tenant); `components/tenant-company-profile-form.tsx` em modo edição ou somente leitura; painel acima de Webhooks.
+
+### Verificação
+
+- `npx vitest run tests/account-actions.test.ts tests/account-enterprise-v24.test.tsx tests/theme-v22.test.tsx` — 3 arquivos, 63 testes verdes.
+- `npm run typecheck` e `npm run lint` limpos.
+
+### Fora de escopo / pendências
+
+- 2FA/TOTP, lista de sessões com IP/dispositivo e "desconectar outras sessões" exigem persistência de sessão (schema).
+- As preferências de notificação são registradas mas ainda não filtram nenhum envio de alerta.
+- Políticas globais (timeout de sessão, allowlist de IP, retenção) e logotipo white-label.

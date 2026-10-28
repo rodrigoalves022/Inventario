@@ -4,6 +4,8 @@ import { requireTenantContext } from '@/lib/tenant-context'
 import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { WebhookEndpointsPanel } from '@/components/webhook-endpoints-panel'
+import { TenantCompanyProfileForm } from '@/components/tenant-company-profile-form'
+import { getTenantCompanyProfile } from './actions'
 import {
   decryptWebhookSecret,
   maskWebhookSecret,
@@ -16,6 +18,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
   const tenant = await requireTenantContext(clientSlug)
   const session = await auth()
   const canManage = canManageTenantAlerts(getSessionPermissionUser(session), tenant)
+  const companyProfile = await getTenantCompanyProfile(tenant.id, tenant.name)
 
   // secret nunca sai deste modulo em texto pleno: so o valor mascarado
   // (maskWebhookSecret) atravessa para o componente client.
@@ -54,11 +57,21 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
         <div>
           <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
           <p className="text-muted-foreground">
-            Endpoints de webhook por evento, com assinatura HMAC-SHA256 — mecanismo adicional ao
-            webhook único configurado em Alertas, que continua funcionando sem alteração.
+            Dados corporativos, contatos de escalonamento NOC e integrações por webhook (assinatura
+            HMAC-SHA256, adicional ao webhook único configurado em Alertas).
           </p>
         </div>
       </div>
+
+      <Panel>
+        <PanelHeader
+          title="Dados da empresa e contatos de emergência"
+          description="Identificação corporativa do cliente, janela de manutenção e contatos técnicos 24x7 para escalonamento de incidentes críticos."
+        />
+        <PanelBody>
+          <TenantCompanyProfileForm tenantSlug={tenant.slug} initialData={companyProfile} canManage={canManage} />
+        </PanelBody>
+      </Panel>
 
       {/* Casca Panel (Sprint V20) — ver nota em alerts/page.tsx. */}
       <Panel>

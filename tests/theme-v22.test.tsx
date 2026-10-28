@@ -17,6 +17,9 @@ vi.mock('@/app/account/actions', () => ({
   updateProfileNameAction: vi.fn(),
   updateEmailAction: vi.fn(),
   changePasswordAction: vi.fn(),
+  updateAccountProfileDetailsAction: vi.fn(),
+  updateAccountPreferencesAction: vi.fn(),
+  getAccountOverviewAction: vi.fn(async () => null),
 }))
 
 const css = readFileSync(join(process.cwd(), 'app/globals.css'), 'utf8')
