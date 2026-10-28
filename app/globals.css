@@ -45,7 +45,7 @@
   --accent: oklch(0.95 0.02 235); /* superficie de hover, com o mesmo puxao ciano */
   --accent-foreground: oklch(0.21 0.03 266);
 
-  --primary: oklch(0.5 0.13 240); /* ciano escurecido: 5.8:1 como texto e com tinta branca */
+  --primary: oklch(0.55 0.19 45); /* Sprint V23: accent padrao laranja; 5.2:1 como texto, 5.1:1 com tinta branca */
   --primary-foreground: oklch(0.99 0 0);
   --success: oklch(0.49 0.115 163);
   --success-foreground: oklch(0.99 0 0);
@@ -59,7 +59,7 @@
 
   --border: oklch(0.91 0.008 260);
   --input: oklch(0.66 0.015 260); /* aresta de campo >= 3:1 (WCAG 1.4.11) */
-  --ring: oklch(0.5 0.13 240);
+  --ring: oklch(0.55 0.19 45);
 
   --surface-line: rgb(15 23 42 / 0.1);
   --surface-line-strong: rgb(15 23 42 / 0.18);
@@ -69,7 +69,7 @@
 
   /* Series: mesmos hues; luminosidade ajustada para >= 3:1 sobre o card
      (objeto grafico, WCAG 1.4.11). */
-  --chart-1: oklch(0.6 0.15 237);
+  --chart-1: oklch(0.55 0.19 45);
   --chart-2: oklch(0.62 0.15 163);
   --chart-3: oklch(0.64 0.15 62);
   --chart-4: oklch(0.6 0.2 25);
@@ -79,12 +79,21 @@
 
   --sidebar: oklch(0.97 0.005 260);
   --sidebar-foreground: oklch(0.32 0.03 264);
-  --sidebar-primary: oklch(0.5 0.13 240);
+  --sidebar-primary: oklch(0.55 0.19 45);
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.93 0.01 260);
   --sidebar-accent-foreground: oklch(0.21 0.03 266);
   --sidebar-border: oklch(0.9 0.008 260);
-  --sidebar-ring: oklch(0.5 0.13 240);
+  --sidebar-ring: oklch(0.55 0.19 45);
+
+  /* Amostras do seletor de cor (Sprint V23): mesma cor nos dois temas, para
+     o circulo identificar a variante, nao o tema. */
+  --swatch-orange: oklch(0.7 0.19 45);
+  --swatch-blue: oklch(0.64 0.21 255);
+  --swatch-emerald: oklch(0.7 0.17 162);
+  --swatch-pink: oklch(0.66 0.23 350);
+  --swatch-violet: oklch(0.64 0.23 292);
+  --swatch-mono: oklch(0.75 0.01 285);
 }
 
 :root.dark,
@@ -94,17 +103,19 @@
      <input type="number">, popup de <select>, date picker, scrollbar). */
   color-scheme: dark;
 
-  /* --- Chao e superficies (familia "Void Obsidian", hue ~266) ------------- */
-  --background: oklch(0.16 0.02 266); /* #090D16 */
+  /* --- Chao e superficies (Sprint V23: Carbon/Obsidian NEUTRO, croma <= 0.006).
+     A familia "Void Obsidian" (hue 266, croma ~0.02) deixava a tela inteira
+     azulada e apagava o contraste do primario. ---------------------------- */
+  --background: oklch(0.14 0.004 285); /* ~#09090B carbono */
   --foreground: oklch(0.965 0.005 260); /* #F1F3F7 — branco levemente frio, nao cinza puro */
-  --card: oklch(0.18 0.026 270); /* #0D111D */
+  --card: oklch(0.175 0.005 285); /* ~#111114 grafite */
   --card-foreground: oklch(0.965 0.005 260);
-  --popover: oklch(0.205 0.026 268); /* #121723 — sobe um degrau porque flutua sobre o card */
+  --popover: oklch(0.175 0.005 285);
   --popover-foreground: oklch(0.965 0.005 260);
-  --secondary: oklch(0.235 0.024 266); /* #191E2A — trilhos de barra, botao secundario */
+  --secondary: oklch(0.205 0.005 285); /* ~#16161A grafite elevado */
   --secondary-foreground: oklch(0.87 0.01 260);
-  --muted: oklch(0.255 0.022 266); /* #1E232E */
-  --muted-foreground: oklch(0.735 0.018 258); /* #A2AAB5 — 8.0:1 no card, 8.3:1 no fundo */
+  --muted: oklch(0.205 0.005 285);
+  --muted-foreground: oklch(0.735 0.006 285); /* ~8:1 no card */
 
   /* --accent NAO e' uma cor de marca: no vocabulario shadcn e' a SUPERFICIE de
      hover (`hover:bg-accent`, `data-[state=open]:bg-accent`, range do
@@ -112,11 +123,11 @@
      de linha e de botao fantasma brigar com badge e barra colorida na mesma
      linha. Agora e' um degrau de elevacao com um leve puxao pro ciano — a cor
      de marca vive em --primary e --info. */
-  --accent: oklch(0.255 0.035 240); /* #122532 */
+  --accent: oklch(0.235 0.005 285);
   --accent-foreground: oklch(0.965 0.005 260);
 
   /* --- Acentos e semantica ----------------------------------------------- */
-  --primary: oklch(0.685 0.148 237); /* #0EA5E9 — Cyan Eletrico: acao primaria e foco */
+  --primary: oklch(0.7 0.19 45); /* Sprint V23: accent padrao laranja/ambar — ver [data-accent] */
   /* Tinta ESCURA sobre ciano: branco sobre #0EA5E9 da 2.6:1 e reprova em
      qualquer criterio. Botao ciano com tinta escura e' o padrao da categoria
      (Vercel, Linear) e chega a 6.9:1. */
@@ -141,17 +152,17 @@
   --destructive-solid: oklch(0.565 0.195 25); /* #D03135 */
 
   /* --- Linhas, campos e foco --------------------------------------------- */
-  --border: oklch(0.27 0.02 266); /* #222630 — equivalente opaco de white/8% sobre o card */
-  --input: oklch(0.29 0.022 266); /* #262B37 — controle de formulario pede aresta mais visivel */
-  --ring: oklch(0.685 0.148 237); /* foco = ciano primario */
+  --border: oklch(0.245 0.006 285); /* ~#1F1F24 */
+  --input: oklch(0.29 0.006 285); /* controle de formulario pede aresta mais visivel */
+  --ring: oklch(0.7 0.19 45); /* foco = primario */
 
   /* Linhas translucidas: compoem certo sobre QUALQUER fundo (card, popover,
      sidebar), que e' o que um valor opaco nao faz. Sao os valores literais do
      escopo (white/8% e white/3%) promovidos a token. */
-  --surface-line: rgb(255 255 255 / 0.08);
-  --surface-line-strong: rgb(255 255 255 / 0.16);
+  --surface-line: oklch(0.245 0.006 285);
+  --surface-line-strong: oklch(0.32 0.008 285);
   --surface-hover: rgb(255 255 255 / 0.03);
-  --surface-raise: rgb(255 255 255 / 0.025);
+  --surface-raise: oklch(0.205 0.005 285);
   /* Sombra de profundidade do hover de .surface-interactive. */
   --surface-shadow: rgb(0 0 0 / 0.75);
 
@@ -160,7 +171,7 @@
      primeiras sao as semanticas do sistema, e a quinta ocupa o unico buraco
      grande que sobra na roda. Magenta aqui e' hue de DADO, nunca de chrome —
      nenhum botao, borda ou estado do app usa 310. */
-  --chart-1: oklch(0.685 0.148 237);
+  --chart-1: oklch(0.7 0.19 45);
   --chart-2: oklch(0.696 0.149 163);
   --chart-3: oklch(0.769 0.165 70);
   --chart-4: oklch(0.637 0.208 25);
@@ -169,14 +180,146 @@
   --radius: 0.5rem;
 
   /* --- Sidebar (segunda camada neutra, um degrau ABAIXO do conteudo) ------ */
-  --sidebar: oklch(0.14 0.02 266); /* #060911 */
+  --sidebar: oklch(0.175 0.005 285);
   --sidebar-foreground: oklch(0.87 0.01 260);
-  --sidebar-primary: oklch(0.685 0.148 237);
+  --sidebar-primary: oklch(0.7 0.19 45);
   --sidebar-primary-foreground: oklch(0.17 0.03 250);
-  --sidebar-accent: oklch(0.215 0.024 266);
+  --sidebar-accent: oklch(0.215 0.005 285);
   --sidebar-accent-foreground: oklch(0.965 0.005 260);
-  --sidebar-border: oklch(0.25 0.02 266);
-  --sidebar-ring: oklch(0.685 0.148 237);
+  --sidebar-border: oklch(0.245 0.006 285);
+  --sidebar-ring: oklch(0.7 0.19 45);
+}
+
+
+/* ============================================================================
+   COR DE DESTAQUE (Sprint V23). `data-accent` no <html>, escolhido no rodape
+   da sidebar e persistido em localStorage('inventario-accent'). Sem atributo,
+   vale o laranja definido em :root / .dark acima. Cada variante recalibra so
+   --primary, --ring, --sidebar-primary e --chart-1 (com a tinta de contraste).
+   Escuro: tinta escura >= 5:1. Claro: tinta branca >= 5:1 e >= 4.5:1 como
+   texto sobre card e sidebar — medido em tests/accent-theme-v23.test.tsx.
+   Os seletores escuros tem especificidade maior (:root.dark[...]) para vencer
+   os claros independentemente da ordem.
+   ============================================================================ */
+
+:root[data-accent='orange'] {
+  --primary: oklch(0.55 0.19 45);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.55 0.19 45);
+  --sidebar-primary: oklch(0.55 0.19 45);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.55 0.19 45);
+  --chart-1: oklch(0.55 0.19 45);
+}
+
+:root[data-accent='blue'] {
+  --primary: oklch(0.5 0.21 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.5 0.21 255);
+  --sidebar-primary: oklch(0.5 0.21 255);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.5 0.21 255);
+  --chart-1: oklch(0.5 0.21 255);
+}
+
+:root[data-accent='emerald'] {
+  --primary: oklch(0.48 0.16 162);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.48 0.16 162);
+  --sidebar-primary: oklch(0.48 0.16 162);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.48 0.16 162);
+  --chart-1: oklch(0.48 0.16 162);
+}
+
+:root[data-accent='pink'] {
+  --primary: oklch(0.5 0.22 350);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.5 0.22 350);
+  --sidebar-primary: oklch(0.5 0.22 350);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.5 0.22 350);
+  --chart-1: oklch(0.5 0.22 350);
+}
+
+:root[data-accent='violet'] {
+  --primary: oklch(0.48 0.22 292);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.48 0.22 292);
+  --sidebar-primary: oklch(0.48 0.22 292);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.48 0.22 292);
+  --chart-1: oklch(0.48 0.22 292);
+}
+
+:root[data-accent='mono'] {
+  --primary: oklch(0.32 0.01 285);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.32 0.01 285);
+  --sidebar-primary: oklch(0.32 0.01 285);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.32 0.01 285);
+  --chart-1: oklch(0.32 0.01 285);
+}
+
+:root.dark[data-accent='orange'] {
+  --primary: oklch(0.7 0.19 45);
+  --primary-foreground: oklch(0.17 0.03 250);
+  --ring: oklch(0.7 0.19 45);
+  --sidebar-primary: oklch(0.7 0.19 45);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-ring: oklch(0.7 0.19 45);
+  --chart-1: oklch(0.7 0.19 45);
+}
+
+:root.dark[data-accent='blue'] {
+  --primary: oklch(0.64 0.21 255);
+  --primary-foreground: oklch(0.17 0.03 250);
+  --ring: oklch(0.64 0.21 255);
+  --sidebar-primary: oklch(0.64 0.21 255);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-ring: oklch(0.64 0.21 255);
+  --chart-1: oklch(0.64 0.21 255);
+}
+
+:root.dark[data-accent='emerald'] {
+  --primary: oklch(0.7 0.17 162);
+  --primary-foreground: oklch(0.17 0.03 250);
+  --ring: oklch(0.7 0.17 162);
+  --sidebar-primary: oklch(0.7 0.17 162);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-ring: oklch(0.7 0.17 162);
+  --chart-1: oklch(0.7 0.17 162);
+}
+
+:root.dark[data-accent='pink'] {
+  --primary: oklch(0.66 0.23 350);
+  --primary-foreground: oklch(0.17 0.03 250);
+  --ring: oklch(0.66 0.23 350);
+  --sidebar-primary: oklch(0.66 0.23 350);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-ring: oklch(0.66 0.23 350);
+  --chart-1: oklch(0.66 0.23 350);
+}
+
+:root.dark[data-accent='violet'] {
+  --primary: oklch(0.64 0.23 292);
+  --primary-foreground: oklch(0.17 0.03 250);
+  --ring: oklch(0.64 0.23 292);
+  --sidebar-primary: oklch(0.64 0.23 292);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-ring: oklch(0.64 0.23 292);
+  --chart-1: oklch(0.64 0.23 292);
+}
+
+:root.dark[data-accent='mono'] {
+  --primary: oklch(0.75 0.01 285);
+  --primary-foreground: oklch(0.17 0.03 250);
+  --ring: oklch(0.75 0.01 285);
+  --sidebar-primary: oklch(0.75 0.01 285);
+  --sidebar-primary-foreground: oklch(0.17 0.03 250);
+  --sidebar-ring: oklch(0.75 0.01 285);
+  --chart-1: oklch(0.75 0.01 285);
 }
 
 @theme inline {

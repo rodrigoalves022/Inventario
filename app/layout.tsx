@@ -51,12 +51,19 @@ export const metadata: Metadata = {
   },
 }
 
+const ACCENT_BOOT_SCRIPT = `try{var a=localStorage.getItem('inventario-accent');document.documentElement.dataset.accent=/^(orange|blue|emerald|pink|violet|mono)$/.test(a)?a:'orange'}catch(e){document.documentElement.dataset.accent='orange'}`
+
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     // suppressHydrationWarning: o script do next-themes poe a classe do tema no
     // <html> antes da hidratacao (e' o que evita o flash), entao o atributo
     // diverge do SSR de proposito.
     <html lang="pt-BR" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Sprint V23: aplica a cor de destaque salva antes da primeira pintura
+            (mesma estrategia do next-themes para a classe do tema). */}
+        <script dangerouslySetInnerHTML={{ __html: ACCENT_BOOT_SCRIPT }} />
+      </head>
       <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {children}

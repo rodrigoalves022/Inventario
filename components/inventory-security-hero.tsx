@@ -290,7 +290,11 @@ export function InventorySecurityHero({
   reportsHref: string
 }) {
   return (
-    <Panel aria-labelledby="inventory-security-hero-title">
+    // Sprint V23: brilho radial da cor de destaque no canto superior esquerdo.
+    <Panel
+      aria-labelledby="inventory-security-hero-title"
+      className="bg-[image:radial-gradient(ellipse_at_top_left,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_65%)]"
+    >
       {/* Recuo de 20px, nao 24px. O hero ficava imediatamente acima dos dois
           paineis do bloco duplo, na mesma largura, e comecava o texto 4px mais
           a direita que eles — desalinhamento visivel entre superficies

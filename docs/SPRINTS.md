@@ -4064,5 +4064,51 @@ hash pela plataforma reportada. Precisa acontecer **antes** de subir `LATEST_AGE
   - Aba ou tela `/settings/organization` (Dados da Empresa, Contatos de Emergência, Políticas).
   - Diálogo enriquecido de "Minha Conta" com 4 abas estruturadas: **Perfil Profissional**, **Segurança & 2FA**, **Sessões Ativas** e **Preferências**.
 
+---
+
+## Sprint V23 — Redesign de Identidade Visual: Carbon/Obsidian Neutro, Seletor de Cor de Destaque (Accent Swatches) e Bento Grid Alinhado
+
+**Status**: ✅ Implementada (2026-10-28) — fundo `.dark` neutro (croma <= 0.006), 6 variantes `data-accent` (laranja padrão) com boot script sem flash, swatches + botão de tema no rodapé da sidebar, `KpiCard`/`Panel` com `h-full` e ícone em badge, hero com brilho radial. Testes: `tests/accent-theme-v23.test.tsx` (novo), `tests/theme-v22.test.tsx`, `tests/kpi-card.test.tsx` e testes de sidebar/hero/visão geral — verdes; `tsc --noEmit` limpo.
+**Origem**: Solicitação direta do usuário com 4 telas de referência de outro sistema construído pelo Claude Code ("Finanças"), substituindo o "tema azulado morto" atual por uma estética dark neutra (Carbon/Obsidian), vibrante, com seletor dinâmico de cor de destaque (Accent Color Swatches) e alinhamento rigoroso de cards (Bento Grid).
+
+### 1. Diagnóstico do Problema Atual vs. Referência Enviada
+
+1. **Fim do "Tema Azulado Morto" (Saturação fria em `globals.css`)**:
+   - **Problema atual**: Todos os tokens de superfície escura do Inventário (`--background`, `--card`, `--popover`, `--sidebar`, `--surface-line`) possuem matiz azulado/ardósia (`hue ~250–265` em OKLCH com croma residual), deixando a tela inteira com aspecto frio, acinzentado-azulado e monótono. Além disso, a cor primária ciano/azul pálido se mistura ao fundo azulado, matando o contraste visual.
+   - **Padrão da Referência ("Finanças")**:
+     - **Fundo base (`--background`)**: Preto carbono quase puro e neutro (`#09090b` / `oklch(0.14 0.004 285)`), sem contaminação azulada.
+     - **Superfície de Card (`--card`)**: Grafite escuro neutro (`#111114` / `oklch(0.175 0.005 285)`) com bordas finas e nítidas (`#1f1f24` / `oklch(0.24 0.006 285)`).
+     - **Superfície interna / Sub-card (`--surface-raise`)**: Tom levemente elevado (`#16161a` / `oklch(0.20 0.006 285)`).
+
+2. **Seletor Dinâmico de Cor de Destaque (Accent Color Swatches na Sidebar)**:
+   - **Padrão da Referência**: No rodapé da sidebar (logo acima do botão de alternância de Tema Claro/Escuro), há uma fileira de **6 círculos cromáticos (swatches)** permitindo trocar instantaneamente a cor de destaque (`--primary` / `--ring` / halo do hero) do sistema inteiro:
+     1. **Laranja / Âmbar Queimado (Default)**: `#f97316` / `oklch(0.70 0.19 45)` — traz calor, energia e destaque imediato sobre o fundo carbono neutro.
+     2. **Azul Royal Vibrante**: `#3b82f6` / `oklch(0.62 0.21 255)`
+     3. **Esmeralda / Verde**: `#10b981` / `oklch(0.69 0.17 162)`
+     4. **Rosa / Magenta**: `#ec4899` / `oklch(0.65 0.24 350)`
+     5. **Violeta / Roxo**: `#8b5cf6` / `oklch(0.61 0.24 292)`
+     6. **Neutro / Prata Monocromático**: `#a1a1aa` / `oklch(0.71 0.01 285)`
+   - **Mecanismo**: Atributo `data-accent="orange|blue|emerald|pink|violet|mono"` no `<html>` (persistido em `localStorage`) recalibrando `--primary`, `--primary-foreground`, `--ring` e o gradiente sutil do Hero e do item ativo da Sidebar.
+
+3. **Anatomia e Alinhamento de Cards (Bento Grid & Hero Split)**:
+   - **Hero com Gradiente Radial Sutil**: Brilho radial suave na cor de destaque (`radial-gradient` em `--primary/12%`) no canto superior esquerdo do card principal.
+   - **Cards Selecionáveis com Borda Viva e Halo (`Card Ativo`)**: Borda na cor de destaque (`border-primary`), brilho suave ao redor (`shadow-[0_0_24px_-8px_var(--primary)]`) e ícone em badge quadrado (`rounded-lg bg-primary/15 text-primary`) posicionado no canto superior direito do card.
+   - **Cabeçalhos de Painel com Ícone em Badge + Botão de Ação à Direita**: Todos os painéis mantêm a mesma altura (`h-full flex flex-col`) na mesma fileira de grid, mesmo quando em estado vazio.
+
+### 2. Entregas Planejadas para a Sprint V23
+
+1. **Nova Paleta Base Carbon/Obsidian (`app/globals.css`)**:
+   - Substituir os tons azulados mortos de `.dark` por neutros puros de carbono/obsidiana (`chroma <= 0.006`).
+   - Definir os 6 temas de cor de destaque (`data-accent="orange" | "blue" | "emerald" | "pink" | "violet" | "mono"`), com **`orange` (Âmbar/Laranja vibrante)** como padrão.
+2. **Componente Seletor de Cor de Destaque (`AccentPicker` na Sidebar e Menu)**:
+   - Adicionar no rodapé da `Sidebar` os 6 círculos de cor + botão direto de alternância de tema (`Tema claro` / `Tema escuro`), persistindo em `localStorage` sem flash de hidratação.
+3. **Refinamento do `KpiCard` e `Panel` (`components/ui/kpi-card.tsx` e `components/ui/panel.tsx`)**:
+   - Alinhar a anatomia do `KpiCard` e `Panel` com alturas simétricas (`h-full`), ícone em caixa quadrada no canto superior direito do KPI e suporte a ícone no cabeçalho do `Panel`.
+4. **Hero da Visão Geral no Estilo Bento (`components/inventory-security-hero.tsx`)**:
+   - Aplicar fundo com brilho sutil na cor de destaque (`radial-gradient`) e alinhar colunas.
+5. **Testes Focados**:
+   - Validar exclusivamente o teste de tema/accent e dos componentes `KpiCard`/`Panel`, sem rodar a suíte inteira de 1.300 testes.
+
+
 
 

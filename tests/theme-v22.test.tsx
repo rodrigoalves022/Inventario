@@ -67,7 +67,7 @@ describe('Sprint V22 — paleta clara em globals.css', () => {
   it('a paleta clara define TODOS os tokens do escuro, com valores proprios', () => {
     for (const name of Object.keys(dark)) expect(light[name], name).toBeDefined()
     expect(light['--background']).not.toBe(dark['--background'])
-    expect(dark['--background']).toBe('oklch(0.16 0.02 266)')
+    expect(dark['--background']).toBe('oklch(0.14 0.004 285)') // carbono neutro desde a V23
   })
 
   it.each([

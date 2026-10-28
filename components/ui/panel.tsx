@@ -26,10 +26,7 @@ export function Panel({
   ...props
 }: React.ComponentProps<'section'>) {
   return (
-    <section
-      className={cn('rounded-xl border border-surface-line bg-card', className)}
-      {...props}
-    >
+    <section className={cn('flex h-full flex-col rounded-xl border border-surface-line bg-card', className)} {...props}>
       {children}
     </section>
   )
@@ -40,9 +37,13 @@ export function PanelHeader({
   titleId,
   description,
   action,
+  icon,
   className,
   children,
 }: {
+  /** Sprint V23: icone em badge quadrado ao lado do titulo. Fica no header, nao
+   * no Panel, porque o Panel renderiza em Server Components (sem contexto). */
+  icon?: React.ReactNode
   /** Titulo do bloco. Renderizado como `<h2>` — ver a nota sobre hierarquia. */
   title?: React.ReactNode
   /** `id` do `<h2>`, para a casca apontar `aria-labelledby` para o titulo
@@ -56,16 +57,31 @@ export function PanelHeader({
   children?: React.ReactNode
 }) {
   return (
-    <div className={cn('px-5 pt-5 pb-4', className)}>
+    <div className={cn('shrink-0 px-5 pt-5 pb-4', className)}>
       {children ?? (
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            {/*
+          <div className="flex min-w-0 items-start gap-3">
+            {icon && (
+              <span
+                data-panel-icon
+                aria-hidden
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary [&>svg]:size-4"
+              >
+                {icon}
+              </span>
+            )}
+            <div className="min-w-0 space-y-1">
+              {/*
               `<h2>` e nao `<h3>`: a pagina abre em `<h1>` e os blocos sao seus
               filhos diretos na hierarquia semantica. Nao ha nivel intermediario.
             */}
-            {title && <h2 id={titleId} className="text-base font-semibold text-card-foreground">{title}</h2>}
-            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+              {title && (
+                <h2 id={titleId} className="text-base font-semibold text-card-foreground">
+                  {title}
+                </h2>
+              )}
+              {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            </div>
           </div>
           {action && <div className="shrink-0">{action}</div>}
         </div>
@@ -89,17 +105,11 @@ export function PanelBody({
    */
   flush?: boolean
 }) {
-  return <div className={cn(flush ? 'pb-0' : 'px-5 pb-5', className)}>{children}</div>
+  // `flex-1`: o corpo ocupa a sobra do Panel `h-full`, entao paineis lado a
+  // lado (um deles vazio) terminam na mesma linha.
+  return <div className={cn('flex-1', flush ? 'pb-0' : 'px-5 pb-5', className)}>{children}</div>
 }
 
-export function PanelFooter({
-  children,
-  className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn('border-t border-surface-line px-5 py-3', className)}>{children}</div>
-  )
+export function PanelFooter({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn('border-t border-surface-line px-5 py-3', className)}>{children}</div>
 }

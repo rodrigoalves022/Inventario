@@ -214,23 +214,13 @@ function NavigationSection({
                 className={cn(
                   'group relative flex items-center gap-3 rounded-lg py-2 pr-3 pl-4 text-sm transition-colors duration-150',
                   'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none',
+                  // Borda em AMBOS os estados (transparente no inativo): a caixa
+                  // nao muda de tamanho ao ativar, e o texto nao anda.
                   isActive
-                    ? 'bg-primary/10 font-semibold text-primary'
-                    : 'font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
+                    ? 'border border-primary/25 bg-primary/15 font-medium text-primary'
+                    : 'border border-transparent font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
                 )}
               >
-                {/* Barra de estado atual. E um elemento posicionado, nao um
-                    `border-l-2`: com borda, o item ATIVO ganharia 2px de
-                    largura de caixa e todo o texto da linha andaria 2px pro
-                    lado ao navegar. O span nao ocupa espaco no fluxo, e ainda
-                    aceita raio proprio pra nao brigar com o canto arredondado
-                    do item. */}
-                {isActive && (
-                  <span
-                    aria-hidden
-                    className="absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary"
-                  />
-                )}
                 <item.icon
                   className={cn(
                     'h-4 w-4 shrink-0 transition-colors',
@@ -461,8 +451,8 @@ export function Sidebar({
       >
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Monitor className="h-5 w-5 text-primary-foreground" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Monitor className="h-5 w-5" />
             </div>
             {/* Marca, nao titulo de pagina: o h1 e de cada pagina (E3, Sprint A2). */}
             <p className="flex-1 text-sm font-semibold text-sidebar-foreground">Inventário TI</p>
@@ -495,7 +485,8 @@ export function Sidebar({
             ))}
           </nav>
 
-          <div className="border-t border-sidebar-border p-3">
+          <div className="space-y-3 border-t border-sidebar-border p-3">
+            <AppearanceControls />
             {tenant ? (
               /*
                 Rodape do tenant: sessao ativa + estado do parque. O menu de
@@ -662,6 +653,120 @@ function ThemeMenuItems() {
         </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
+  )
+}
+
+/**
+ * Sprint V23: cor de destaque. O valor vive em `data-accent` no <html> (que
+ * o script de app/layout.tsx aplica antes da primeira pintura, lendo o mesmo
+ * localStorage) — o estado do React so espelha o atributo.
+ */
+export const ACCENT_STORAGE_KEY = 'inventario-accent'
+export const DEFAULT_ACCENT = 'orange'
+
+export const ACCENT_OPTIONS = [
+  { value: 'orange', label: 'Cor Laranja' },
+  { value: 'blue', label: 'Cor Azul' },
+  { value: 'emerald', label: 'Cor Esmeralda' },
+  { value: 'pink', label: 'Cor Rosa' },
+  { value: 'violet', label: 'Cor Violeta' },
+  { value: 'mono', label: 'Cor Prata' },
+] as const
+
+export type AccentValue = (typeof ACCENT_OPTIONS)[number]['value']
+
+const ACCENT_EVENT = 'inventario-accent-change'
+
+export function isAccent(value: unknown): value is AccentValue {
+  return ACCENT_OPTIONS.some((option) => option.value === value)
+}
+
+export function applyAccent(value: AccentValue) {
+  try {
+    localStorage.setItem(ACCENT_STORAGE_KEY, value)
+  } catch {
+    // modo privado/cota: a cor vale para a sessao, so nao persiste
+  }
+  document.documentElement.dataset.accent = value
+  window.dispatchEvent(new Event(ACCENT_EVENT))
+}
+
+function subscribeAccent(onStoreChange: () => void) {
+  window.addEventListener(ACCENT_EVENT, onStoreChange)
+  window.addEventListener('storage', onStoreChange)
+  return () => {
+    window.removeEventListener(ACCENT_EVENT, onStoreChange)
+    window.removeEventListener('storage', onStoreChange)
+  }
+}
+
+function getAccentSnapshot(): AccentValue {
+  const current = document.documentElement.dataset.accent
+  return isAccent(current) ? current : DEFAULT_ACCENT
+}
+
+function getAccentServerSnapshot(): AccentValue {
+  return DEFAULT_ACCENT
+}
+
+/** Cada swatch pinta com o token proprio da variante (globals.css), nao com
+ * `--primary` — senao os seis circulos teriam a cor ativa. */
+const SWATCH_ACCENT_CLASS: Record<AccentValue, string> = {
+  orange: 'bg-[var(--swatch-orange)]',
+  blue: 'bg-[var(--swatch-blue)]',
+  emerald: 'bg-[var(--swatch-emerald)]',
+  pink: 'bg-[var(--swatch-pink)]',
+  violet: 'bg-[var(--swatch-violet)]',
+  mono: 'bg-[var(--swatch-mono)]',
+}
+
+function subscribeNoop() {
+  return () => {}
+}
+
+function AppearanceControls() {
+  const accent = useSyncExternalStore(subscribeAccent, getAccentSnapshot, getAccentServerSnapshot)
+  const { resolvedTheme, setTheme } = useTheme()
+  // O tema resolvido so existe no client; ate montar, o botao fica neutro
+  // para nao divergir do HTML do servidor.
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false)
+  const isDark = !mounted || resolvedTheme !== 'light'
+
+  return (
+    <div className="space-y-2.5 px-1">
+      <div role="radiogroup" aria-label="Cor de destaque" className="flex items-center justify-between">
+        {ACCENT_OPTIONS.map(({ value, label }) => {
+          const selected = accent === value
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={label}
+              title={label}
+              data-accent-swatch={value}
+              onClick={() => applyAccent(value)}
+              className={cn(
+                'h-5 w-5 rounded-full transition-transform hover:scale-110',
+                'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar focus-visible:outline-none',
+                SWATCH_ACCENT_CLASS[value],
+                selected && 'ring-2 ring-foreground ring-offset-2 ring-offset-sidebar'
+              )}
+            />
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        data-theme-toggle
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        className="flex h-8 w-full items-center gap-2 rounded-lg border border-surface-line px-3 text-xs font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
+      >
+        {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+        {isDark ? 'Tema claro' : 'Tema escuro'}
+      </button>
+    </div>
   )
 }
 

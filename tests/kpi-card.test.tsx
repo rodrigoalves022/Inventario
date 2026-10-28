@@ -89,9 +89,14 @@ describe('KpiCard — invariante de alinhamento do numero', () => {
     expect(label.className).toContain('line-clamp-1')
   })
 
-  it('NAO usa justify-between — a tecnica defeituosa que ancorava valor e subtitulo na base', () => {
+  it('justify-between (V23) so distribui TOPO e subtitulo — o valor nunca e filho direto do card', () => {
+    // O defeito antigo: valor e subtitulo juntos na base de um justify-between.
+    // Agora o valor mora no bloco do topo, e so o subtitulo vai para a base.
     render(<KpiCard testId="card" label="Online" value={1} subtitle="ctx" icon={<Monitor />} />)
-    expect(cardRoot('card').className).not.toContain('justify-between')
+    const root = cardRoot('card')
+    const value = root.querySelector('[data-kpi-value]')!
+    expect(value.parentElement?.hasAttribute('data-kpi-top')).toBe(true)
+    expect(root.querySelector('[data-kpi-subtitle]')!.parentElement).toBe(root)
   })
 
   it('o cabecalho mantem altura fixa mesmo SEM icone, para alinhar com cards que tem icone', () => {
