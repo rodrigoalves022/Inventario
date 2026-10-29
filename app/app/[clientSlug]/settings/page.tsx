@@ -5,7 +5,8 @@ import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissio
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { WebhookEndpointsPanel } from '@/components/webhook-endpoints-panel'
 import { TenantCompanyProfileForm } from '@/components/tenant-company-profile-form'
-import { getTenantCompanyProfile } from './actions'
+import { TenantSecurityPolicyForm } from '@/components/tenant-security-policy-form'
+import { getTenantCompanyProfile, getTenantSecurityPolicy } from './actions'
 import {
   decryptWebhookSecret,
   maskWebhookSecret,
@@ -18,7 +19,10 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
   const tenant = await requireTenantContext(clientSlug)
   const session = await auth()
   const canManage = canManageTenantAlerts(getSessionPermissionUser(session), tenant)
-  const companyProfile = await getTenantCompanyProfile(tenant.id, tenant.name)
+  const [companyProfile, securityPolicy] = await Promise.all([
+    getTenantCompanyProfile(tenant.id, tenant.name),
+    getTenantSecurityPolicy(tenant.id),
+  ])
 
   // secret nunca sai deste modulo em texto pleno: so o valor mascarado
   // (maskWebhookSecret) atravessa para o componente client.
@@ -70,6 +74,16 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
         />
         <PanelBody>
           <TenantCompanyProfileForm tenantSlug={tenant.slug} initialData={companyProfile} canManage={canManage} />
+        </PanelBody>
+      </Panel>
+
+      <Panel>
+        <PanelHeader
+          title="Políticas de segurança"
+          description="Expiração de sessão, limite de tentativas de login, lista de IPs permitidos e retenção da trilha de auditoria deste cliente."
+        />
+        <PanelBody>
+          <TenantSecurityPolicyForm tenantSlug={tenant.slug} initialData={securityPolicy} canManage={canManage} />
         </PanelBody>
       </Panel>
 

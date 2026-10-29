@@ -382,3 +382,106 @@ export async function getTenantCompanyProfile(clientId: string, defaultName: str
     updatedAt: row ? new Date(row.createdAt).toISOString() : null,
   }
 }
+
+export type TenantSecurityPolicyData = {
+  sessionTimeoutMinutes: 15 | 30 | 60 | 240
+  maxLoginAttempts: 3 | 5 | 10
+  ipAllowlistCidr: string
+  auditRetentionDays: 30 | 90 | 180 | 365
+  updatedAt: string | null
+}
+
+const SECURITY_POLICY_ACTION = 'tenant.security_policy_update'
+const CIDR_PATTERN = /^(\d{1,3}\.){3}\d{1,3}(\/(\d|[12]\d|3[0-2]))?$/
+
+const securityPolicySchema = z.object({
+  tenantSlug: z.string().trim().min(1),
+  sessionTimeoutMinutes: z.coerce
+    .number()
+    .refine((v) => [15, 30, 60, 240].includes(v), 'Tempo de sessão inválido.'),
+  maxLoginAttempts: z.coerce.number().refine((v) => [3, 5, 10].includes(v), 'Limite de tentativas inválido.'),
+  ipAllowlistCidr: z
+    .string()
+    .trim()
+    .max(500, 'A lista de IPs pode ter no máximo 500 caracteres.')
+    .refine(
+      (v) =>
+        v === '' ||
+        v.split(',').every((item) => {
+          const cidr = item.trim()
+          return CIDR_PATTERN.test(cidr) && cidr.split('/')[0].split('.').every((octet) => Number(octet) <= 255)
+        }),
+      'Informe IPs/CIDRs IPv4 válidos separados por vírgula (ex.: 203.0.113.0/24).'
+    ),
+  auditRetentionDays: z.coerce
+    .number()
+    .refine((v) => [30, 90, 180, 365].includes(v), 'Período de retenção inválido.'),
+})
+
+export async function updateTenantSecurityPolicyAction(
+  _previousState: CompanyProfileActionState,
+  formData: FormData
+): Promise<CompanyProfileActionState> {
+  const parsed = securityPolicySchema.safeParse({
+    tenantSlug: formText(formData, 'tenantSlug'),
+    sessionTimeoutMinutes: formText(formData, 'sessionTimeoutMinutes'),
+    maxLoginAttempts: formText(formData, 'maxLoginAttempts'),
+    ipAllowlistCidr: formText(formData, 'ipAllowlistCidr'),
+    auditRetentionDays: formText(formData, 'auditRetentionDays'),
+  })
+
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+  }
+
+  const tenant = await authorize(parsed.data.tenantSlug)
+  if (!tenant) {
+    return { status: 'error', message: 'Você não tem permissão para alterar as políticas de segurança.' }
+  }
+
+  const session = await auth()
+  const { tenantSlug, ...metadata } = parsed.data
+
+  await recordAuditLog({
+    action: SECURITY_POLICY_ACTION,
+    targetType: 'client',
+    targetId: tenant.id,
+    clientId: tenant.id,
+    actor: getSessionAuditActor(getSessionPermissionUser(session)),
+    metadata,
+  })
+
+  revalidatePath(getTenantPath(tenantSlug, 'settings'))
+  return { status: 'success', message: 'Políticas de segurança atualizadas.' }
+}
+
+export async function getTenantSecurityPolicy(clientId: string): Promise<TenantSecurityPolicyData> {
+  const row = await prisma.auditLog.findFirst({
+    where: { clientId, action: SECURITY_POLICY_ACTION },
+    orderBy: { createdAt: 'desc' },
+    select: { metadataJson: true, createdAt: true },
+  })
+
+  let metadata: Record<string, unknown> = {}
+  if (row?.metadataJson) {
+    try {
+      const value: unknown = JSON.parse(row.metadataJson)
+      if (value && typeof value === 'object' && !Array.isArray(value)) metadata = value as Record<string, unknown>
+    } catch (error) {
+      console.error(`[settings] metadataJson invalido em ${SECURITY_POLICY_ACTION} (${clientId}):`, error)
+    }
+  }
+
+  const pick = <T extends number>(key: string, allowed: readonly T[], fallback: T): T => {
+    const value = Number(metadata[key])
+    return allowed.find((item) => item === value) ?? fallback
+  }
+
+  return {
+    sessionTimeoutMinutes: pick('sessionTimeoutMinutes', [15, 30, 60, 240] as const, 60),
+    maxLoginAttempts: pick('maxLoginAttempts', [3, 5, 10] as const, 5),
+    ipAllowlistCidr: typeof metadata.ipAllowlistCidr === 'string' ? metadata.ipAllowlistCidr : '',
+    auditRetentionDays: pick('auditRetentionDays', [30, 90, 180, 365] as const, 90),
+    updatedAt: row ? new Date(row.createdAt).toISOString() : null,
+  }
+}

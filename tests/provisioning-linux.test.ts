@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
+  ProvisioningInputError,
   buildBootstrapScript,
   buildLinuxBootstrapScript,
   buildProvisioningArtifacts,
@@ -124,6 +125,7 @@ describe('buildLinuxBootstrapScript / buildProvisioningArtifacts — recusam ent
   it('$ e backtick no serverUrl sao recusados (o linuxInstallCommand usa aspas duplas)', () => {
     expect(() => buildProvisioningArtifacts('https://inv.example.com/$(id)', REAL_SLUG, REAL_KEY)).toThrow()
     expect(() => buildProvisioningArtifacts('https://inv.example.com/`id`', REAL_SLUG, REAL_KEY)).toThrow()
+    expect(() => buildProvisioningArtifacts('https://example.com/%TEMP%', 'acme', 'key-12345678')).toThrow(ProvisioningInputError)
     expect(() => buildLinuxBootstrapScript('https://inv.example.com/$HOME', REAL_SLUG, REAL_KEY, VALID_SHA256)).toThrow()
   })
 })

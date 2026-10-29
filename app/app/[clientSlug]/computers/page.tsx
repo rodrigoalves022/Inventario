@@ -37,6 +37,11 @@ export default async function TenantComputersPage({ params, searchParams }: Page
   const initialStatusFilter: 'all' | 'online' | 'warning' | 'offline' =
     rawStatus === 'online' || rawStatus === 'warning' || rawStatus === 'offline' ? rawStatus : 'all'
 
+  const criticalParam = resolvedSearchParams.critical ?? resolvedSearchParams.critico
+  const rawCritical = typeof criticalParam === 'string' ? criticalParam : criticalParam?.[0]
+  const initialCriticalFilter: 'all' | 'low_disk' | 'low_ram' | 'stale_collection' =
+    rawCritical === 'low_disk' || rawCritical === 'low_ram' || rawCritical === 'stale_collection' ? rawCritical : 'all'
+
   const [allDevices, tenantAlertSettings] = await Promise.all([
     prisma.device.findMany({
       where: getTenantDeviceWhere(tenantSlug),
@@ -93,6 +98,7 @@ export default async function TenantComputersPage({ params, searchParams }: Page
         devices={devices}
         initialSearch={initialSearch}
         initialStatusFilter={initialStatusFilter}
+        initialCriticalFilter={initialCriticalFilter}
         initialPage={initialPage}
         initialPageSize={initialPageSize}
         tenantSlug={tenantSlug}

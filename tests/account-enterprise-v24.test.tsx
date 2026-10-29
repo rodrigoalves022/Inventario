@@ -8,11 +8,14 @@ import {
 } from '@/app/account/actions'
 import {
   getTenantCompanyProfile,
+  getTenantSecurityPolicy,
+  updateTenantSecurityPolicyAction,
   updateTenantCompanyProfileAction,
   type CompanyProfileData,
 } from '@/app/app/[clientSlug]/settings/actions'
 import { AccountDialog, type AccountDialogTab } from '@/components/account-dialog'
 import { TenantCompanyProfileForm } from '@/components/tenant-company-profile-form'
+import { TenantSecurityPolicyForm } from '@/components/tenant-security-policy-form'
 
 // Sprint V24 — cargo/contato, preferencias e atividade da conta, e dados da
 // empresa/NOC do tenant. Tudo persistido em AuditLog (sem coluna nova no
@@ -369,5 +372,76 @@ describe('TenantCompanyProfileForm', () => {
     expect(screen.getByText('noc@cliente-a.com')).toBeTruthy()
     expect(container.querySelector('input')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Salvar dados da empresa' })).toBeNull()
+  })
+})
+
+describe('politicas de seguranca do tenant (Sprint V25)', () => {
+  const valid = {
+    tenantSlug: 'cliente-a',
+    sessionTimeoutMinutes: '30',
+    maxLoginAttempts: '3',
+    ipAllowlistCidr: '203.0.113.0/24, 198.51.100.7',
+    auditRetentionDays: '180',
+  }
+
+  it('grava no AuditLog e le de volta; sem registro devolve defaults', async () => {
+    expect(await getTenantSecurityPolicy('client-a')).toEqual({
+      sessionTimeoutMinutes: 60,
+      maxLoginAttempts: 5,
+      ipAllowlistCidr: '',
+      auditRetentionDays: 90,
+      updatedAt: null,
+    })
+    const result = await updateTenantSecurityPolicyAction(IDLE, form(valid))
+    expect(result.status).toBe('success')
+    expect(auditLogs[0]).toMatchObject({
+      action: 'tenant.security_policy_update',
+      targetType: 'client',
+      targetId: 'client-a',
+      clientId: 'client-a',
+    })
+    expect(await getTenantSecurityPolicy('client-a')).toMatchObject({
+      sessionTimeoutMinutes: 30,
+      maxLoginAttempts: 3,
+      ipAllowlistCidr: '203.0.113.0/24, 198.51.100.7',
+      auditRetentionDays: 180,
+    })
+  })
+
+  it('rejeita valores fora da lista e CIDR invalido', async () => {
+    for (const bad of [
+      { sessionTimeoutMinutes: '7' },
+      { maxLoginAttempts: '99' },
+      { auditRetentionDays: '1' },
+      { ipAllowlistCidr: '999.1.1.1' },
+      { ipAllowlistCidr: '10.0.0.0/33' },
+    ]) {
+      expect((await updateTenantSecurityPolicyAction(IDLE, form({ ...valid, ...bad }))).status).toBe('error')
+    }
+    expect(auditLogs).toHaveLength(0)
+  })
+
+  it('bloqueia quem nao pode gerenciar o tenant', async () => {
+    sessionRef.user = { id: 'u1', role: 'ORG_OPERATOR', organizationId: 'org-a' }
+    expect((await updateTenantSecurityPolicyAction(IDLE, form(valid))).status).toBe('error')
+    expect(auditLogs).toHaveLength(0)
+  })
+
+  const data = {
+    sessionTimeoutMinutes: 30 as const,
+    maxLoginAttempts: 3 as const,
+    ipAllowlistCidr: '203.0.113.0/24',
+    auditRetentionDays: 180 as const,
+    updatedAt: null,
+  }
+
+  it('formulario: edicao e somente leitura', () => {
+    const { unmount } = render(<TenantSecurityPolicyForm tenantSlug="cliente-a" initialData={data} canManage />)
+    expect(screen.getByRole('button', { name: 'Salvar políticas' })).toBeTruthy()
+    unmount()
+    const { container } = render(<TenantSecurityPolicyForm tenantSlug="cliente-a" initialData={data} canManage={false} />)
+    expect(screen.getByText('Somente leitura')).toBeTruthy()
+    expect(screen.getByText('203.0.113.0/24')).toBeTruthy()
+    expect(container.querySelector('input, select')).toBeNull()
   })
 })

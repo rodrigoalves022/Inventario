@@ -65,7 +65,7 @@ export async function requirePortalContext(): Promise<PortalContext> {
 /** Garante que o dispositivo pertence ao cliente do portal. */
 export async function requirePortalDevice(deviceId: string, clientId: string) {
   const device = await prisma.device.findFirst({
-    where: { id: deviceId, clientId },
+    where: { id: deviceId, clientId, agentAuth: { is: { isActive: true } } },
     include: {
       hardware: true,
       disks: { orderBy: { unidade: 'asc' } },

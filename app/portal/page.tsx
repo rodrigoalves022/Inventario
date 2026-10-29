@@ -33,7 +33,7 @@ export default async function PortalHomePage() {
   const context = await requirePortalContext()
 
   const devices = await prisma.device.findMany({
-    where: { clientId: context.clientId },
+    where: { clientId: context.clientId, agentAuth: { is: { isActive: true } } },
     orderBy: { hostname: 'asc' },
     select: {
       id: true,

@@ -3731,8 +3731,7 @@ Tabela `webhook_endpoints` conferida vazia no banco de dev nesta sessão — sem
 migrar. Prova: `tests/webhook-endpoints.test.ts` (secret persistido cifrado, decifra corretamente,
 paridade de HMAC contra o secret original).
 
-### 8. `proxy.ts#publicRoutes` não tem cobertura de teste — MÉDIO (achado da Sprint 14)
-
+### 8. `proxy.ts#publicRoutes` não tem cobertura de teste — MÉDIO (achado da Sprint 14) — ✅ RESOLVIDO (Sprint V25, 2026-10-29)
 **Origem**: `implementation-agent`, durante a verificação com servidor real da Sprint 14.
 
 **Achado**: `/api/agent/discovery` foi implementada, typechecada, lintada, buildada e coberta por 16
@@ -3749,8 +3748,7 @@ está na lista (barato, pega exatamente esta classe de erro); (b) teste de integ
 servidor real, que é decisão de infraestrutura de teste bem maior. A opção (a) parece a proporcional,
 mas é escopo novo — fora do que foi aprovado para a Sprint 14.
 
-### 9. `components/ui/table.tsx` é código morto — BAIXO (achado do ajuste pós-Sprint 15)
-
+### 9. `components/ui/table.tsx` é código morto — BAIXO (achado do ajuste pós-Sprint 15) — ✅ RESOLVIDO (Sprint V25, 2026-10-29)
 **Origem**: `implementation-agent`, durante a padronização visual das 10 tabelas (ajuste pós-Sprint
 15). Levantado pelo orquestrador na auditoria prévia e reconfirmado contra o código atual:
 `grep -rn "ui/table" app components lib tests` **não retorna nenhuma linha**.
@@ -3788,8 +3786,7 @@ antes. O trabalho é próprio, com teste próprio, e precisa preservar as invari
 
 ---
 
-### 11. `criticalFilter` de `/computers` não sobrevive a recarregar — BAIXO (achado do Overhaul visual, Fase 3)
-
+### 11. `criticalFilter` de `/computers` não sobrevive a recarregar — BAIXO (achado do Overhaul visual, Fase 3) — ✅ RESOLVIDO (Sprint V25, 2026-10-29)
 **Achado**: os cards "Pouco Disco" / "Pouca RAM" / "Coleta Atrasada" de `/computers` resetam a
 página corretamente ao filtrar, mas **não têm parâmetro de URL**. Recarregar perde o filtro, enquanto
 `?search=`, `?status=`, `?tipo=`, `?faixa=` e `?fabricante=` sobrevivem.
@@ -3801,8 +3798,7 @@ leitura em `computers/page.tsx`.
 
 ---
 
-### 12. `/audit` não sinaliza o teto de 200 registros — BAIXO (achado do Overhaul visual, Fase 3)
-
+### 12. `/audit` não sinaliza o teto de 200 registros — BAIXO (achado do Overhaul visual, Fase 3) — ✅ RESOLVIDO (Sprint V25, 2026-10-29)
 **Achado**: `app/app/[clientSlug]/audit/page.tsx` busca `listAuditLogs({ limit: 200 })`. O rodapé de
 paginação agora recorta esses até-200, mas nada diz ao usuário quando o teto foi atingido — quem vê
 "Exibindo 176–200 de 200 registros" não sabe se são todos ou se há mais atrás.
@@ -3837,8 +3833,7 @@ e corte no slug derivado, com teste.
 
 ---
 
-### 15. `installCommand` ainda expande `%VAR%` do cmd.exe no `serverUrl` — BAIXO (achado da Sprint A1a)
-
+### 15. `installCommand` ainda expande `%VAR%` do cmd.exe no `serverUrl` — BAIXO (achado da Sprint A1a) — ✅ RESOLVIDO (Sprint V25, 2026-10-29)
 **Achado**: `lib/provisioning.ts:128` monta o comando cmd.exe com `-server "${normalizedServerUrl}"`.
 A validação da A1a bloqueia aspas, backtick, `$` e caracteres de controle, mas não `%`; um
 `serverUrl` com `%NOME%` seria expandido pelo cmd.exe.
@@ -3877,8 +3872,7 @@ a linha 415 já faz com `title={tenant.name}`.
 
 ---
 
-### 18. Portal exibe dispositivos de `AgentAuth` revogado — BAIXO (achado do planejamento da Sprint A3)
-
+### 18. Portal exibe dispositivos de `AgentAuth` revogado — BAIXO (achado do planejamento da Sprint A3) — ✅ RESOLVIDO (Sprint V25, 2026-10-29)
 **Achado**: `app/portal/page.tsx:36` (`where: { clientId: context.clientId }`) e
 `lib/portal-context.ts:68` (`where: { id: deviceId, clientId }`) filtram só por `clientId`. As telas
 do tenant usam `getTenantDeviceWhere` (`lib/tenant-scope.ts:3-13`), que exige

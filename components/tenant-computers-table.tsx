@@ -116,10 +116,13 @@ function IssueBadges({ deviceId, issues }: { deviceId: string; issues: TenantCom
   )
 }
 
+type CriticalFilter = 'all' | 'low_disk' | 'low_ram' | 'stale_collection'
+
 export function TenantComputersTable({
   devices,
   initialSearch = '',
   initialStatusFilter = 'all',
+  initialCriticalFilter = 'all',
   showTypeColumn = false,
   tenantSlug,
   canOperate = false,
@@ -129,6 +132,7 @@ export function TenantComputersTable({
   devices: TenantComputerRow[]
   initialSearch?: string
   initialStatusFilter?: 'all' | TenantComputerRow['effectiveStatus']
+  initialCriticalFilter?: CriticalFilter
   /** `?page=`/`?limit=` (Overhaul visual — Fase 3), revalidados aqui tambem:
    * entrada de URL nao e' confiavel nem quando so mexe em UI. */
   initialPage?: number
@@ -146,7 +150,7 @@ export function TenantComputersTable({
   const router = useRouter()
   const [search, setSearch] = useState(initialSearch)
   const [statusFilter, setStatusFilter] = useState<'all' | TenantComputerRow['effectiveStatus']>(initialStatusFilter)
-  const [criticalFilter, setCriticalFilter] = useState<'all' | 'low_disk' | 'low_ram' | 'stale_collection'>('all')
+  const [criticalFilter, setCriticalFilter] = useState<CriticalFilter>(initialCriticalFilter)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(() => parsePageNumber(initialPage))
   const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
@@ -215,12 +219,14 @@ export function TenantComputersTable({
     nextSearch: string,
     nextStatus: 'all' | TenantComputerRow['effectiveStatus'],
     nextPage: number,
-    nextPageSize: PageSize
+    nextPageSize: PageSize,
+    nextCritical: CriticalFilter
   ) {
     replaceListQueryParams({
       search: nextSearch.trim() ? nextSearch : null,
       os: null,
       status: nextStatus !== 'all' ? nextStatus : null,
+      critical: nextCritical !== 'all' ? nextCritical : null,
       ...paginationQueryUpdates(nextPage, nextPageSize),
     })
   }
@@ -230,30 +236,31 @@ export function TenantComputersTable({
   function changeSearch(nextSearch: string) {
     setSearch(nextSearch)
     setPage(1)
-    syncUrl(nextSearch, statusFilter, 1, pageSize)
+    syncUrl(nextSearch, statusFilter, 1, pageSize, criticalFilter)
   }
 
   function changeStatusFilter(nextStatus: 'all' | TenantComputerRow['effectiveStatus']) {
     setStatusFilter(nextStatus)
     setPage(1)
-    syncUrl(search, nextStatus, 1, pageSize)
+    syncUrl(search, nextStatus, 1, pageSize, criticalFilter)
   }
 
   function toggleCriticalFilter(value: 'low_disk' | 'low_ram' | 'stale_collection') {
-    setCriticalFilter((current) => (current === value ? 'all' : value))
+    const next = criticalFilter === value ? 'all' : value
+    setCriticalFilter(next)
     setPage(1)
-    syncUrl(search, statusFilter, 1, pageSize)
+    syncUrl(search, statusFilter, 1, pageSize, next)
   }
 
   function clearCriticalFilter() {
     setCriticalFilter('all')
     setPage(1)
-    syncUrl(search, statusFilter, 1, pageSize)
+    syncUrl(search, statusFilter, 1, pageSize, 'all')
   }
 
   function changePage(nextPage: number) {
     setPage(nextPage)
-    syncUrl(search, statusFilter, nextPage, pageSize)
+    syncUrl(search, statusFilter, nextPage, pageSize, criticalFilter)
   }
 
   /** Trocar itens por pagina volta para a pagina 1: a pagina 4 de 25-em-25 nao
@@ -261,7 +268,7 @@ export function TenantComputersTable({
   function changePageSize(nextPageSize: PageSize) {
     setPageSize(nextPageSize)
     setPage(1)
-    syncUrl(search, statusFilter, 1, nextPageSize)
+    syncUrl(search, statusFilter, 1, nextPageSize, criticalFilter)
   }
 
   return (

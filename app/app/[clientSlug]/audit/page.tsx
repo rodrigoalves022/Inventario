@@ -44,6 +44,8 @@ function parseDate(value: string | undefined, endOfDay = false) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+const AUDIT_LOG_LIMIT = 200
+
 export default async function TenantAuditPage({
   params,
   searchParams,
@@ -67,7 +69,7 @@ export default async function TenantAuditPage({
     actorEmail: filters.actorEmail || null,
     from: parseDate(filters.from),
     to: parseDate(filters.to, true),
-    limit: 200,
+    limit: AUDIT_LOG_LIMIT,
   })
 
   const credentialViews = logs.filter((log) => log.action === 'credentials.view').length
@@ -176,6 +178,12 @@ export default async function TenantAuditPage({
           </div>
         </form>
       </div>
+
+      {logs.length >= AUDIT_LOG_LIMIT ? (
+        <p role="note" className="text-xs text-muted-foreground">
+          Exibindo os 200 eventos mais recentes (limite da consulta). Use os filtros de período, ação ou e-mail acima para refinar a busca em históricos mais antigos.
+        </p>
+      ) : null}
 
       <AuditLogTable
         logs={logs}

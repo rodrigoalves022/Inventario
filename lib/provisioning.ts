@@ -52,7 +52,7 @@ export class ProvisioningInputError extends Error {
 const POWERSHELL_SINGLE_QUOTES = /['‘’‚‛]/g
 // Caracteres proibidos no serverUrl: qualquer aspa (ASCII e tipograficas
 // simples), backtick (escape do PowerShell) e $ (expansao/subexpressao).
-const SERVER_URL_FORBIDDEN = /['"`$‘’‚‛]/
+const SERVER_URL_FORBIDDEN = /['"`$%‘’‚‛]/
 
 function hasControlCharacter(value: string) {
   for (let index = 0; index < value.length; index++) {
