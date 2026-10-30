@@ -228,7 +228,8 @@ export function DocsHub() {
                 <div>
                   <dt className="font-medium text-foreground">Linux Dados/Unit</dt>
                   <dd className="data-mono mt-1 break-all text-muted-foreground">
-                    /opt/inventario-agent/ e /etc/systemd/system/inventario-agent.service
+                    /opt/inventario-agent/, /var/lib/inventario-agent/updates e
+                    /etc/systemd/system/inventario-agent.service
                   </dd>
                 </div>
               </dl>
@@ -389,14 +390,40 @@ export function DocsHub() {
                 <dl className="divide-y divide-surface-line">
                   <Row term="1. Automático no Check-in">
                     O servidor compara o <Code>agentVersion</Code> reportado com <Code>LATEST_AGENT_VERSION</Code>. Se estiver
-                    defasado, o agente baixa o binário em <Code>C:\ProgramData\InventarioAgent\updates</Code>, valida
-                    estritamente o hash SHA-256, guarda um backup <Code>.bak</Code> e faz rollback automático se o novo
-                    serviço falhar ao iniciar.
+                    defasado, o agente baixa o binário, valida estritamente o hash SHA-256, guarda um backup{' '}
+                    <Code>.bak</Code> e faz rollback automático se o novo serviço falhar ao iniciar.
+                  </Row>
+                  <Row term="Windows">
+                    Atualizador via PowerShell em <Code>C:\ProgramData\InventarioAgent\updates</Code>.
+                  </Row>
+                  <Row term="Linux">
+                    Atualizador via <Code>/bin/sh</Code> + <Code>systemctl</Code> em{' '}
+                    <Code>/var/lib/inventario-agent/updates</Code>: para a unidade, troca o binário e, se o start falhar,
+                    restaura o <Code>.bak</Code>.
                   </Row>
                   <Row term="2. Sob Demanda pelo Painel">
-                    O botão <strong className="text-foreground">Atualizar agente agora</strong> (<Code>update_agent</Code>)
-                    pode ser disparado na aba Comandos de uma máquina ou em lote, nas máquinas selecionadas das tabelas de
-                    Máquinas e Servidores. A execução ocorre em até 90 segundos.
+                    O comando <Code>update_agent</Code> pode ser disparado em 4 lugares; a execução ocorre em até 90
+                    segundos.
+                    <ol className="mt-2 list-decimal space-y-1 pl-5">
+                      <li>
+                        No cabeçalho da máquina (<Code>/app/[clientSlug]/assets/[id]</Code>) pelo botão{' '}
+                        <strong className="text-foreground">Atualizar agente</strong>, exibido automaticamente quando a
+                        versão diverge de <Code>LATEST_AGENT_VERSION</Code>.
+                      </li>
+                      <li>
+                        Na tela administrativa de agentes do cliente (<Code>/admin/clients/[id]/agents</Code>),
+                        individualmente por linha ou em massa pelo botão{' '}
+                        <strong className="text-foreground">Atualizar todos os agentes</strong>.
+                      </li>
+                      <li>
+                        Na aba <strong className="text-foreground">Comandos</strong> da máquina (
+                        <strong className="text-foreground">Atualizar agente agora</strong>).
+                      </li>
+                      <li>
+                        Na barra de ações em lote (<Code>BulkCommandBar</Code>), selecionando múltiplas máquinas em
+                        Computadores, Servidores ou Todos os dispositivos.
+                      </li>
+                    </ol>
                   </Row>
                 </dl>
               </PanelBody>
@@ -441,7 +468,10 @@ export function DocsHub() {
                   <Row term="Validação">
                     O valor só é aceito se casar com <Code>{'/^\\d{9,10}$/'}</Code>; o ID é preservado entre check-ins.
                   </Row>
-                  <Row term="Busca">A tabela de computadores aceita o AnyDesk ID diretamente no campo de busca.</Row>
+                  <Row term="Busca">
+                    Busca global na paleta de comandos <Code>Ctrl+K</Code>, busca nas tabelas de Computadores, Servidores e
+                    Ativos, e coluna <Code>AnyDesk ID</Code> nas exportações CSV de relatórios.
+                  </Row>
                   <Row term="Conexão">
                     O badge abre o protocolo <Code>anydesk:&lt;id&gt;</Code> com um clique e permite copiar o ID.
                   </Row>

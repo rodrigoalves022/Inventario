@@ -4144,7 +4144,7 @@ Todas as páginas passaram a usar os mesmos blocos de composição (`KpiCard`, `
 
 ---
 
-## Sprint V30 — Bento Grid nas abas de detalhe da máquina
+## Sprint V30 — Bento Grid nas abas de detalhe da máquina (`a701d77`)
 
 `components/device-detail-tabs.tsx` passa a usar `Panel`/`PanelHeader`/`PanelBody`, `KpiCard` e `StatusPill`.
 
@@ -4155,7 +4155,7 @@ Todas as páginas passaram a usar os mesmos blocos de composição (`KpiCard`, `
 
 ---
 
-## Sprint V31 — Bento Grid e busca em servidores, comandos e alertas
+## Sprint V31 — Bento Grid e busca em servidores, comandos e alertas (`5b62075`)
 
 - `TenantServersTable`: `Panel`/`PanelHeader` "Servidores monitorados" com busca (hostname, IP, sistema, processador, AnyDesk ID por dígitos e versão do agente); página volta a 1 ao buscar.
 - `DeviceCommandPanel`: grade de comandos dentro de `Panel` "Comandos remotos".
@@ -4175,5 +4175,16 @@ Todas as páginas passaram a usar os mesmos blocos de composição (`KpiCard`, `
 | **A9 & A10** | `0d4e288` | Central de Documentação in-app (`/docs`, Master-Detail Bento Grid com blocos copiáveis), `docs/AGENT.md` e atualização do serviço local `InventarioAgent` para `v1.1.0`. |
 | **A11** | `df24887` | Ações diretas de atualização individual e em massa em `/admin/clients/[id]/agents`, badges de versão (`Atualizado` / `v1.1.0 disponível`) e cobertura completa de `AUDIT_ACTION_LABEL`. |
 | **A12** | `d214304` | Busca global por AnyDesk ID na paleta `Ctrl+K` (`GET /api/tenant/[clientSlug]/devices/search`) e coluna `AnyDesk ID` na exportação CSV. |
-| **A13** | — | `EnqueueUpdateAgentButton` (comando `update_agent` em 1 clique) e badge de versão no cabeçalho de `/app/[clientSlug]/assets/[id]` (`info` se atual, `warning` com "vX disponível" se desatualizado; botão só aparece para quem opera e com agente desatualizado). Versão do agente também em `/computers`, `/servers` (tabela e cartões) e `/portal/devices/[id]`; `/computers` passa a buscar por versão. |
-| **A14** | — | Auto-updater multiplataforma. Agente Go: no Linux, `RunAsync` baixa para `/var/lib/inventario-agent/updates` (fallback `os.TempDir()`), valida SHA-256 e executa `/bin/sh inventario-updater.sh`, que para a unidade `inventario-agent`, faz backup `.bak`, troca o binário (`chmod 0755`), reinicia e faz rollback se o start falhar; Windows inalterado (PowerShell). Check-in: `resolveAgentPlatform(sistema)` escolhe `/inventario-agent-linux` + SHA-256 do binário Linux, ou `/inventario-agent.exe` + SHA-256 do Windows. Resolve o Backlog Item 24. |
+| **A13** | `d39bc6a` | `EnqueueUpdateAgentButton` (comando `update_agent` em 1 clique) e badge de versão no cabeçalho de `/app/[clientSlug]/assets/[id]` (`info` se atual, `warning` com "vX disponível" se desatualizado; botão só aparece para quem opera e com agente desatualizado). Versão do agente também em `/computers`, `/servers` (tabela e cartões) e `/portal/devices/[id]`; `/computers` passa a buscar por versão. |
+| **A14** | `7b9eb19` | Auto-updater multiplataforma. Agente Go: no Linux, `RunAsync` baixa para `/var/lib/inventario-agent/updates` (fallback `os.TempDir()`), valida SHA-256 e executa `/bin/sh inventario-updater.sh`, que para a unidade `inventario-agent`, faz backup `.bak`, troca o binário (`chmod 0755`), reinicia e faz rollback se o start falhar; Windows inalterado (PowerShell). Check-in: `resolveAgentPlatform(sistema)` escolhe `/inventario-agent-linux` + SHA-256 do binário Linux, ou `/inventario-agent.exe` + SHA-256 do Windows. Resolve o Backlog Item 24. |
+
+---
+
+## Sprint A15 — Sincronização da Central de Documentação
+
+Sincroniza `/docs` (`components/docs-hub.tsx`), `docs/AGENT.md` e este arquivo com as Sprints A11–A14 e V30–V31.
+
+- Caminhos: `/var/lib/inventario-agent/updates` adicionado a "Linux Dados/Unit" e à tabela de caminhos canônicos.
+- Aba *Atualização Remota*: auto-updater multiplataforma (PowerShell no Windows; `/bin/sh` + `systemctl` no Linux; SHA-256, `.bak` e rollback) e os 4 pontos de disparo de `update_agent` (cabeçalho da máquina, `/admin/clients/[id]/agents`, aba Comandos, `BulkCommandBar`).
+- Aba *AnyDesk*: busca via `Ctrl+K`, tabelas de Computadores/Servidores/Ativos e coluna `AnyDesk ID` no CSV.
+- Commits: A13 `d39bc6a`, A14 `7b9eb19`, V30 `a701d77`, V31 `5b62075`.

@@ -28,6 +28,7 @@ Código-fonte em `agent-go/` (`cmd/inventario-agent`, `internal/{app,collectors,
 | Windows | Staging de update | `C:\ProgramData\InventarioAgent\updates` |
 | Linux | Binário | `/usr/local/bin/inventario-agent` |
 | Linux | Dados | `/opt/inventario-agent/` |
+| Linux | Staging de update | `/var/lib/inventario-agent/updates` |
 | Linux | Unit systemd | `/etc/systemd/system/inventario-agent.service` |
 
 ## 3. Métodos de instalação
@@ -72,13 +73,18 @@ Também existem `install`, `uninstall`, `run`, `debug`, `metrics`, `discovery` e
 ## 5. Auto-update e `update_agent`
 
 - **Automático no check-in:** o servidor compara o `agentVersion` reportado com `LATEST_AGENT_VERSION` (`lib/agent-binary.ts`). Se defasado, o agente baixa o binário para o diretório `updates`, valida estritamente o SHA-256, guarda um backup `.bak` e, se o novo serviço não iniciar, faz rollback automático.
-- **Sob demanda:** o comando remoto `update_agent` ("Atualizar agente agora") dispara o mesmo fluxo. Pode ser enfileirado na aba *Comandos* da máquina ou em lote pelas tabelas de Máquinas e Servidores; executa em até 90 s.
+- **Multiplataforma:** no Windows o atualizador roda via PowerShell em `C:\ProgramData\InventarioAgent\updates`; no Linux roda via `/bin/sh` + `systemctl` em `/var/lib/inventario-agent/updates` (para a unidade `inventario-agent`, troca o binário, reinicia e restaura o `.bak` se o start falhar). Ambos validam SHA-256.
+- **Sob demanda:** o comando remoto `update_agent` dispara o mesmo fluxo, em até 90 s, por 4 caminhos:
+  1. Cabeçalho da máquina (`/app/[clientSlug]/assets/[id]`): botão **Atualizar agente**, exibido quando a versão diverge de `LATEST_AGENT_VERSION`.
+  2. `/admin/clients/[id]/agents`: por linha ou em massa pelo botão **Atualizar todos os agentes**.
+  3. Aba *Comandos* da máquina: **Atualizar agente agora**.
+  4. `BulkCommandBar`: seleção múltipla em Computadores, Servidores ou Todos os dispositivos.
 
 Catálogo fechado de comandos remotos: `collect_now`, `collect_metrics_now`, `update_agent`, `restart_service` (`Spooler`, `wuauserv`, `BITS`, `Dnscache`), `run_script` (`flush_dns`, `clear_temp_files`, `restart_explorer`, `flush_print_spooler`) e `restart_computer`.
 
 ## 6. AnyDesk ID e usuário interativo
 
-- **AnyDesk:** leitura passiva de `ad.anynet.id` em `system.conf` e `service.conf` — Windows: `ProgramData\AnyDesk` e `Users\*\AppData\Roaming\AnyDesk`; Linux: `/etc/anydesk` e `/home/*/.anydesk`. O valor é aceito só se casar com `/^\d{9,10}$/` e é preservado entre check-ins. O painel permite buscar pelo ID e conectar via `anydesk:<id>`.
+- **AnyDesk:** leitura passiva de `ad.anynet.id` em `system.conf` e `service.conf` — Windows: `ProgramData\AnyDesk` e `Users\*\AppData\Roaming\AnyDesk`; Linux: `/etc/anydesk` e `/home/*/.anydesk`. O valor é aceito só se casar com `/^\d{9,10}$/` e é preservado entre check-ins. O painel permite buscar pelo ID na paleta `Ctrl+K` (busca global), nas tabelas de Computadores, Servidores e Ativos, e conectar via `anydesk:<id>`. A coluna `AnyDesk ID` também é exportada nos relatórios CSV.
 - **Usuário interativo:** como o serviço roda como SYSTEM, o usuário logado é resolvido pela sessão ativa do console, não pelo dono do processo.
 
 ## 7. Compilar e publicar binários
