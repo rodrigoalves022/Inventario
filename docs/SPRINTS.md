@@ -4144,6 +4144,17 @@ Todas as páginas passaram a usar os mesmos blocos de composição (`KpiCard`, `
 
 ---
 
+## Sprint V30 — Bento Grid nas abas de detalhe da máquina
+
+`components/device-detail-tabs.tsx` passa a usar `Panel`/`PanelHeader`/`PanelBody`, `KpiCard` e `StatusPill`.
+
+- `Panel` local agora delega ao `Panel` compartilhado, com `PanelHeader` (título + ícone) quando há `title`.
+- Visão geral: faixa de 4 `KpiCard` (RAM, armazenamento total, programas instalados, acesso remoto/AnyDesk).
+- Métricas: os 4 retângulos (CPU, RAM, disco, uptime) viram `KpiCard`; `data-testid` e polling de 60s preservados.
+- Comandos: histórico em `Panel` "Histórico de comandos" com `StatusPill` por status.
+
+---
+
 ## Sprints A5–A13 — Arquitetura Enterprise do Agente Go (`v1.1.0`)
 
 | Sprint | Commit | Entrega |

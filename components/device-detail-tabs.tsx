@@ -1,10 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag, Wifi, WifiOff, AlertCircle, RefreshCw } from 'lucide-react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag, Wifi, WifiOff, AlertCircle, RefreshCw, HardDrive } from 'lucide-react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Panel as UiPanel, PanelHeader, PanelBody } from '@/components/ui/panel'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { AssetRecordForm, type AssetRecordValues } from '@/components/asset-record-form'
 import { DeviceCommandPanel } from '@/components/device-command-panel'
 import { COMMAND_TYPE_LABELS } from '@/lib/agent-commands'
@@ -230,12 +233,26 @@ function SecurityIndicator({
   )
 }
 
-function Panel({ title, children }: { title?: string; children: React.ReactNode }) {
+const COMMAND_STATUS_TONES: Record<string, StatusPillTone> = {
+  done: 'success',
+  failed: 'destructive',
+  pending: 'warning',
+  running: 'warning',
+  expired: 'neutral',
+}
+
+function Panel({ title, icon, children }: { title?: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border bg-card p-6 space-y-4">
-      {title && <h3 className="text-sm font-semibold text-foreground">{title}</h3>}
-      {children}
-    </div>
+    <UiPanel>
+      {title ? (
+        <>
+          <PanelHeader title={title} icon={icon} />
+          <PanelBody className="space-y-4">{children}</PanelBody>
+        </>
+      ) : (
+        <PanelBody className="space-y-4 pt-5">{children}</PanelBody>
+      )}
+    </UiPanel>
   )
 }
 
@@ -509,32 +526,30 @@ function DeviceMetricsSection({
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Panel>
-              <p className="text-xs text-muted-foreground">CPU agora</p>
-              <p className="text-2xl font-semibold text-foreground">
-                {latestMetric?.cpuPercent != null ? `${latestMetric.cpuPercent.toFixed(0)}%` : 'Não apurado'}
-              </p>
-            </Panel>
-            <Panel>
-              <p className="text-xs text-muted-foreground">RAM em uso</p>
-              <p className="text-2xl font-semibold text-foreground">
-                {latestMetric?.ramUsadaGb != null && latestMetric?.ramTotalGb != null
+            <KpiCard
+              icon={<Cpu />}
+              label="CPU agora"
+              value={latestMetric?.cpuPercent != null ? `${latestMetric.cpuPercent.toFixed(0)}%` : 'Não apurado'}
+            />
+            <KpiCard
+              icon={<Activity />}
+              label="RAM em uso"
+              value={
+                latestMetric?.ramUsadaGb != null && latestMetric?.ramTotalGb != null
                   ? `${latestMetric.ramUsadaGb.toFixed(1)} / ${latestMetric.ramTotalGb.toFixed(1)} GB`
-                  : 'Não apurado'}
-              </p>
-            </Panel>
-            <Panel>
-              <p className="text-xs text-muted-foreground">Disco (unidade do sistema)</p>
-              <p className="text-2xl font-semibold text-foreground">
-                {diskUsagePercent != null ? `${diskUsagePercent}% usado` : 'Não apurado'}
-              </p>
-            </Panel>
-            <Panel>
-              <p className="text-xs text-muted-foreground">Uptime</p>
-              <p className="text-2xl font-semibold text-foreground">
-                {formatUptime(latestMetric?.uptimeSegundos ?? null)}
-              </p>
-            </Panel>
+                  : 'Não apurado'
+              }
+            />
+            <KpiCard
+              icon={<HardDrive />}
+              label="Disco (unidade do sistema)"
+              value={diskUsagePercent != null ? `${diskUsagePercent}% usado` : 'Não apurado'}
+            />
+            <KpiCard
+              icon={<RefreshCw />}
+              label="Uptime"
+              value={formatUptime(latestMetric?.uptimeSegundos ?? null)}
+            />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
@@ -630,8 +645,35 @@ export function DeviceDetailTabs({
 
       {/* ---------- Visão geral ---------- */}
       <TabsContent value="overview" className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            icon={<Cpu />}
+            label="Memória RAM"
+            value={hardware?.ramTotalGb != null ? `${hardware.ramTotalGb} GB` : '—'}
+            subtitle={hardware?.tipoArmazenamento ?? 'Capacidade instalada'}
+          />
+          <KpiCard
+            icon={<HardDrive />}
+            label="Armazenamento total"
+            value={disks.length > 0 ? `${disks.reduce((sum, d) => sum + (d.capacidadeGb ?? 0), 0)} GB` : '—'}
+            subtitle={
+              disks.length > 0
+                ? `${disks.reduce((sum, d) => sum + (d.espacoLivreGb ?? 0), 0)} GB livres (${disks.length} disco${disks.length !== 1 ? 's' : ''})`
+                : 'Sem discos'
+            }
+          />
+          <KpiCard icon={<Package />} label="Programas instalados" value={software.length} subtitle="Inventário de software" />
+          <KpiCard
+            icon={<Monitor />}
+            label="Acesso remoto"
+            value={device.anydeskId ? formatAnydeskId(device.anydeskId) : 'Sem AnyDesk'}
+            subtitle={device.usuario ? `Sessão: ${device.usuario}` : 'Usuário não detectado'}
+            tone={device.anydeskId ? 'success' : 'neutral'}
+          />
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2">
-          <Panel title="Identificação">
+          <Panel title="Identificação" icon={<Info className="h-4 w-4" />}>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Fabricante" value={device.fabricante} />
               <Field label="Modelo" value={device.modelo} />
@@ -643,7 +685,7 @@ export function DeviceDetailTabs({
             </div>
           </Panel>
 
-          <Panel title="Resumo">
+          <Panel title="Resumo" icon={<LayoutGrid className="h-4 w-4" />}>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Processador" value={hardware?.processador} />
               <Field label="Memória" value={hardware?.ramTotalGb ? `${hardware.ramTotalGb} GB` : null} />
@@ -653,7 +695,7 @@ export function DeviceDetailTabs({
           </Panel>
         </div>
 
-        <Panel title="Armazenamento">
+        <Panel title="Armazenamento" icon={<HardDrive className="h-4 w-4" />}>
           {disks.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum disco reportado.</p>
           ) : (
@@ -669,7 +711,7 @@ export function DeviceDetailTabs({
       {/* ---------- Hardware ---------- */}
       <TabsContent value="hardware" className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
-          <Panel title="Processamento e memória">
+          <Panel title="Processamento e memória" icon={<Cpu className="h-4 w-4" />}>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Processador" value={hardware?.processador} />
               <Field label="RAM total" value={hardware?.ramTotalGb ? `${hardware.ramTotalGb} GB` : null} />
@@ -678,7 +720,7 @@ export function DeviceDetailTabs({
             </div>
           </Panel>
 
-          <Panel title="Sistema operacional">
+          <Panel title="Sistema operacional" icon={<Monitor className="h-4 w-4" />}>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Sistema" value={hardware?.sistema} />
               <Field label="Versão" value={hardware?.versaoSO} />
@@ -686,7 +728,7 @@ export function DeviceDetailTabs({
           </Panel>
         </div>
 
-        <Panel title="Slots de memória">
+        <Panel title="Slots de memória" icon={<Cpu className="h-4 w-4" />}>
           <div className="grid gap-3 sm:grid-cols-4">
             {(hardware?.slots ?? []).map((slot) => {
               const occupied = Boolean(slot.value)
@@ -708,7 +750,7 @@ export function DeviceDetailTabs({
           </div>
         </Panel>
 
-        <Panel title="Discos">
+        <Panel title="Discos" icon={<HardDrive className="h-4 w-4" />}>
           {disks.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum disco reportado.</p>
           ) : (
@@ -815,7 +857,7 @@ export function DeviceDetailTabs({
               </div>
             )}
 
-            <Panel title="Criptografia de disco">
+            <Panel title="Criptografia de disco" icon={<ShieldCheck className="h-4 w-4" />}>
               {disks.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum disco reportado.</p>
               ) : (
@@ -845,7 +887,7 @@ export function DeviceDetailTabs({
               )}
             </Panel>
 
-            <Panel title={`Contas locais (${localAccounts.length})`}>
+            <Panel title={`Contas locais (${localAccounts.length})`} icon={<ShieldCheck className="h-4 w-4" />}>
               {localAccounts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Nenhuma conta local reportada. Em controladores de domínio isso é o esperado — todas
@@ -907,7 +949,7 @@ export function DeviceDetailTabs({
 
       {/* ---------- Periféricos ---------- */}
       <TabsContent value="peripherals" className="space-y-6">
-        <Panel title={`Monitores (${monitors.length})`}>
+        <Panel title={`Monitores (${monitors.length})`} icon={<Monitor className="h-4 w-4" />}>
           {monitors.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Nenhum monitor com EDID legível reportado. Comum em servidores sem monitor
@@ -937,7 +979,7 @@ export function DeviceDetailTabs({
           )}
         </Panel>
 
-        <Panel title={`Impressoras (${printers.length})`}>
+        <Panel title={`Impressoras (${printers.length})`} icon={<Printer className="h-4 w-4" />}>
           {printers.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma impressora instalada reportada.</p>
           ) : (
@@ -974,7 +1016,7 @@ export function DeviceDetailTabs({
           )}
         </Panel>
 
-        <Panel title={`Dispositivos USB (${usbDevices.length})`}>
+        <Panel title={`Dispositivos USB (${usbDevices.length})`} icon={<Usb className="h-4 w-4" />}>
           {usbDevices.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum dispositivo USB reportado.</p>
           ) : (
@@ -1004,7 +1046,7 @@ export function DeviceDetailTabs({
 
       {/* ---------- Patrimônio ---------- */}
       <TabsContent value="asset" className="space-y-6">
-        <Panel title="Patrimônio / financeiro">
+        <Panel title="Patrimônio / financeiro" icon={<Tag className="h-4 w-4" />}>
           {canManageAssetRecord && tenantSlug ? (
             <AssetRecordForm
               tenantSlug={tenantSlug}
@@ -1088,7 +1130,7 @@ export function DeviceDetailTabs({
             <DeviceCommandPanel tenantSlug={tenantSlug} deviceId={deviceId} hostname={device.hostname} />
           )}
 
-          <div className="rounded-xl border bg-card">
+          <Panel title="Histórico de comandos" icon={<Terminal className="h-4 w-4" />}>
             {commands.length === 0 ? (
               <p className="p-6 text-sm text-muted-foreground">
                 Nenhum comando enviado a esta máquina ainda. Use o painel acima ou “Forçar coleta” no
@@ -1120,25 +1162,16 @@ export function DeviceDetailTabs({
                           </p>
                         )}
                       </div>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full border px-3 py-1 text-xs font-medium',
-                          command.status === 'done' && 'border-success/30 bg-success/10 text-success',
-                          command.status === 'failed' &&
-                            'border-destructive/30 bg-destructive/10 text-destructive',
-                          (command.status === 'pending' || command.status === 'running') &&
-                            'border-warning/30 bg-warning/10 text-warning',
-                          command.status === 'expired' && 'bg-muted/40 text-muted-foreground'
-                        )}
-                      >
-                        {COMMAND_STATUS_LABELS[command.status] ?? command.status}
-                      </span>
+                      <StatusPill
+                        tone={COMMAND_STATUS_TONES[command.status] ?? 'neutral'}
+                        label={COMMAND_STATUS_LABELS[command.status] ?? command.status}
+                      />
                     </div>
                   )
                 })}
               </div>
             )}
-          </div>
+          </Panel>
         </TabsContent>
       )}
     </Tabs>
