@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowLeft, Monitor } from 'lucide-react'
+import { ArrowLeft, Download, Monitor } from 'lucide-react'
 import { AnydeskBadge } from '@/components/anydesk-badge'
 import { Button } from '@/components/ui/button'
 import { Panel, PanelBody } from '@/components/ui/panel'
@@ -123,6 +123,12 @@ export default async function PortalDeviceDetailPage({
                 <AnydeskBadge anydeskId={device.anydeskId} />
               </div>
             </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/api/tenant/${context.clientSlug}/devices/${device.id}/export`}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar ficha (CSV)
+              </a>
+            </Button>
           </PanelBody>
         </Panel>
       </div>

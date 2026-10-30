@@ -1,5 +1,5 @@
-import { Server, Wifi, TriangleAlert, WifiOff } from 'lucide-react'
-import { KpiCard } from '@/components/ui/kpi-card'
+import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -78,10 +78,6 @@ export default async function TenantServersPage({ params, searchParams }: PagePr
       }
     })
 
-  const onlineCount = servers.filter((server) => server.effectiveStatus === 'online').length
-  const warningCount = servers.filter((server) => server.effectiveStatus === 'warning').length
-  const offlineCount = servers.filter((server) => server.effectiveStatus === 'offline').length
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -91,13 +87,12 @@ export default async function TenantServersPage({ params, searchParams }: PagePr
             {servers.length} servidor{servers.length !== 1 ? 'es' : ''} identificado{servers.length !== 1 ? 's' : ''} na empresa selecionada.
           </p>
         </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Servidores" value={servers.length} subtitle="Total classificados como Server" icon={<Server className="h-4 w-4" />} tone="primary" />
-        <KpiCard label="Online" value={onlineCount} subtitle="Operando normalmente" icon={<Wifi className="h-4 w-4" />} tone={onlineCount > 0 ? 'success' : 'neutral'} />
-        <KpiCard label="Em Atenção" value={warningCount} subtitle="Com alerta de disco ou RAM" icon={<TriangleAlert className="h-4 w-4" />} tone={warningCount > 0 ? 'warning' : 'neutral'} />
-        <KpiCard label="Desconectados" value={offlineCount} subtitle="Sem check-in recente" icon={<WifiOff className="h-4 w-4" />} tone={offlineCount > 0 ? 'destructive' : 'neutral'} />
+        <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenantSlug}/servers/csv`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV
+            </a>
+          </Button>
       </div>
 
       <TenantServersTable

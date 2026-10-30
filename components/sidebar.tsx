@@ -441,7 +441,7 @@ export function Sidebar({
       >
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/25 bg-primary/15 text-primary">
               <Monitor className="h-5 w-5" />
             </div>
             {/* Marca, nao titulo de pagina: o h1 e de cada pagina (E3, Sprint A2). */}
@@ -510,31 +510,22 @@ export function Sidebar({
                 </p>
               </div>
             ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                      {user ? getInitials(user) : '??'}
-                    </div>
-                    <div className="min-w-0 flex-1 text-left">
-                      <p className="truncate text-sm font-medium text-sidebar-foreground" title={userLabel}>
-                        {userLabel}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {user?.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
-                      </p>
-                    </div>
-                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-56">
-                  <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
-                    {user?.email ?? 'Não identificado'}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <AccountMenuItems />
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="space-y-1.5 rounded-lg border border-surface-line bg-sidebar-accent/40 px-3 py-2.5">
+                <p className="section-label">Sessão</p>
+                <p className="truncate text-sm font-semibold text-sidebar-foreground" title={userLabel}>
+                  {userLabel}
+                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-xs text-muted-foreground">
+                    {user?.role ? ROLE_LABELS[user.role] : 'Sem permissões'}
+                  </p>
+                  {appVersion && (
+                    <span className="data-mono text-[11px] text-muted-foreground">
+                      v{appVersion}
+                    </span>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

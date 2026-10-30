@@ -83,6 +83,7 @@ export default async function SecurityPage() {
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <KpiCard
+                href="/security"
                 label="Máquinas em alerta"
                 value={devicesWarning}
                 icon={<AlertTriangle />}
@@ -91,6 +92,7 @@ export default async function SecurityPage() {
                 subtitle="disco ou memória abaixo do limiar"
               />
               <KpiCard
+                href="/security"
                 label={`Sem coleta há ${OFFLINE_THRESHOLD_DAYS}+ dias`}
                 value={devicesStale}
                 icon={<WifiOff />}
@@ -99,12 +101,14 @@ export default async function SecurityPage() {
                 subtitle="agente removido, bloqueado ou inativo"
               />
               <KpiCard
+                href="/security"
                 label="Credenciais de agente revogadas"
                 value={revokedAgents}
                 icon={<ShieldOff />}
                 subtitle="chaves bloqueadas para envio"
               />
               <KpiCard
+                href="/security"
                 label="Acessos a credenciais"
                 value={credentialViews}
                 icon={<KeyRound />}

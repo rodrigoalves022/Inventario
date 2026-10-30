@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Monitor } from 'lucide-react'
+import { ArrowLeft, Download, Monitor } from 'lucide-react'
 import { AnydeskBadge } from '@/components/anydesk-badge'
 import { auth } from '@/auth'
 import { DeleteAssetButton } from '@/components/delete-asset-button'
@@ -184,6 +184,12 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <a href={`/api/tenant/${tenantSlug}/devices/${asset.id}/export`}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar ficha (CSV)
+                </a>
+              </Button>
               {canRunCommands && asset.agentVersion !== LATEST_AGENT_VERSION && (
                 <EnqueueUpdateAgentButton assetId={asset.id} tenantSlug={tenantSlug} />
               )}

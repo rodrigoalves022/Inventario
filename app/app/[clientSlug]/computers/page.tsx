@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -81,9 +83,17 @@ export default async function TenantComputersPage({ params, searchParams }: Page
             {devices.length} computador{devices.length !== 1 ? 'es' : ''} classificado{devices.length !== 1 ? 's' : ''} no tenant atual.
           </p>
         </div>
-        <Link href={getTenantPath(tenantSlug, '')} className="text-sm text-primary hover:underline">
-          Voltar ao dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenantSlug}/computers/csv`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV
+            </a>
+          </Button>
+          <Link href={getTenantPath(tenantSlug, '')} className="text-sm text-primary hover:underline">
+            Voltar ao dashboard
+          </Link>
+        </div>
       </div>
 
       {canManageAlerts ? (

@@ -75,12 +75,14 @@ export default async function UsersPage() {
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
+                href="/users"
                 label="Total de Usuários"
                 value={users.length}
                 subtitle="contas no seu escopo"
                 icon={<Users />}
               />
               <KpiCard
+                href="/users"
                 label="Usuários Ativos"
                 value={users.filter((u) => u.isActive).length}
                 subtitle="com acesso liberado"
@@ -88,12 +90,14 @@ export default async function UsersPage() {
                 tone="success"
               />
               <KpiCard
+                href="/users"
                 label="Administradores"
                 value={users.filter((u) => u.role === 'PLATFORM_ADMIN' || u.role === 'ORG_ADMIN').length}
                 subtitle="plataforma e organizações"
                 icon={<Shield />}
               />
               <KpiCard
+                href="/users"
                 label="Operadores & Portal"
                 value={users.filter((u) => u.role === 'ORG_OPERATOR' || u.role === 'CLIENT_VIEWER').length}
                 subtitle="operação e leitura"
