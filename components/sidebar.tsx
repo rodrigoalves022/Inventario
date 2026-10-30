@@ -481,7 +481,6 @@ export function Sidebar({
           </nav>
 
           <div className="space-y-3 border-t border-sidebar-border p-3">
-            <AppearanceControls />
             {tenant ? (
               /*
                 Rodape do tenant: sessao ativa + estado do parque. O menu de
@@ -538,7 +537,7 @@ export function Sidebar({
                     {user?.email ?? 'Não identificado'}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <AccountMenuItems onOpenAccount={account.show} />
+                  <AccountMenuItems />
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -582,25 +581,32 @@ function useAccountDialog() {
 function AccountMenuItems({
   onOpenAccount,
   settingsHref,
+  tenantSlug,
 }: {
-  onOpenAccount: (tab: AccountDialogTab) => void
+  onOpenAccount?: (tab: AccountDialogTab) => void
   settingsHref?: string
+  tenantSlug?: string
 }) {
+  const router = useRouter()
+  const openAccount = (tab: AccountDialogTab) => {
+    onOpenAccount?.(tab)
+    router.push(`/account?tab=${tab}${tenantSlug ? `&client=${tenantSlug}` : ''}`)
+  }
   return (
     <>
-      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('profile')}>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => openAccount('profile')}>
         <UserRound className="mr-2 h-4 w-4" />
         Minha conta
       </DropdownMenuItem>
-      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('preferences')}>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => openAccount('preferences')}>
         <SlidersHorizontal className="mr-2 h-4 w-4" />
         Preferências da conta
       </DropdownMenuItem>
-      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('security')}>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => openAccount('security')}>
         <KeyRound className="mr-2 h-4 w-4" />
         Alterar senha
       </DropdownMenuItem>
-      <DropdownMenuItem className="cursor-pointer" onSelect={() => onOpenAccount('sessions')}>
+      <DropdownMenuItem className="cursor-pointer" onSelect={() => openAccount('sessions')}>
         <History className="mr-2 h-4 w-4" />
         Acessos e atividade
       </DropdownMenuItem>
@@ -727,7 +733,7 @@ function subscribeNoop() {
   return () => {}
 }
 
-function AppearanceControls() {
+export function AppearanceControls() {
   const accent = useSyncExternalStore(subscribeAccent, getAccentSnapshot, getAccentServerSnapshot)
   const { resolvedTheme, setTheme } = useTheme()
   // O tema resolvido so existe no client; ate montar, o botao fica neutro
@@ -802,7 +808,7 @@ function ProfileMenu({ user, tenant }: { user: SidebarUser; tenant?: TenantShell
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <AccountMenuItems
-            onOpenAccount={account.show}
+            tenantSlug={tenant?.slug}
             settingsHref={tenant ? getTenantPath(tenant.slug, 'settings') : undefined}
           />
         </DropdownMenuContent>

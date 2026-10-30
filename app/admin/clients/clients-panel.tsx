@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Bot, Eye, Loader2, X } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Bot, Building2, CheckCircle2, Eye, Loader2, Search, X } from 'lucide-react'
 import {
   initialProvisioningState,
   type ProvisioningActionState,
@@ -10,6 +10,8 @@ import {
   type ProvisioningPackage,
 } from './types'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { StatusPill } from '@/components/ui/status-pill'
 import {
@@ -30,7 +32,6 @@ import {
   TABLE_CELL_CLASS,
   TABLE_HEAD_CLASS,
   TABLE_HEAD_ROW_CLASS,
-  TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
 import { cn } from '@/lib/utils'
 
@@ -46,6 +47,14 @@ type ClientRow = {
    */
   activeAgentCount: number
 }
+
+type ClientFilter = 'all' | 'active' | 'with_agents' | 'without_agents'
+
+const FILTER_PILLS: Array<{ value: ClientFilter; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'with_agents', label: 'Com agentes' },
+  { value: 'without_agents', label: 'Sem agentes' },
+]
 
 type ClientsPanelProps = {
   clients: ClientRow[]
@@ -325,6 +334,22 @@ export function ClientsPanel({
     [clients]
   )
 
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<ClientFilter>('all')
+  const activeClients = clients.filter((c) => c.isActive).length
+  const totalAgents = clients.reduce((sum, c) => sum + c.activeAgentCount, 0)
+  const withoutAgents = clients.filter((c) => c.activeAgentCount === 0).length
+  const visibleClients = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return sortedClients.filter((c) => {
+      if (term && !c.name.toLowerCase().includes(term) && !c.slug.toLowerCase().includes(term)) return false
+      if (filter === 'active') return c.isActive
+      if (filter === 'with_agents') return c.activeAgentCount > 0
+      if (filter === 'without_agents') return c.activeAgentCount === 0
+      return true
+    })
+  }, [sortedClients, search, filter])
+
   async function handleViewCredentials(client: ClientRow) {
     const requestId = credentialsRequestId.current + 1
     credentialsRequestId.current = requestId
@@ -419,6 +444,37 @@ export function ClientsPanel({
         </div>
       )}
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon={<Building2 />}
+          label="Total de Clientes"
+          value={clients.length}
+          subtitle="empresas cadastradas"
+          active={filter === 'all'}
+          onClick={() => setFilter('all')}
+        />
+        <KpiCard
+          icon={<CheckCircle2 />}
+          label="Clientes Ativos"
+          value={activeClients}
+          subtitle="com operação liberada"
+          tone="success"
+          active={filter === 'active'}
+          onClick={() => setFilter('active')}
+        />
+        <KpiCard icon={<Bot />} label="Agentes Ativos" value={totalAgents} subtitle="conectados na base" />
+        <KpiCard
+          icon={<AlertCircle />}
+          label="Sem Agentes"
+          value={withoutAgents}
+          subtitle="aguardando instalação"
+          tone={withoutAgents > 0 ? 'warning' : 'neutral'}
+          emphasizeValue={withoutAgents > 0}
+          active={filter === 'without_agents'}
+          onClick={() => setFilter('without_agents')}
+        />
+      </div>
+
       {sortedClients.length === 0 ? (
         <Panel>
           <PanelBody className="space-y-2 pt-5">
@@ -433,21 +489,58 @@ export function ClientsPanel({
           </PanelBody>
         </Panel>
       ) : (
-        <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
+        <Panel>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-line px-5 py-3.5">
+            <div className="relative w-full sm:max-w-xs">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar cliente por nome ou slug..."
+                aria-label="Buscar cliente"
+                className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {FILTER_PILLS.map((pill) => (
+                <Button
+                  key={pill.value}
+                  type="button"
+                  size="sm"
+                  variant={filter === pill.value ? 'secondary' : 'ghost'}
+                  aria-pressed={filter === pill.value}
+                  onClick={() => setFilter(pill.value)}
+                >
+                  {pill.label}
+                </Button>
+              ))}
+              <span className="text-xs text-muted-foreground" aria-live="polite">
+                {visibleClients.length} de {sortedClients.length} visíveis
+              </span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className={TABLE_HEAD_ROW_CLASS}>
                 <th className={TABLE_HEAD_CLASS}>Cliente</th>
                 <th className={TABLE_HEAD_CLASS}>Agentes</th>
                 <th className={TABLE_HEAD_CLASS}>Status</th>
+                <th className={TABLE_HEAD_CLASS}>Identificador (Slug)</th>
                 <th className={TABLE_HEAD_CLASS}>Criado em</th>
-                <th className={TABLE_HEAD_CLASS}>Ações</th>
+                <th className={cn(TABLE_HEAD_CLASS, 'text-right')}>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {sortedClients.map((client) => (
+              {visibleClients.map((client) => (
                 <tr key={client.id} className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}>
-                  <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>{client.name}</td>
+                  <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>
+                    <Building2 aria-hidden className="mr-2 inline h-4 w-4 text-primary" />
+                    {client.name}
+                  </td>
                   <td className={TABLE_CELL_CLASS}>
                     {/* RN020: so AgentAuth ativos. Leva a lista de agentes do
                         cliente com affordance clara (badge com icone e hover). */}
@@ -468,6 +561,11 @@ export function ClientsPanel({
                       label={client.isActive ? 'Ativo' : 'Inativo'}
                     />
                   </td>
+                  <td className={TABLE_CELL_CLASS}>
+                    <span className="data-mono rounded border border-surface-line bg-secondary/40 px-2 py-0.5 text-xs text-muted-foreground">
+                      {client.slug}
+                    </span>
+                  </td>
                   <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
                     {new Intl.DateTimeFormat('pt-BR', {
                       dateStyle: 'short',
@@ -478,7 +576,7 @@ export function ClientsPanel({
                     {/* Hierarquia: "Abrir painel" e a acao principal da linha
                         (unica com preenchimento); consultar agentes, credenciais e
                         rotacionar a chave vem depois, com menos peso. */}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Button asChild size="sm" variant="secondary">
                         <Link href={getTenantBasePath(client.slug)}>
                           <ArrowUpRight className="h-4 w-4" />
@@ -515,7 +613,8 @@ export function ClientsPanel({
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </Panel>
       )}
     </div>
   )

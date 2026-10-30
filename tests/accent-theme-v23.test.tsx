@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Monitor } from 'lucide-react'
 import { ThemeProvider } from '@/components/theme-provider'
-import { ACCENT_OPTIONS, ACCENT_STORAGE_KEY, DEFAULT_ACCENT, Sidebar } from '@/components/sidebar'
+import { ACCENT_OPTIONS, ACCENT_STORAGE_KEY, AppearanceControls, DEFAULT_ACCENT, Sidebar } from '@/components/sidebar'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 
@@ -146,7 +146,7 @@ describe('Sprint V23 — seletor de cor no rodape da sidebar', () => {
   function mount() {
     return render(
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-        <Sidebar user={{ name: 'Ana', email: 'ana@x.local', role: 'ORG_ADMIN' }} />
+        <AppearanceControls />
       </ThemeProvider>
     )
   }
@@ -165,6 +165,15 @@ describe('Sprint V23 — seletor de cor no rodape da sidebar', () => {
     expect(orange.getAttribute('aria-checked')).toBe('true')
     expect(orange.className).toContain('ring-foreground')
     expect(orange.className).toContain('rounded-full')
+  })
+
+  it('a Sidebar nao renderiza mais swatches no rodape (migraram para o Perfil)', () => {
+    render(
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <Sidebar user={{ name: 'Ana', email: 'ana@x.local', role: 'ORG_ADMIN' }} />
+      </ThemeProvider>
+    )
+    expect(screen.queryAllByRole('radio')).toHaveLength(0)
   })
 
   it('clicar num swatch aplica data-accent e persiste em localStorage', () => {

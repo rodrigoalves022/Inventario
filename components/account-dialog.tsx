@@ -9,6 +9,7 @@ import type { AccountActionState, AccountOverview, AccountPreferences } from '@/
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AppearanceControls } from '@/components/sidebar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -244,18 +245,22 @@ function AccountForm({
   )
 }
 
-export function AccountDialog({
-  open,
-  onOpenChange,
-  tab,
-  onTabChange,
+export function AccountSettingsContent({
   user,
+  initialTab = 'profile',
+  initialOverview = null,
+  tab: controlledTab,
+  onTabChange,
+  loadOnMount = initialOverview === null,
+  wide = false,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  tab: AccountDialogTab
-  onTabChange: (tab: AccountDialogTab) => void
   user: { name?: string | null; email?: string | null; role?: AppRole | null }
+  initialTab?: AccountDialogTab
+  initialOverview?: AccountOverview | null
+  tab?: AccountDialogTab
+  onTabChange?: (tab: AccountDialogTab) => void
+  loadOnMount?: boolean
+  wide?: boolean
 }) {
   const router = useRouter()
   const updateProfileNameAction = getAction('updateProfileNameAction', unavailableAction)
@@ -267,9 +272,16 @@ export function AccountDialog({
   // Nome/e-mail vem do layout (Server Component) — refresh relê a sessao reemitida.
   const refresh = () => router.refresh()
 
+  const [localTab, setLocalTab] = useState<AccountDialogTab>(initialTab)
+  const tab = controlledTab ?? localTab
+  const setTab = (next: AccountDialogTab) => {
+    setLocalTab(next)
+    onTabChange?.(next)
+  }
+
   // Sprint V24: cargo/contato, preferencias e atividade vem do AuditLog.
   // `null` (sem sessao, ou ambiente de teste sem action) cai nos defaults.
-  const [overview, setOverview] = useState<AccountOverview | null>(null)
+  const [overview, setOverview] = useState<AccountOverview | null>(initialOverview)
   const loadOverview = useCallback(() => {
     // try/catch sincrono tambem: um mock com `vi.fn()` sem retorno pode lancar
     // antes da Promise existir.
@@ -283,8 +295,8 @@ export function AccountDialog({
   }, [getAccountOverviewAction])
 
   useEffect(() => {
-    if (open) loadOverview()
-  }, [open, loadOverview])
+    if (loadOnMount) loadOverview()
+  }, [loadOnMount, loadOverview])
 
   const details = overview?.profileDetails ?? { jobTitle: '', department: '', phone: '' }
   const preferences = overview?.preferences ?? DEFAULT_PREFERENCES
@@ -294,13 +306,7 @@ export function AccountDialog({
   const role = user.role ?? null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Minha conta</DialogTitle>
-          <DialogDescription>Dados de acesso, contato de plantão e preferências da sua própria conta.</DialogDescription>
-        </DialogHeader>
-        <Tabs value={tab} onValueChange={(value) => onTabChange(value as AccountDialogTab)}>
+    <Tabs value={tab} onValueChange={(value) => setTab(value as AccountDialogTab)}>
           <TabsList className="w-full">
             <TabsTrigger value="profile">Perfil</TabsTrigger>
             <TabsTrigger value="preferences">Preferências</TabsTrigger>
@@ -308,7 +314,7 @@ export function AccountDialog({
             <TabsTrigger value="sessions">Acessos</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile" className="grid gap-6 pt-2">
+          <TabsContent value="profile" className={cn("grid gap-6 pt-2", wide && "lg:grid-cols-2 lg:items-start")}>
             <AccountForm
               action={updateProfileNameAction}
               title="Nome de exibição"
@@ -366,7 +372,11 @@ export function AccountDialog({
             </AccountForm>
           </TabsContent>
 
-          <TabsContent value="preferences" className="pt-2">
+          <TabsContent value="preferences" className={cn("grid gap-6 pt-2", wide && "lg:grid-cols-2 lg:items-start")}>
+            <section aria-label="Aparência e cor de destaque" className="grid gap-3">
+              <h3 className="section-label">Aparência & Cor de Destaque</h3>
+              <AppearanceControls />
+            </section>
             <AccountForm
               key={`preferences-${overviewKey}`}
               action={updateAccountPreferencesAction}
@@ -400,7 +410,7 @@ export function AccountDialog({
             </AccountForm>
           </TabsContent>
 
-          <TabsContent value="security" className="grid gap-6 pt-2">
+          <TabsContent value="security" className={cn("grid gap-6 pt-2", wide && "lg:grid-cols-2 lg:items-start")}>
             <section aria-label="Nível de acesso e permissões" className="grid gap-3">
               <h3 className="section-label">Nível de Acesso e Permissões (RBAC)</h3>
               <div className="grid gap-2 rounded-lg border p-3">
@@ -420,7 +430,7 @@ export function AccountDialog({
             </AccountForm>
           </TabsContent>
 
-          <TabsContent value="sessions" className="grid gap-6 pt-2">
+          <TabsContent value="sessions" className={cn("grid gap-6 pt-2", wide && "lg:grid-cols-2 lg:items-start")}>
             <section aria-label="Sessão atual" className="grid gap-3">
               <h3 className="section-label">Sessão Atual</h3>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
@@ -458,6 +468,30 @@ export function AccountDialog({
             </section>
           </TabsContent>
         </Tabs>
+  )
+}
+
+export function AccountDialog({
+  open,
+  onOpenChange,
+  tab,
+  onTabChange,
+  user,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  tab: AccountDialogTab
+  onTabChange: (tab: AccountDialogTab) => void
+  user: { name?: string | null; email?: string | null; role?: AppRole | null }
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Minha conta</DialogTitle>
+          <DialogDescription>Dados de acesso, contato de plantão e preferências da sua própria conta.</DialogDescription>
+        </DialogHeader>
+        <AccountSettingsContent user={user} tab={tab} onTabChange={onTabChange} />
       </DialogContent>
     </Dialog>
   )
