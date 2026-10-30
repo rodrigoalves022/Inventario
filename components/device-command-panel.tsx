@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
 import { toast } from 'sonner'
-import { Activity, Download, Power, RefreshCw, Terminal, Wrench } from 'lucide-react'
+import { Activity, Download, Power, RefreshCw, Terminal, Trash2, Wrench } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -182,6 +182,45 @@ function RestartComputerForm({ tenantSlug, deviceId, hostname }: { tenantSlug: s
   )
 }
 
+function UninstallAgentForm({ tenantSlug, deviceId, hostname }: { tenantSlug: string; deviceId: string; hostname: string }) {
+  const [state, formAction] = useActionState(enqueueDeviceCommandAction, idleState)
+  useCommandFeedback(state)
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="destructive" size="sm" className="w-fit gap-2">
+            <Trash2 className="h-4 w-4" />
+            Desinstalar agente
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desinstalar agente de {hostname}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O serviço, as credenciais locais e o binário do agente serão removidos da máquina remota, e a
+              credencial do agente será revogada automaticamente ao concluir. A máquina deixa de reportar ao
+              inventário e só volta com uma nova instalação. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <form action={formAction}>
+            <input type="hidden" name="tenantSlug" value={tenantSlug} />
+            <input type="hidden" name="assetId" value={deviceId} />
+            <input type="hidden" name="type" value="uninstall_agent" />
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button type="button" variant="outline">Cancelar</Button>
+              </AlertDialogCancel>
+              <SubmitButton variant="destructive">Confirmar desinstalação</SubmitButton>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
 export function DeviceCommandPanel({
   tenantSlug,
   deviceId,
@@ -205,6 +244,7 @@ export function DeviceCommandPanel({
           <RestartComputerForm tenantSlug={tenantSlug} deviceId={deviceId} hostname={hostname} />
           <RestartServiceForm tenantSlug={tenantSlug} deviceId={deviceId} />
           <RunScriptForm tenantSlug={tenantSlug} deviceId={deviceId} />
+          <UninstallAgentForm tenantSlug={tenantSlug} deviceId={deviceId} hostname={hostname} />
         </div>
       </PanelBody>
     </Panel>

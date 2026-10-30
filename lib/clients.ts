@@ -13,6 +13,8 @@ export function slugifyClientName(name: string) {
     .toLowerCase()
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/-+$/g, '')
 }
 
 export async function findClientByIdentifier(identifier: string) {

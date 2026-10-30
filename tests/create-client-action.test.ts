@@ -215,6 +215,25 @@ describe('createClientAction — validacao Zod do payload', () => {
     expect(clients.size).toBe(1)
   })
 
+  it('slug explicito com mais de 64 caracteres e rejeitado', async () => {
+    const { createClientAction } = await import('@/app/admin/clients/actions')
+
+    const result = await createClientAction(initialState, buildFormData({ name: 'Cliente X', slug: 'a'.repeat(65) }))
+
+    expect(result.error).toContain('no máximo 64 caracteres')
+    expect(clients.size).toBe(0)
+  })
+
+  it('slug derivado de nome longo e truncado em 64 caracteres, sem hifen final', async () => {
+    const { createClientAction } = await import('@/app/admin/clients/actions')
+    const name = `${'a'.repeat(63)} bbbb`
+
+    const result = await createClientAction(initialState, buildFormData({ name }))
+
+    expect(result.error).toBeNull()
+    expect(result.package?.clientSlug).toBe('a'.repeat(63))
+  })
+
   it('slug omitido e derivado do nome (slugify), quando valido', async () => {
     const { createClientAction } = await import('@/app/admin/clients/actions')
 

@@ -4188,3 +4188,23 @@ Sincroniza `/docs` (`components/docs-hub.tsx`), `docs/AGENT.md` e este arquivo c
 - Aba *Atualização Remota*: auto-updater multiplataforma (PowerShell no Windows; `/bin/sh` + `systemctl` no Linux; SHA-256, `.bak` e rollback) e os 4 pontos de disparo de `update_agent` (cabeçalho da máquina, `/admin/clients/[id]/agents`, aba Comandos, `BulkCommandBar`).
 - Aba *AnyDesk*: busca via `Ctrl+K`, tabelas de Computadores/Servidores/Ativos e coluna `AnyDesk ID` no CSV.
 - Commits: A13 `d39bc6a`, A14 `7b9eb19`, V30 `a701d77`, V31 `5b62075`.
+
+
+---
+
+## Sprint A16 — Desinstalação Remota de Agente e Limite de Slug
+
+Entrega os Backlog Items 21 e 14.
+
+- **`uninstall_agent` (Item 21):** novo comando no catálogo (`lib/agent-commands.ts`, `COMMAND_TYPE_LABELS`). `UninstallAgentForm` em `DeviceCommandPanel` (`AlertDialog` de alto atrito, botão destrutivo com `Trash2`). No agente Go, `executeUninstallAgent` responde `done` e, após 4 s (tempo para `ReportCommandResult`), dispara um processo desanexado: PowerShell no Windows (para/remove o serviço `InventarioAgent`, chave de `Uninstall`, `ProgramData` e `Program Files`) ou `/bin/sh` no Linux (remove unit, `/opt`, `/var/lib` e `/usr/local/bin`), e então `os.Exit(0)`. No script Linux o `systemctl stop` fica por último, pois derruba o cgroup do próprio script. Em `POST /api/agent/commands/[id]/result`, `done` de `uninstall_agent` revoga o `AgentAuth` (`updateMany` com `isActive: true`, idempotente), expira comandos `pending`/`running` e grava `agent_auth.remote_uninstall` — tudo numa transação, com o audit só se a revogação ocorreu.
+- **Slug (Item 14):** `slugifyClientName` trunca em 64 caracteres sem hífen final; `createClientSchema` (`app/admin/clients/actions.ts`) exige `.max(64)`.
+- **Testes:** `agent-commands-flow` (revogação, expiração da fila, auditoria; `failed` não revoga) e `create-client-action` (slug explícito >64 rejeitado; slug derivado truncado).
+
+## Roadmap alinhado — Sprints A17–A20
+
+| Sprint | Escopo | Notas de arquitetura |
+|---|---|---|
+| **A17** | Diagnóstico remoto e visualizador de saída. Novos scripts `gpupdate_force`, `network_diag`, `system_health_summary` no catálogo. Saída (`output`/`errorMessage`) da aba Comandos (`components/device-detail-tabs.tsx`) vira bloco de console expansível (`<pre className="data-mono">`) com botão copiar. | Expandir `SCRIPT_CATALOG_IDS`, `SCRIPT_CATALOG_LABELS`, `allowedScripts` (Go) e `execute_windows.go` juntos (paridade testada). Saída de rede pode conter IPs/hostnames: manter o limite de 20 000 caracteres e renderizar como texto (nunca HTML). |
+| **A18** | Conformidade de versão. Filtro "desatualizados" em `TenantComputersTable` (`/computers`, `/assets`) com seleção em lote para `update_agent` contra `LATEST_AGENT_VERSION`. | Reutilizar a comparação de versão de A13 e o `BulkCommandBar`; o filtro deve ser sincronizado com a query string, como `?critical=`. Considerar comparar por plataforma, já que Linux e Windows têm binários distintos. |
+| **A19** | Ciclo de vida/garantia (ITAM). Indicadores de garantia vencida e a vencer em 30 dias (`garantiaAte`) na aba Patrimônio e em `lib/reports/device-report.ts`. | Cálculo em função pura e testável, com data injetável; sem alterar o schema (campo já existe). Os limiares (30 dias) devem ser constantes compartilhadas entre UI e relatório. |
+| **A20** | Exportação CSV de ativos descobertos (`DiscoveredDevicesTable`, `/network`) e observabilidade de rede. | Escapar campos iniciados por `=`, `+`, `-`, `@` (CSV injection) e reutilizar o exportador CSV existente; filtrar sempre por tenant. |

@@ -39,6 +39,7 @@ const createClientSchema = z.object({
   slug: z
     .string()
     .trim()
+    .max(64, 'O slug deve ter no máximo 64 caracteres.')
     .regex(/^[a-z0-9-]+$/, 'Use apenas letras minúsculas, números e hifens.')
     .optional(),
 })

@@ -48,6 +48,8 @@ func execute(cfg *config.Config, cmd *httpapi.PendingCommand) httpapi.CommandRes
 		return executeUpdateAgent(cfg)
 	case "restart_computer":
 		return executeRestartComputer()
+	case "uninstall_agent":
+		return executeUninstallAgent()
 	case "restart_service":
 		var params restartServiceParams
 		if err := json.Unmarshal(cmd.Params, &params); err != nil {

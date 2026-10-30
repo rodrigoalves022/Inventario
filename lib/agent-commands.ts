@@ -23,6 +23,7 @@ export const agentCommandInputSchema = z.discriminatedUnion('type', [
     scriptId: z.enum(SCRIPT_CATALOG_IDS),
   }),
   z.object({ type: z.literal('restart_computer') }),
+  z.object({ type: z.literal('uninstall_agent') }),
 ])
 
 export type AgentCommandInput = z.infer<typeof agentCommandInputSchema>
@@ -39,6 +40,7 @@ export function toParamsJson(input: AgentCommandInput): string | null {
     case 'collect_metrics_now':
     case 'update_agent':
     case 'restart_computer':
+    case 'uninstall_agent':
       return null
     case 'restart_service':
       return JSON.stringify({ serviceName: input.serviceName })
@@ -54,6 +56,7 @@ export const COMMAND_TYPE_LABELS: Record<string, string> = {
   restart_service: 'Reiniciar serviço',
   run_script: 'Rodar script',
   restart_computer: 'Reiniciar máquina',
+  uninstall_agent: 'Desinstalar agente remotamente',
 }
 
 export const RESTARTABLE_SERVICE_LABELS: Record<(typeof RESTARTABLE_SERVICES)[number], string> = {

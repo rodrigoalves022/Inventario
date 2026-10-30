@@ -50,5 +50,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   })
 
+  // O agente se remove logo apos reportar "done": a credencial deixa de ter uso,
+  // entao e revogada aqui (idempotente via isActive: true) e a fila e encerrada.
+  if (command.type === 'uninstall_agent' && parsed.data.status === 'done') {
+    const now = new Date()
+    const revoked = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.agentAuth.updateMany({
+        where: { id: auth.agentAuth.id, isActive: true },
+        data: { isActive: false, revokedAt: now },
+      })
+      await tx.agentCommand.updateMany({
+        where: { agentAuthId: auth.agentAuth.id, status: { in: ['pending', 'running'] } },
+        data: { status: 'expired' },
+      })
+      return count > 0
+    })
+
+    if (revoked) {
+      await recordAuditLog({
+        action: 'agent_auth.remote_uninstall',
+        targetType: 'agent_auth',
+        targetId: auth.agentAuth.id,
+        clientId: command.clientId,
+        actor: { email: `agent:${auth.agentAuth.name}` },
+        metadata: { commandId: command.id },
+      })
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }

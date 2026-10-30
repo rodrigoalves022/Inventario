@@ -16,7 +16,7 @@ import { AGENT_COMMAND_TTL_MS } from '@/lib/agent-commands'
 
 type FakeClient = { id: string; name: string; slug: string; organizationId: string; isActive: boolean }
 type FakeDevice = { id: string; hostname: string; clientSlug: string; agentAuthId: string; clientId: string }
-type FakeAgentAuth = { id: string; name: string; isActive: boolean; clientId: string | null; apiKeyHash: string }
+type FakeAgentAuth = { id: string; name: string; isActive: boolean; clientId: string | null; apiKeyHash: string; revokedAt?: Date | null }
 type FakeCommand = {
   id: string
   agentAuthId: string
@@ -76,6 +76,14 @@ const { clients, devices, agentAuths, commands, auditLogs, sessionRef, fakePrism
       ),
     },
     agentAuth: {
+      updateMany: vi.fn(
+        async ({ where, data }: { where: { id: string; isActive: boolean }; data: Partial<FakeAgentAuth> & { revokedAt?: Date } }) => {
+          const agentAuth = agentAuths.get(where.id)
+          if (!agentAuth || agentAuth.isActive !== where.isActive) return { count: 0 }
+          Object.assign(agentAuth, data)
+          return { count: 1 }
+        }
+      ),
       findUnique: vi.fn(async ({ where }: { where: { apiKeyHash: string } }) => {
         const agentAuth = [...agentAuths.values()].find((candidate) => candidate.apiKeyHash === where.apiKeyHash)
         if (!agentAuth) return null
@@ -138,9 +146,10 @@ const { clients, devices, agentAuths, commands, auditLogs, sessionRef, fakePrism
         // Sweep de expiracao: WHERE agentAuthId = ? AND status = 'pending' AND expiresAt < now.
         const expiresAtLt = (where.expiresAt as { lt?: Date } | undefined)?.lt
         for (const command of commands.values()) {
+          const statusIn = (where.status as { in?: string[] } | undefined)?.in
           if (
             command.agentAuthId === where.agentAuthId &&
-            command.status === where.status &&
+            (statusIn ? statusIn.includes(command.status) : command.status === where.status) &&
             (!expiresAtLt || command.expiresAt < expiresAtLt)
           ) {
             Object.assign(command, data)
@@ -162,6 +171,8 @@ const { clients, devices, agentAuths, commands, auditLogs, sessionRef, fakePrism
       }),
     },
   }
+
+  ;(fakePrisma as Record<string, unknown>).$transaction = vi.fn(async (fn: (tx: typeof fakePrisma) => Promise<unknown>) => fn(fakePrisma))
 
   return { clients, devices, agentAuths, commands, auditLogs, sessionRef, fakePrisma }
 })
@@ -368,6 +379,47 @@ describe('POST /api/agent/commands/[id]/result — grava resultado e AuditLog co
       targetId: 'cmd-result',
       clientId: 'client-a',
     })
+  })
+
+  it('uninstall_agent com status done revoga o AgentAuth, expira a fila e audita agent_auth.remote_uninstall', async () => {
+    const agentAuth = await seedAgentAuth({ id: 'agent-uninst', plaintextKey: 'uninst-key', clientId: 'client-a' })
+    seedCommand({ id: 'cmd-uninst', agentAuthId: agentAuth.id, clientId: 'client-a', type: 'uninstall_agent', status: 'running' })
+    seedCommand({ id: 'cmd-other', agentAuthId: agentAuth.id, clientId: 'client-a', status: 'pending' })
+
+    const req = new NextRequest('https://inventario.example.com/api/agent/commands/cmd-uninst/result', {
+      method: 'POST',
+      headers: { 'x-api-key': 'uninst-key', 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'done', output: 'desinstalacao remota iniciada' }),
+    })
+    const res = await postCommandResult(req, { params: Promise.resolve({ id: 'cmd-uninst' }) })
+
+    expect(res.status).toBe(200)
+    expect(agentAuths.get('agent-uninst')).toMatchObject({ isActive: false })
+    expect(agentAuths.get('agent-uninst')?.revokedAt).toBeInstanceOf(Date)
+    expect(commands.get('cmd-uninst')?.status).toBe('done')
+    expect(commands.get('cmd-other')?.status).toBe('expired')
+    expect(auditLogs.map((log) => log.action)).toEqual(['command.result', 'agent_auth.remote_uninstall'])
+    expect(auditLogs[1]).toMatchObject({
+      targetType: 'agent_auth',
+      targetId: 'agent-uninst',
+      clientId: 'client-a',
+    })
+    expect(JSON.parse(String(auditLogs[1].metadataJson ?? auditLogs[1].metadata))).toMatchObject({ commandId: 'cmd-uninst' })
+  })
+
+  it('uninstall_agent com status failed NAO revoga o AgentAuth', async () => {
+    const agentAuth = await seedAgentAuth({ id: 'agent-uninst-fail', plaintextKey: 'uninst-fail-key', clientId: 'client-a' })
+    seedCommand({ id: 'cmd-uninst-fail', agentAuthId: agentAuth.id, clientId: 'client-a', type: 'uninstall_agent', status: 'running' })
+
+    const req = new NextRequest('https://inventario.example.com/api/agent/commands/cmd-uninst-fail/result', {
+      method: 'POST',
+      headers: { 'x-api-key': 'uninst-fail-key', 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'failed', errorMessage: 'nao suportado' }),
+    })
+    await postCommandResult(req, { params: Promise.resolve({ id: 'cmd-uninst-fail' }) })
+
+    expect(agentAuths.get('agent-uninst-fail')?.isActive).toBe(true)
+    expect(auditLogs.map((log) => log.action)).toEqual(['command.result'])
   })
 
   it('resultado com status failed grava errorMessage e transiciona para failed', async () => {
