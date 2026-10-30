@@ -31,7 +31,7 @@ import {
  * 1. ROTAS do tenant — exatamente as mesmas que a sidebar monta, filtradas
  *    pelo mesmo predicado de papel (`buildShellNavigation`). Estao em memoria,
  *    filtram instantaneamente, sem rede.
- * 2. DISPOSITIVOS por hostname ou IP, via
+ * 2. DISPOSITIVOS por hostname, IP, usuario, serial, etiqueta ou responsavel, via
  *    `GET /api/tenant/[clientSlug]/devices/search` (Backlog item 13). Consulta
  *    de rede, com debounce, escopo por tenant e rate limit na rota.
  *
@@ -59,6 +59,10 @@ type DeviceHit = {
   hostname: string
   ip: string | null
   anydeskId?: string | null
+  usuario?: string | null
+  serial?: string | null
+  etiqueta?: string | null
+  responsavel?: string | null
   isServer: boolean
 }
 
@@ -303,7 +307,7 @@ export function CommandPalette({
           <CommandInput
             value={search}
             onValueChange={setSearch}
-            placeholder={tenantSlug ? 'Buscar página, hostname, IP ou AnyDesk...' : 'Buscar página...'}
+            placeholder={tenantSlug ? 'Buscar página, hostname, IP, usuário, etiqueta ou AnyDesk...' : 'Buscar página...'}
             className="text-[0.9375rem]"
           />
           <CommandList className="max-h-[min(24rem,60vh)] p-1">
@@ -350,7 +354,7 @@ export function CommandPalette({
                       // `value` carrega hostname e IP — os mesmos campos pelos
                       // quais o servidor casou —, entao o filtro local do cmdk
                       // nunca esconde um resultado que a rota ja devolveu.
-                      value={`${device.hostname} ${device.ip ?? ''} ${device.anydeskId ?? ''} ${device.anydeskId ? formatAnydeskId(device.anydeskId) : ''}`}
+                      value={`${device.hostname} ${device.ip ?? ''} ${device.anydeskId ?? ''} ${device.anydeskId ? formatAnydeskId(device.anydeskId) : ''} ${device.usuario ?? ''} ${device.serial ?? ''} ${device.etiqueta ?? ''} ${device.responsavel ?? ''}`}
                       onSelect={() => handleSelect(getTenantPath(tenantSlug, `assets/${device.id}`))}
                       className="group cursor-pointer gap-3 rounded-lg px-3 py-2.5 data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
                     >
@@ -359,6 +363,11 @@ export function CommandPalette({
                       {device.ip && (
                         <span className="data-mono shrink-0 text-xs text-muted-foreground">{device.ip}</span>
                       )}
+                      {(device.etiqueta || device.usuario) && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {device.etiqueta ?? device.usuario}
+                        </span>
+                      )}
                       {device.anydeskId && (
                         <span className="data-mono shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
                           AD {formatAnydeskId(device.anydeskId)}
@@ -366,7 +375,7 @@ export function CommandPalette({
                       )}
                       <CornerDownLeft
                         aria-hidden
-                        className="ml-auto h-3.5 w-3.5 shrink-0opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
+                        className="ml-auto h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
                       />
                     </CommandItem>
                   )

@@ -81,8 +81,12 @@ export async function POST(req: NextRequest) {
     const { hostname } = body
     const previousDevice = await prisma.device.findUnique({
       where: { agentAuthId: auth.agentAuth.id },
-      select: { id: true, status: true },
+      select: { id: true, status: true, usuario: true },
     })
+    const incomingUsuario = isSystemAccountName(body.usuario) ? null : body.usuario!.trim()
+    // Sem usuario humano preserva o ultimo conhecido, exceto legado HOST$/SYSTEM (limpa).
+    const legacyUser = previousDevice?.usuario
+    const clearLegacyUser = !!legacyUser && (legacyUser.endsWith('$') || legacyUser.toUpperCase() === 'SYSTEM')
     const alertSettings = await getTenantAlertSettingsByClientId(auth.agentAuth.clientId)
     const warningIssues = alertSettings?.alertsEnabled
       ? getWarningTransitionIssues(
@@ -110,7 +114,7 @@ export async function POST(req: NextRequest) {
         fabricante: body.fabricante,
         modelo: body.modelo,
         dominio: body.dominio,
-        usuario: isSystemAccountName(body.usuario) ? null : body.usuario,
+        usuario: incomingUsuario,
         anydeskId: body.anydeskId ?? null,
         status: nextStatus,
         // Sprint 11 (B): mesmo campo que ja alimentava a mensagem do
@@ -127,8 +131,7 @@ export async function POST(req: NextRequest) {
         fabricante: body.fabricante,
         modelo: body.modelo,
         dominio: body.dominio,
-        // Sem usuario humano (SYSTEM, HOST$, vazio) preserva o ultimo conhecido.
-        ...(!isSystemAccountName(body.usuario) ? { usuario: body.usuario } : {}),
+        ...(incomingUsuario ? { usuario: incomingUsuario } : clearLegacyUser ? { usuario: null } : {}),
         // Check-in parcial (sem AnyDesk) nao apaga um ID ja conhecido.
         ...(body.anydeskId ? { anydeskId: body.anydeskId } : {}),
         status: nextStatus,

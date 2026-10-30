@@ -39,7 +39,7 @@ export default async function ClientsPage() {
           lg. `min-w-0` impede que o min-content da tabela alargue o item flex
           e anule o overflow-x-auto do painel. */}
       <div className="min-w-0 flex-1 lg:pl-64">
-        <Header />
+        <Header user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
         <main className="p-4 lg:p-6">
           <div className="space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-4">

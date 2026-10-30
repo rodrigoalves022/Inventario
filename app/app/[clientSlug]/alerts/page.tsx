@@ -8,7 +8,8 @@ import { ALERT_METRIC_LABELS, parseSoftwareBlacklistMetadata, type AlertMetric }
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
-import { AlertTriangle, BellRing, CheckCircle2, History, ShieldAlert } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { AlertTriangle, BellRing, CheckCircle2, Download, History, ShieldAlert } from 'lucide-react'
 
 const SEVERITY_TONES: Record<string, StatusPillTone> = {
   warning: 'warning',
@@ -20,8 +21,15 @@ const SEVERITY_LABELS: Record<string, string> = {
   critical: 'Crítico',
 }
 
-export default async function TenantAlertsPage({ params }: PageProps<'/app/[clientSlug]'>) {
+export default async function TenantAlertsPage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
+  const query = await searchParams
+  const csvParams = new URLSearchParams()
+  for (const key of ['state', 'severity'] as const) {
+    const value = query?.[key]
+    if (typeof value === 'string' && value) csvParams.set(key, value)
+  }
+  const csvQuery = csvParams.size > 0 ? `?${csvParams.toString()}` : ''
   const tenant = await requireTenantContext(clientSlug)
   const session = await auth()
   const basePath = getTenantPath(tenant.slug, 'alerts')
@@ -62,6 +70,12 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
             Regras sobre a postura de segurança coletada e histórico de disparos.
           </p>
         </div>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/api/tenant/${tenant.slug}/alerts/csv${csvQuery}`}>
+            <Download className="h-4 w-4 mr-2" />
+            Baixar CSV
+          </a>
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

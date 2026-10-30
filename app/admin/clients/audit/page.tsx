@@ -91,7 +91,7 @@ export default async function ClientsAuditPage({
     <div className="flex min-h-screen">
       <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
       <div className="min-w-0 flex-1 lg:pl-64">
-        <Header />
+        <Header user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
         <main className="p-4 lg:p-6">
           <div className="space-y-6">
             <div className="flex items-center justify-between">

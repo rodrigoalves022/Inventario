@@ -61,6 +61,11 @@ function Harness() {
   )
 }
 
+function TenantHarness() {
+  const { open, setOpen } = useCommandPalette()
+  return <CommandPalette open={open} onOpenChange={setOpen} sections={SECTIONS} tenantSlug="acme" />
+}
+
 function paletteIsOpen() {
   return screen.queryByRole('dialog') !== null
 }
@@ -197,5 +202,41 @@ describe('Paleta de comando — o que ela busca', () => {
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/app/acme/reports'))
     await waitFor(() => expect(paletteIsOpen()).toBe(false))
+  })
+})
+
+describe('Paleta de comando — busca de dispositivos por usuário/etiqueta', () => {
+  it('mantém visível o dispositivo que o servidor casou por usuário ou etiqueta', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          devices: [
+            {
+              id: 'd1',
+              hostname: 'PC-0042',
+              ip: '10.0.0.5',
+              anydeskId: null,
+              isServer: false,
+              usuario: 'maria.silva',
+              etiqueta: 'PAT-998',
+              responsavel: 'Joao',
+            },
+          ],
+        }),
+      })
+    )
+    render(<TenantHarness />)
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true })
+    await waitFor(() => expect(paletteIsOpen()).toBe(true))
+
+    fireEvent.change(screen.getByPlaceholderText(/Buscar página, hostname/), {
+      target: { value: 'maria.silva' },
+    })
+
+    await waitFor(() => expect(screen.getByText('PC-0042')).toBeTruthy())
+    expect(screen.getByText('PAT-998')).toBeTruthy()
+    vi.unstubAllGlobals()
   })
 })

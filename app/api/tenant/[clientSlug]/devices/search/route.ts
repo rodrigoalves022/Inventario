@@ -86,6 +86,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
         { hostname: { contains: term, mode: 'insensitive' } },
         { networks: { some: { ip: { contains: term } } } },
         ...(compactTerm.length >= 2 ? [{ anydeskId: { contains: compactTerm } }] : []),
+        { usuario: { contains: term, mode: 'insensitive' } },
+        // O campo do schema e' `serial` (numero de serie da BIOS).
+        { serial: { contains: term, mode: 'insensitive' } },
+        { assetRecord: { is: { etiqueta: { contains: term, mode: 'insensitive' } } } },
+        { assetRecord: { is: { responsavel: { contains: term, mode: 'insensitive' } } } },
       ],
     },
     orderBy: { updatedAt: 'desc' },
@@ -94,6 +99,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
       id: true,
       hostname: true,
       anydeskId: true,
+      usuario: true,
+      serial: true,
+      assetRecord: { select: { etiqueta: true, responsavel: true } },
       hardware: { select: { sistema: true } },
       networks: { where: { isPrimary: true }, select: { ip: true } },
     },
@@ -106,6 +114,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
         hostname: device.hostname,
         ip: device.networks[0]?.ip ?? null,
         anydeskId: device.anydeskId ?? null,
+        usuario: device.usuario ?? null,
+        serial: device.serial ?? null,
+        etiqueta: device.assetRecord?.etiqueta ?? null,
+        responsavel: device.assetRecord?.responsavel ?? null,
         // O mesmo predicado que /computers e /servers usam para se dividir —
         // a paleta rotula o dispositivo com o mesmo vocabulario das listagens.
         isServer: isServerOperatingSystem(device.hardware?.sistema ?? null),

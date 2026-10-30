@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"strings"
 
 	"inventario-agent/internal/collectors/anydesk"
@@ -214,6 +215,12 @@ func isSystemAccount(name string) bool {
 	return upper == "SYSTEM" || upper == "LOCAL SERVICE" || upper == "NETWORK SERVICE" || strings.HasSuffix(upper, "$")
 }
 
+// queryUserCommand e` variavel para permitir stub em testes.
+var queryUserCommand = func() []byte {
+	out, _ := exec.Command("query", "user").CombinedOutput()
+	return out
+}
+
 // resolveInteractiveUser devolve o usuario humano logado no console. Como
 // servico (Session 0) USERNAME e' SYSTEM/HOST$, entao so o WMI (UserName de
 // Win32_ComputerSystem) enxerga a sessao interativa; sem ninguem logado,
@@ -231,8 +238,43 @@ func resolveInteractiveUser(wmiUser string) string {
 	}
 
 	envUser := strings.TrimSpace(os.Getenv("USERNAME"))
-	if isSystemAccount(envUser) {
-		return ""
+	if envUser != "" && !isSystemAccount(envUser) {
+		return envUser
 	}
-	return envUser
+
+	// Sessoes RDP/Terminal Services nao populam Win32_ComputerSystem.UserName.
+	// `query user` pode sair com codigo 1 mesmo listando sessoes: parseia se houver saida.
+	out := queryUserCommand()
+	if len(out) > 0 {
+		return parseQueryUserOutput(string(out))
+	}
+	return ""
+}
+
+// parseQueryUserOutput extrai o usuario humano da saida de `query user`,
+// ignorando o cabecalho e preferindo sessoes Ativo/Active.
+func parseQueryUserOutput(output string) string {
+	lines := strings.Split(strings.ReplaceAll(output, "\r", ""), "\n")
+	first := ""
+	for i, line := range lines {
+		if i == 0 {
+			continue
+		}
+		fields := strings.Fields(strings.TrimLeft(strings.TrimSpace(line), ">"))
+		if len(fields) == 0 {
+			continue
+		}
+		u := fields[0]
+		if isSystemAccount(u) {
+			continue
+		}
+		upper := strings.ToUpper(line)
+		if strings.Contains(upper, "ATIVO") || strings.Contains(upper, "ACTIVE") {
+			return u
+		}
+		if first == "" {
+			first = u
+		}
+	}
+	return first
 }
