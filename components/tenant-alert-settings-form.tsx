@@ -43,11 +43,11 @@ export function TenantAlertSettingsForm({
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="rounded-xl border bg-card overflow-hidden">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="rounded-xl border border-surface-line bg-card overflow-hidden">
       <CollapsibleTrigger asChild>
         <Button variant="ghost" className="flex w-full items-center justify-between p-4 hover:bg-muted/50 rounded-none h-auto">
           <div className="flex items-center gap-3">
-            <div className="rounded-md bg-primary/10 p-2 text-primary">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
               <Settings2 className="h-4 w-4" />
             </div>
             <div className="text-left">
@@ -93,7 +93,7 @@ export function TenantAlertSettingsForm({
 
             <div className="space-y-4">
               <h3 className="section-label flex items-center gap-1.5">
-                <Webhook className="h-3 w-3" /> External Notification
+                <Webhook className="h-3 w-3" /> Notificação Externa
               </h3>
               <div className="space-y-3">
                 <div className="space-y-1.5">

@@ -99,3 +99,40 @@ describe('TenantServersTable — seleção múltipla e barra de comando em lote 
     expect(screen.getByText('1 dispositivo selecionado')).toBeTruthy()
   })
 })
+
+describe('TenantServersTable — busca (Sprint V31)', () => {
+  const many: TenantServerRow[] = [
+    ...servers,
+    {
+      id: 's2',
+      hostname: 'DB-02',
+      ip: '10.0.0.2',
+      sistema: 'Ubuntu Server',
+      processador: 'EPYC',
+      ramTotalGb: 32,
+      storageLabel: '1 TB SSD',
+      effectiveStatus: 'online',
+      detailsPath: '/app/cliente-a/assets/s2',
+      anydeskId: '123 456 789',
+    },
+  ]
+
+  it('digitar um hostname filtra as linhas renderizadas', () => {
+    render(<TenantServersTable servers={many} />)
+
+    fireEvent.change(screen.getByLabelText('Buscar servidores'), { target: { value: 'db-02' } })
+
+    expect(screen.queryByText('SRV-01')).toBeNull()
+    expect(screen.getByText('DB-02')).toBeTruthy()
+    expect(screen.getByText('1 de 2 servidor(es)')).toBeTruthy()
+  })
+
+  it('digitar um AnyDesk ID (com espacos) filtra as linhas renderizadas', () => {
+    render(<TenantServersTable servers={many} />)
+
+    fireEvent.change(screen.getByLabelText('Buscar servidores'), { target: { value: '123 456' } })
+
+    expect(screen.queryByText('SRV-01')).toBeNull()
+    expect(screen.getByText('DB-02')).toBeTruthy()
+  })
+})

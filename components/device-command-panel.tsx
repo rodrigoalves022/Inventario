@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   enqueueDeviceCommandAction,
@@ -191,12 +192,21 @@ export function DeviceCommandPanel({
   hostname: string
 }) {
   return (
-    <div className="grid gap-4 rounded-xl border bg-card p-4 sm:grid-cols-2">
-      <CollectMetricsNowForm tenantSlug={tenantSlug} deviceId={deviceId} />
-      <UpdateAgentNowForm tenantSlug={tenantSlug} deviceId={deviceId} />
-      <RestartComputerForm tenantSlug={tenantSlug} deviceId={deviceId} hostname={hostname} />
-      <RestartServiceForm tenantSlug={tenantSlug} deviceId={deviceId} />
-      <RunScriptForm tenantSlug={tenantSlug} deviceId={deviceId} />
-    </div>
+    <Panel>
+      <PanelHeader
+        icon={<Terminal className="h-4 w-4" />}
+        title="Comandos remotos"
+        description="Executados pelo agente no próximo ciclo (~90s)"
+      />
+      <PanelBody>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CollectMetricsNowForm tenantSlug={tenantSlug} deviceId={deviceId} />
+          <UpdateAgentNowForm tenantSlug={tenantSlug} deviceId={deviceId} />
+          <RestartComputerForm tenantSlug={tenantSlug} deviceId={deviceId} hostname={hostname} />
+          <RestartServiceForm tenantSlug={tenantSlug} deviceId={deviceId} />
+          <RunScriptForm tenantSlug={tenantSlug} deviceId={deviceId} />
+        </div>
+      </PanelBody>
+    </Panel>
   )
 }

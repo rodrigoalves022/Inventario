@@ -2,8 +2,11 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { Search, Server } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Panel, PanelHeader } from '@/components/ui/panel'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { AnydeskBadge } from '@/components/anydesk-badge'
@@ -14,7 +17,6 @@ import {
   TABLE_DATA_CELL_CLASS,
   TABLE_HEAD_CLASS,
   TABLE_HEAD_ROW_CLASS,
-  TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
@@ -80,11 +82,32 @@ export function TenantServersTable({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(() => parsePageNumber(initialPage))
   const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
+  const [search, setSearch] = useState('')
   const canBulkOperate = Boolean(tenantSlug && canOperate)
 
-  /** Esta tabela nao tem filtro nem busca — o conjunto "filtrado" e' a lista
-   * inteira, entao a ordem filtrar -> contar -> paginar colapsa no recorte. */
-  const slice = getPageSlice(servers, page, pageSize)
+  const filteredServers = useMemo(() => {
+    const normalized = search.trim().toLowerCase()
+    const digitsOnly = normalized.replace(/\s+/g, '')
+    if (normalized.length === 0) return servers
+
+    return servers.filter(
+      (server) =>
+        server.hostname.toLowerCase().includes(normalized) ||
+        (server.ip ?? '').toLowerCase().includes(normalized) ||
+        (server.sistema ?? '').toLowerCase().includes(normalized) ||
+        (server.processador ?? '').toLowerCase().includes(normalized) ||
+        (digitsOnly.length > 0 && (server.anydeskId ?? '').replace(/\s+/g, '').toLowerCase().includes(digitsOnly)) ||
+        Boolean(server.agentVersion?.toLowerCase().includes(normalized)),
+    )
+  }, [servers, search])
+
+  // Ordem filtrar -> contar -> paginar.
+  const slice = getPageSlice(filteredServers, page, pageSize)
+
+  function changeSearch(nextSearch: string) {
+    setSearch(nextSearch)
+    changePage(1)
+  }
 
   /**
    * `history.replaceState`, e nao `router.replace`: /servers nao tinha
@@ -119,16 +142,33 @@ export function TenantServersTable({
 
   if (servers.length === 0) {
     return (
-      <div className={TABLE_SHELL_CLASS}>
+      <Panel>
         <div className="px-4 py-8 text-center text-muted-foreground">
           Nenhum servidor registrado para o cliente atual.
         </div>
-      </div>
+      </Panel>
     )
   }
 
   return (
-    <div className={cn(TABLE_SHELL_CLASS, 'overflow-hidden')}>
+    <Panel className="overflow-hidden">
+      <PanelHeader
+        icon={<Server className="h-4 w-4" />}
+        title="Servidores monitorados"
+        description={`${filteredServers.length} de ${servers.length} servidor(es)`}
+        action={
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => changeSearch(event.target.value)}
+              placeholder="Buscar por hostname, IP, sistema ou AnyDesk..."
+              aria-label="Buscar servidores"
+              className="h-9 w-full bg-card pl-9"
+            />
+          </div>
+        }
+      />
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -234,6 +274,6 @@ export function TenantServersTable({
           onClear={() => setSelectedIds(new Set())}
         />
       )}
-    </div>
+    </Panel>
   )
 }

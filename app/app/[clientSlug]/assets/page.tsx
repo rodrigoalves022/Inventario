@@ -35,6 +35,11 @@ export default async function TenantAssetsPage({ params, searchParams }: PagePro
   const initialStatusFilter: 'all' | 'online' | 'warning' | 'offline' =
     rawStatus === 'online' || rawStatus === 'warning' || rawStatus === 'offline' ? rawStatus : 'all'
 
+  const criticalParam = resolvedSearchParams.critical ?? resolvedSearchParams.critico
+  const rawCritical = typeof criticalParam === 'string' ? criticalParam : criticalParam?.[0]
+  const initialCriticalFilter: 'all' | 'low_disk' | 'low_ram' | 'stale_collection' =
+    rawCritical === 'low_disk' || rawCritical === 'low_ram' || rawCritical === 'stale_collection' ? rawCritical : 'all'
+
   // `/assets` compartilha `TenantComputersTable` com `/computers`, entao herdou
   // o rodape de paginacao — e com ele a escrita de `?page=`/`?limit=` na URL.
   // Sem ler os dois de volta aqui, recarregar caia na pagina 1 com um `?page=3`
@@ -81,6 +86,7 @@ export default async function TenantAssetsPage({ params, searchParams }: PagePro
         devices={devices}
         initialSearch={initialSearch}
         initialStatusFilter={initialStatusFilter}
+        initialCriticalFilter={initialCriticalFilter}
         initialPage={initialPage}
         initialPageSize={initialPageSize}
         showTypeColumn

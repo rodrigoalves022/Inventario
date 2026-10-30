@@ -4155,6 +4155,15 @@ Todas as páginas passaram a usar os mesmos blocos de composição (`KpiCard`, `
 
 ---
 
+## Sprint V31 — Bento Grid e busca em servidores, comandos e alertas
+
+- `TenantServersTable`: `Panel`/`PanelHeader` "Servidores monitorados" com busca (hostname, IP, sistema, processador, AnyDesk ID por dígitos e versão do agente); página volta a 1 ao buscar.
+- `DeviceCommandPanel`: grade de comandos dentro de `Panel` "Comandos remotos".
+- `TenantAlertSettingsForm`: "Notificação Externa" em português e casca/ícone com tokens do Bento Grid.
+- `/assets`: lê `?critical=`/`?critico=` e repassa `initialCriticalFilter` a `TenantComputersTable`.
+
+---
+
 ## Sprints A5–A13 — Arquitetura Enterprise do Agente Go (`v1.1.0`)
 
 | Sprint | Commit | Entrega |
