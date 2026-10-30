@@ -4252,3 +4252,18 @@ Entrega os Backlog Items 21 e 14.
 - **A42–A43:** consolidação das exportações: relatórios (`/reports/csv`, `/reports/pdf`), armazenamento, processadores, dispositivos descobertos (`/network/discovered/csv`), softwares (`/software/csv`), periféricos (`/peripherals/csv`), contas locais (`/local-accounts/csv`), alertas (`/alerts/csv`) e auditoria (`/audit/csv`, `/api/admin/audit/csv`).
 - **A44:** `/docs` (`components/docs-hub.tsx`) documenta todas as exportações CSV/PDF acima.
 - **Testes:** `tests/docs-page.test.tsx`.
+
+## Sprints A45–A50 — Diagnóstico Defender/Windows Update, matriz completa de CSV e filtros por KPI
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A45** | `0e854d9` | RBAC de leitura do Portal: `canReadTenantData` (`lib/permissions.ts`) deixa o `CLIENT_VIEWER` baixar, só do próprio `clientId`, os CSVs de Softwares, Periféricos e Contas locais e o dossiê `/devices/[id]/export`. As demais rotas do tenant seguem em `canAccessTenant`. |
+| **A46** | `0e854d9` | Scripts `defender_quick_scan` (`Update-MpSignature` + `Start-MpScan -ScanType QuickScan` + `Get-MpComputerStatus`) e `windows_update_check` (COM `Microsoft.Update.Session`, `IsInstalled=0`, total e até 15 títulos com `MsrcSeverity`) em `SCRIPT_CATALOG_IDS`, `allowedScripts` e `execute_windows.go`; em Linux, ClamAV e `apt`/`dnf`. Catálogo de `run_script`: 9 scripts. |
+| **A47** | `0e854d9` | CSV de Clientes (`/api/admin/clients/csv`, PLATFORM_ADMIN ou ORG_ADMIN da própria organização) e de Endereços IP (`/api/tenant/[slug]/network/ips/csv`); "Baixar CSV" em `/assets` (via `/reports/csv`) e `/network`; KPIs clicáveis em `/admin/clients/[id]/agents` (Total, Ativos, Desatualizados, Revogados). |
+| **A48** | — | CSV de Usuários (`/api/users/csv`, escopo por organização para ORG_ADMIN) e de Segurança (`/api/security/csv`, PLATFORM_ADMIN: antivírus, firewall, BitLocker, Secure Boot, UAC, TPM e contas admin). Testes: `tests/users-security-csv-routes.test.ts`. |
+| **A49** | — | Filtros por KPI em `/users` (`?filter=active`, `admins` ou `operators`, com "Limpar filtro") e no card "Agentes Ativos" de `/admin/clients` (`with_agents`); removida a faixa duplicada de KPIs não filtrantes de `app/admin/clients/page.tsx`. |
+| **A50** | — | Documentação: `/docs` ganha a aba *Relatórios, Exportações & Governança* (matriz de exportações do tenant, Portal e Admin, e filtros por KPI), o catálogo de comandos separado em tipos e scripts de `run_script` e o painel *Usuário Interativo & Sessões RDP*; `docs/AGENT.md` documenta os 7 tipos de comando, os 9 scripts, o fallback `query user`/`parseQueryUserOutput` e a paridade do coletor `appwiz.cpl` com `lib/software-catalog.ts`. |
+
+- **Matriz de exportação vigente:** tenant — `reports/csv`, `reports/pdf`, `computers/csv`, `servers/csv`, `devices/[id]/export`, `software/csv`, `peripherals/csv`, `local-accounts/csv`, `storage/csv`, `processors/csv`, `network/ips/csv`, `network/discovered/csv`, `alerts/csv`, `audit/csv`; Portal — `/api/portal/reports/csv` e `/pdf`; Admin — `/api/admin/clients/csv`, `/api/admin/audit/csv`, `/api/users/csv`, `/api/security/csv`.
+- **Não existem** (não documentadas): `/reports/export?format=`, `/assets/csv` e os scripts `ping_gateway`, `traceroute_server`, `restart_agent`, `sfc_scannow`, `dism_restorehealth`, `ipconfig_renew`, `chkdsk_scan`, `force_inventory`.
+- **Testes:** `tests/docs-page.test.tsx`.

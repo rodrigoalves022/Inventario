@@ -462,7 +462,14 @@ export function ClientsPanel({
           active={filter === 'active'}
           onClick={() => setFilter('active')}
         />
-        <KpiCard icon={<Bot />} label="Agentes Ativos" value={totalAgents} subtitle="conectados na base" />
+        <KpiCard
+          icon={<Bot />}
+          label="Agentes Ativos"
+          value={totalAgents}
+          subtitle="conectados na base"
+          active={filter === 'with_agents'}
+          onClick={() => setFilter('with_agents')}
+        />
         <KpiCard
           icon={<AlertCircle />}
           label="Sem Agentes"

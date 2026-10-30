@@ -1,6 +1,8 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { CheckCircle2, Shield, UserRound, Users } from 'lucide-react'
+import { CheckCircle2, Download, Shield, UserRound, Users } from 'lucide-react'
 import { Sidebar, Header } from '@/components/sidebar'
+import { Button } from '@/components/ui/button'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import {
@@ -27,11 +29,32 @@ const ROLE_LABELS: Record<AppRole, string> = {
   CLIENT_VIEWER: 'Portal do cliente',
 }
 
+type UserFilter = 'all' | 'active' | 'admins' | 'operators'
+
+const USER_FILTERS: readonly UserFilter[] = ['all', 'active', 'admins', 'operators']
+
+function parseUserFilter(value: string | undefined): UserFilter {
+  return USER_FILTERS.includes(value as UserFilter) ? (value as UserFilter) : 'all'
+}
+
+function isAdminRole(role: string) {
+  return role === 'PLATFORM_ADMIN' || role === 'ORG_ADMIN'
+}
+
+function isOperatorRole(role: string) {
+  return role === 'ORG_OPERATOR' || role === 'CLIENT_VIEWER'
+}
+
 function monogram(name: string | null, email: string) {
   return (name?.trim() || email).charAt(0).toUpperCase()
 }
 
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ filter?: string }>
+}) {
+  const activeFilter = parseUserFilter((await searchParams)?.filter)
   const session = await auth()
   const user = getSessionPermissionUser(session)
 
@@ -57,6 +80,13 @@ export default async function UsersPage() {
     },
   })
 
+  const filteredUsers = users.filter((u) => {
+    if (activeFilter === 'active') return u.isActive
+    if (activeFilter === 'admins') return isAdminRole(u.role)
+    if (activeFilter === 'operators') return isOperatorRole(u.role)
+    return true
+  })
+
   return (
     <div className="flex min-h-screen">
       <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
@@ -64,25 +94,35 @@ export default async function UsersPage() {
         <Header user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
         <main className="p-4 lg:p-6">
           <div className="space-y-6">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Usuários</h1>
-              <p className="text-muted-foreground">
-                {isPlatformAdmin(user)
-                  ? 'Todos os usuários da plataforma.'
-                  : 'Usuários da sua organização.'}
-              </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Usuários</h1>
+                <p className="text-muted-foreground">
+                  {isPlatformAdmin(user)
+                    ? 'Todos os usuários da plataforma.'
+                    : 'Usuários da sua organização.'}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <a href="/api/users/csv">
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar CSV
+                </a>
+              </Button>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
                 href="/users"
+                active={activeFilter === 'all'}
                 label="Total de Usuários"
                 value={users.length}
                 subtitle="contas no seu escopo"
                 icon={<Users />}
               />
               <KpiCard
-                href="/users"
+                href="/users?filter=active"
+                active={activeFilter === 'active'}
                 label="Usuários Ativos"
                 value={users.filter((u) => u.isActive).length}
                 subtitle="com acesso liberado"
@@ -90,16 +130,18 @@ export default async function UsersPage() {
                 tone="success"
               />
               <KpiCard
-                href="/users"
+                href="/users?filter=admins"
+                active={activeFilter === 'admins'}
                 label="Administradores"
-                value={users.filter((u) => u.role === 'PLATFORM_ADMIN' || u.role === 'ORG_ADMIN').length}
+                value={users.filter((u) => isAdminRole(u.role)).length}
                 subtitle="plataforma e organizações"
                 icon={<Shield />}
               />
               <KpiCard
-                href="/users"
+                href="/users?filter=operators"
+                active={activeFilter === 'operators'}
                 label="Operadores & Portal"
-                value={users.filter((u) => u.role === 'ORG_OPERATOR' || u.role === 'CLIENT_VIEWER').length}
+                value={users.filter((u) => isOperatorRole(u.role)).length}
                 subtitle="operação e leitura"
                 icon={<UserRound />}
               />
@@ -110,6 +152,13 @@ export default async function UsersPage() {
                 icon={<Users />}
                 title="Contas cadastradas"
                 description="Papel RBAC, escopo organizacional e estado de cada credencial."
+                action={
+                  activeFilter !== 'all' && (
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href="/users">Limpar filtro</Link>
+                    </Button>
+                  )
+                }
               />
               <PanelBody flush>
                 <div className="overflow-x-auto">
@@ -123,14 +172,14 @@ export default async function UsersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {users.length === 0 ? (
+                      {filteredUsers.length === 0 ? (
                         <tr>
                           <td colSpan={4} className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
                             Nenhum usuário encontrado.
                           </td>
                         </tr>
                       ) : (
-                        users.map((row) => (
+                        filteredUsers.map((row) => (
                           <tr
                             key={row.id}
                             className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}
@@ -139,7 +188,7 @@ export default async function UsersPage() {
                               <div className="flex items-center gap-3">
                                 <span
                                   aria-hidden
-                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-xs font-bold text-primary"
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-line bg-surface-raise text-xs font-bold text-foreground/85"
                                 >
                                   {monogram(row.name, row.email)}
                                 </span>

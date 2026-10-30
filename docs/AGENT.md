@@ -80,12 +80,48 @@ Também existem `install`, `uninstall`, `run`, `debug`, `metrics`, `discovery` e
   3. Aba *Comandos* da máquina: **Atualizar agente agora**.
   4. `BulkCommandBar`: seleção múltipla em Computadores, Servidores ou Todos os dispositivos.
 
-Catálogo fechado de comandos remotos: `collect_now`, `collect_metrics_now`, `update_agent`, `restart_service` (`Spooler`, `wuauserv`, `BITS`, `Dnscache`), `run_script` (`flush_dns`, `clear_temp_files`, `restart_explorer`, `flush_print_spooler`, `gpupdate_force`, `network_diag`, `system_health_summary`), `restart_computer` e `uninstall_agent`.
+### Catálogo fechado de comandos remotos
+
+O servidor valida com `agentCommandInputSchema` (`lib/agent-commands.ts`) e o agente revalida com `allowedServices`/`allowedScripts` (`internal/app/commands/service.go`). Nenhum texto de script trafega pela rede: o agente só conhece estes ids. Expandir sempre os dois lados juntos (paridade em `tests/agent-command-allowlist-parity.test.ts`; os scripts de segurança também em `tests/agent-commands-schema.test.ts` e `executor_test.go`).
+
+| Tipo | Parâmetro | Efeito |
+| --- | --- | --- |
+| `collect_now` | — | Ciclo completo de inventário |
+| `collect_metrics_now` | — | Coleta imediata de métricas |
+| `update_agent` | — | Auto-update sob demanda (seção acima) |
+| `restart_service` | `serviceName` | `Spooler`, `wuauserv`, `BITS` ou `Dnscache` (só Windows) |
+| `run_script` | `scriptId` | Um dos 9 scripts abaixo |
+| `restart_computer` | — | Reinicia a máquina |
+| `uninstall_agent` | — | Desinstala e revoga o `AgentAuth` ao receber `done` |
+
+Scripts de `run_script` (saída limitada a 20 000 caracteres, exibida como texto na aba *Comandos*):
+
+| `scriptId` | Windows | Linux |
+| --- | --- | --- |
+| `flush_dns` | `ipconfig /flushdns` | não suportado |
+| `clear_temp_files` | Limpa o `%TEMP%` do serviço (LocalSystem) | não suportado |
+| `restart_explorer` | `taskkill /IM explorer.exe /F` e relança | não suportado |
+| `flush_print_spooler` | Para o Spooler, limpa a fila e reinicia | não suportado |
+| `gpupdate_force` | `gpupdate /force` | não suportado |
+| `network_diag` | `ipconfig /all`, `route print -4`, portas `LISTENING` | `ip addr`, `ip route` |
+| `system_health_summary` | Top 15 processos por RAM/CPU | `uptime`, `free -m`, top processos |
+| `defender_quick_scan` | `Update-MpSignature`, `Start-MpScan -ScanType QuickScan` e `Get-MpComputerStatus` (antivírus, tempo real, versão das assinaturas, fim da varredura) | Informa se há ClamAV (`clamscan --version`) |
+| `windows_update_check` | COM `Microsoft.Update.Session`, busca `IsInstalled=0`: total pendente e até 15 títulos com `MsrcSeverity` | `apt list --upgradable` ou `dnf check-update` (até 25 linhas) |
 
 ## 6. AnyDesk ID e usuário interativo
 
 - **AnyDesk:** leitura passiva de `ad.anynet.id` em `system.conf` e `service.conf` — Windows: `ProgramData\AnyDesk` e `Users\*\AppData\Roaming\AnyDesk`; Linux: `/etc/anydesk` e `/home/*/.anydesk`. O valor é aceito só se casar com `/^\d{9,10}$/` e é preservado entre check-ins. O painel permite buscar pelo ID na paleta `Ctrl+K` (busca global), nas tabelas de Computadores, Servidores e Ativos, e conectar via `anydesk:<id>`. A coluna `AnyDesk ID` também é exportada nos relatórios CSV.
-- **Usuário interativo:** como o serviço roda como SYSTEM, o usuário logado é resolvido pela sessão ativa do console, não pelo dono do processo.
+- **Usuário interativo:** como o serviço roda como SYSTEM, o usuário logado é resolvido pela sessão, não pelo dono do processo (`resolveInteractiveUser`, `internal/collectors/windows/collector.go`), nesta ordem:
+  1. `Win32_ComputerSystem.UserName` (sessão de console), sem o prefixo de domínio; contas de sistema são descartadas.
+  2. Variável `USERNAME`, se não for conta de sistema.
+  3. **Fallback RDP:** sessões RDP/Terminal Services não preenchem o WMI, então o agente executa `query user` e `parseQueryUserOutput` ignora o cabeçalho e o marcador `>`, descarta contas de sistema e prefere a sessão `Ativo`/`Active` (senão, a primeira sessão humana). A saída é parseada mesmo quando `query user` retorna código 1.
+  4. Sem ninguém logado, envia vazio e o servidor preserva o último usuário conhecido.
+
+## 6.1 Softwares no padrão do Painel de Controle (`appwiz.cpl`)
+
+O coletor Windows (`internal/collectors/windows/registry.go`) lê as chaves `Uninstall` de `HKLM\SOFTWARE\...` e `HKLM\SOFTWARE\WOW6432Node\...`, além das mesmas chaves em cada perfil `HKU\S-1-5-21-*` (apps por usuário, como VS Code), e só reporta o que aparece em *Programas e Recursos* (`shouldIncludeRegistrySoftware`): exige `DisplayName` e `UninstallString`/`QuietUninstallString`, e descarta `SystemComponent=1`, `NoDisplay=1`, itens com `ParentKeyName`/`ParentDisplayName`, `ReleaseType` de update/hotfix/service pack e subcomponentes internos (`vs_`, `vcpp_crt.`, SDKs, `Definition Update for`).
+
+No servidor, `lib/software-catalog.ts` (`isControlPanelSoftware`, `deduplicateDeviceSoftware`) aplica o mesmo critério aos dados de agentes antigos — inclusive runtimes .NET/VC++ e `KB` — e deduplica por nome mantendo a maior versão. As telas `/software` (tenant e Portal), o CSV `/software/csv` e o dossiê da máquina usam esse filtro.
 
 ## 7. Compilar e publicar binários
 

@@ -104,7 +104,7 @@ describe('/users — chokepoint de acesso (notFound, nunca 403)', () => {
     const { default: UsersPage } = await import('@/app/users/page')
     sessionRef.user = { id: 'u1', email: 'op@org-a.local', role: 'ORG_OPERATOR', organizationId: 'org-a' }
 
-    const digest = await captureNotFoundDigest(() => UsersPage())
+    const digest = await captureNotFoundDigest(() => UsersPage({}))
 
     expect(digest).toBe(NOT_FOUND_DIGEST_PREFIX)
   })
@@ -113,7 +113,7 @@ describe('/users — chokepoint de acesso (notFound, nunca 403)', () => {
     const { default: UsersPage } = await import('@/app/users/page')
     sessionRef.user = { id: 'u2', email: 'portal@org-a.local', role: 'CLIENT_VIEWER', organizationId: 'org-a', clientId: 'client-a' }
 
-    const digest = await captureNotFoundDigest(() => UsersPage())
+    const digest = await captureNotFoundDigest(() => UsersPage({}))
 
     expect(digest).toBe(NOT_FOUND_DIGEST_PREFIX)
   })
@@ -126,7 +126,7 @@ describe('/users — escopo por role da query real de prisma.user.findMany', () 
     const { default: UsersPage } = await import('@/app/users/page')
     sessionRef.user = { id: 'admin', email: 'admin@inventario.local', role: 'PLATFORM_ADMIN', organizationId: null }
 
-    const element = await UsersPage()
+    const element = await UsersPage({})
     const html = renderToStaticMarkup(element as React.ReactElement)
 
     expect(findManyCalls[0]).toMatchObject({ where: undefined })
@@ -140,7 +140,7 @@ describe('/users — escopo por role da query real de prisma.user.findMany', () 
     const { default: UsersPage } = await import('@/app/users/page')
     sessionRef.user = { id: 'admin-a', email: 'admin@org-a.local', role: 'ORG_ADMIN', organizationId: 'org-a' }
 
-    const element = await UsersPage()
+    const element = await UsersPage({})
     const html = renderToStaticMarkup(element as React.ReactElement)
 
     expect(findManyCalls[0]).toMatchObject({ where: { organizationId: 'org-a' } })
@@ -156,7 +156,7 @@ describe('/users — escopo por role da query real de prisma.user.findMany', () 
     // Estado inconsistente, mas possivel: ORG_ADMIN com organizationId nulo.
     sessionRef.user = { id: 'admin-broken', email: 'broken@inventario.local', role: 'ORG_ADMIN', organizationId: null }
 
-    const element = await UsersPage()
+    const element = await UsersPage({})
     const html = renderToStaticMarkup(element as React.ReactElement)
 
     // O guard usa o sentinela '__sem_organizacao__' (que nenhum registro real
@@ -167,5 +167,58 @@ describe('/users — escopo por role da query real de prisma.user.findMany', () 
     expect(html).not.toContain('b@org-b.local')
     expect(html).not.toContain('orphan@no-org.local')
     expect(html).toContain('Nenhum usuário encontrado.')
+  })
+})
+
+describe('/users — filtro por KPI (?filter=)', () => {
+  function seedMixedRoles() {
+    seedUser({ id: 'u-adm', email: 'adm@org-a.local', organizationId: 'org-a', role: 'ORG_ADMIN' })
+    seedUser({ id: 'u-op', email: 'op@org-a.local', organizationId: 'org-a', role: 'ORG_OPERATOR' })
+    seedUser({ id: 'u-view', email: 'view@org-a.local', organizationId: 'org-a', role: 'CLIENT_VIEWER', isActive: false })
+  }
+
+  async function renderWithFilter(filter?: string) {
+    const { default: UsersPage } = await import('@/app/users/page')
+    sessionRef.user = { id: 'admin', email: 'admin@inventario.local', role: 'PLATFORM_ADMIN', organizationId: null }
+    const element = await UsersPage({ searchParams: Promise.resolve({ filter }) })
+    return renderToStaticMarkup(element as React.ReactElement)
+  }
+
+  it('admins mostra so PLATFORM_ADMIN/ORG_ADMIN e oferece "Limpar filtro"', async () => {
+    seedMixedRoles()
+    const html = await renderWithFilter('admins')
+
+    expect(html).toContain('adm@org-a.local')
+    expect(html).not.toContain('op@org-a.local')
+    expect(html).not.toContain('view@org-a.local')
+    expect(html).toContain('Limpar filtro')
+  })
+
+  it('operators mostra ORG_OPERATOR e CLIENT_VIEWER', async () => {
+    seedMixedRoles()
+    const html = await renderWithFilter('operators')
+
+    expect(html).not.toContain('adm@org-a.local')
+    expect(html).toContain('op@org-a.local')
+    expect(html).toContain('view@org-a.local')
+  })
+
+  it('active esconde contas inativas', async () => {
+    seedMixedRoles()
+    const html = await renderWithFilter('active')
+
+    expect(html).toContain('adm@org-a.local')
+    expect(html).toContain('op@org-a.local')
+    expect(html).not.toContain('view@org-a.local')
+  })
+
+  it('valor desconhecido cai em "all" e nao mostra "Limpar filtro"', async () => {
+    seedMixedRoles()
+    const html = await renderWithFilter('qualquer-coisa')
+
+    expect(html).toContain('adm@org-a.local')
+    expect(html).toContain('op@org-a.local')
+    expect(html).toContain('view@org-a.local')
+    expect(html).not.toContain('Limpar filtro')
   })
 })

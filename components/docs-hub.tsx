@@ -7,6 +7,8 @@ import {
   Check,
   Copy,
   Download,
+  FileSpreadsheet,
+  Filter,
   Layers,
   Monitor,
   RefreshCw,
@@ -92,6 +94,7 @@ const TOPICS = [
   { value: 'poweruser', label: 'Console PowerUser & CLI', icon: Terminal },
   { value: 'remote', label: 'Auto-Update & Comandos', icon: RefreshCw },
   { value: 'anydesk', label: 'Integração AnyDesk', icon: Monitor },
+  { value: 'exports', label: 'Relatórios, Exportações & Governança', icon: FileSpreadsheet },
   { value: 'security', label: 'Segurança & Webhooks', icon: ShieldCheck },
 ] as const
 
@@ -144,17 +147,69 @@ const CONSOLE_OPTIONS = [
   ['[7]', 'Desinstalar e excluir aplicação completa (Purge)'],
 ] as const
 
+// Espelha `agentCommandInputSchema` (lib/agent-commands.ts) e `allowedScripts` (agente Go).
 const REMOTE_COMMANDS = [
   ['collect_now', 'Força um ciclo completo de inventário.'],
   ['collect_metrics_now', 'Força uma coleta imediata de métricas (CPU, RAM, disco, uptime).'],
   ['update_agent', 'Atualiza o agente para a versão publicada (SHA-256 + rollback).'],
   ['restart_service', 'Reinicia um serviço da allowlist: Spooler, wuauserv, BITS ou Dnscache.'],
-  ['run_script', 'Executa um script fechado: flush_dns, clear_temp_files, restart_explorer ou flush_print_spooler, gpupdate_force, network_diag ou system_health_summary.'],
+  ['run_script', 'Executa um dos 9 scripts fechados listados abaixo; nenhum texto de script trafega pela rede.'],
   ['restart_computer', 'Reinicia a máquina.'],
   ['uninstall_agent', 'Desinstala o agente remotamente e revoga a credencial (Sprint A16).'],
-  ['run_script (diagnóstico)', 'gpupdate_force, network_diag e system_health_summary; a saída aparece em console expansível na aba Comandos (A17). Relatórios analíticos, catálogos de software/periféricos/contas locais e exportações CSV (incl. Armazenamento e Processadores) chegaram nas Sprints A18–A26.'],
-  ['Sprints A33–A38', 'A33: usuário RDP resolvido via `query user`. A34: busca Ctrl+K por usuário, serial, etiqueta e responsável. A35: exportação CSV de alertas com filtro por KPI. A36–A37: visão de Contas Locais no Portal. A38: PDF analítico com governança do parque (agentes, AnyDesk, patrimônio/garantias) e famílias de processadores.'],
-  ['Exportações CSV/PDF (A39–A44)', 'Relatórios analíticos: `/api/tenant/[slug]/reports/csv` e `/reports/pdf`. Computadores: `/computers/csv`; Servidores: `/servers/csv`. Armazenamento: `/storage/csv`; Processadores: `/processors/csv`. Dispositivos descobertos na rede: `/network/discovered/csv`. Softwares (estilo Painel de Controle, appwiz.cpl): `/software/csv`. Periféricos e USB: `/peripherals/csv`. Contas Locais e Privilégios: `/local-accounts/csv`. Alertas: `/alerts/csv`. Auditoria: `/api/tenant/[slug]/audit/csv` e `/api/admin/audit/csv`. Ficha completa individual por máquina: `/api/tenant/[slug]/devices/[id]/export`.'],
+] as const
+
+const SCRIPT_COMMANDS = [
+  ['flush_dns', 'Limpa o cache DNS (ipconfig /flushdns).'],
+  ['clear_temp_files', 'Remove arquivos temporários do sistema.'],
+  ['restart_explorer', 'Reinicia o processo explorer.exe.'],
+  ['flush_print_spooler', 'Para o Spooler, limpa a fila de impressão e reinicia o serviço.'],
+  ['gpupdate_force', 'Reaplica as políticas de grupo (gpupdate /force).'],
+  ['network_diag', 'Diagnóstico de rede: IPs, rotas e portas em escuta. Também roda em Linux.'],
+  ['system_health_summary', 'Top processos por consumo de RAM/CPU. Também roda em Linux.'],
+  [
+    'defender_quick_scan',
+    'Varredura rápida do Windows Defender: atualiza as assinaturas (Update-MpSignature), roda Start-MpScan -ScanType QuickScan e devolve o estado do antivírus (proteção em tempo real, versão das assinaturas, fim da última varredura). Em Linux, informa se há ClamAV instalado.',
+  ],
+  [
+    'windows_update_check',
+    'Verificação de atualizações pendentes no Windows Update via COM Microsoft.Update.Session (busca IsInstalled=0): devolve o total pendente e até 15 títulos com a severidade MSRC. Em Linux, lista pacotes atualizáveis via apt ou dnf.',
+  ],
+] as const
+
+const TENANT_EXPORTS = [
+  ['Relatórios analíticos', '/api/tenant/[slug]/reports/csv', 'Uma linha por máquina: status, IP, AnyDesk ID, SO, hardware, antivírus/firewall e patrimônio (delimitador vírgula). É também o "Baixar CSV" de Todos os dispositivos (/assets).'],
+  ['Relatório executivo PDF', '/api/tenant/[slug]/reports/pdf', 'PDF analítico com governança do parque, agentes, AnyDesk, patrimônio/garantias e famílias de processadores.'],
+  ['Computadores', '/api/tenant/[slug]/computers/csv', 'Estações de trabalho do tenant.'],
+  ['Servidores', '/api/tenant/[slug]/servers/csv', 'Servidores monitorados do tenant.'],
+  ['Dossiê da máquina', '/api/tenant/[slug]/devices/[id]/export', 'Ficha completa de uma máquina, por seção: identificação, hardware, discos, rede, segurança, softwares, periféricos, contas locais e patrimônio.'],
+  ['Softwares', '/api/tenant/[slug]/software/csv', 'Catálogo no padrão Programas e Recursos (appwiz.cpl), com conformidade e máquinas por software.'],
+  ['Periféricos e USB', '/api/tenant/[slug]/peripherals/csv', 'Periféricos e dispositivos USB detectados.'],
+  ['Contas locais', '/api/tenant/[slug]/local-accounts/csv', 'Contas locais e privilégios por máquina.'],
+  ['Armazenamento', '/api/tenant/[slug]/storage/csv', 'Unidades por máquina: tipo, modelo, capacidade, uso e BitLocker.'],
+  ['Processadores', '/api/tenant/[slug]/processors/csv', 'Processadores por modelo e fabricante, com quantidade e lista de máquinas.'],
+  ['Endereços IP', '/api/tenant/[slug]/network/ips/csv', 'Uma linha por interface: IP, MAC, gateway, DNS, DHCP/estático, primária e status da máquina.'],
+  ['Dispositivos descobertos', '/api/tenant/[slug]/network/discovered/csv', 'Ativos encontrados pela descoberta de rede: IP, MAC, fabricante, tipo, portas abertas e descrição SNMP (delimitador vírgula).'],
+  ['Alertas', '/api/tenant/[slug]/alerts/csv', 'Disparos de alerta do tenant.'],
+  ['Auditoria do tenant', '/api/tenant/[slug]/audit/csv', 'Trilha de auditoria do tenant.'],
+] as const
+
+const PLATFORM_EXPORTS = [
+  ['Portal: relatório CSV', '/api/portal/reports/csv', 'Relatório do próprio cliente no Portal (CLIENT_VIEWER).'],
+  ['Portal: relatório PDF', '/api/portal/reports/pdf', 'Versão PDF do relatório do Portal.'],
+  ['Admin: clientes', '/api/admin/clients/csv', 'Clientes com slug, status, dispositivos e agentes ativos. PLATFORM_ADMIN, ou ORG_ADMIN restrito à própria organização.'],
+  ['Admin: auditoria global', '/api/admin/audit/csv', 'Trilha de auditoria da administração global (PLATFORM_ADMIN).'],
+  ['Usuários', '/api/users/csv', 'Nome, e-mail, papel, escopo e status. PLATFORM_ADMIN vê todos; ORG_ADMIN, só a própria organização.'],
+  ['Segurança', '/api/security/csv', 'Postura por máquina: antivírus e assinaturas, firewall, BitLocker, Secure Boot, UAC, TPM e contas admin habilitadas (PLATFORM_ADMIN).'],
+] as const
+
+const KPI_FILTERS = [
+  ['Visão Geral do tenant', 'Cards de status levam a /assets?status=online, offline ou warning.'],
+  ['Computadores, Servidores, Armazenamento, Processadores', 'Os cards filtram a tabela na própria página; Servidores inclui "Agente desatualizado" (versão diferente de LATEST_AGENT_VERSION). Clicar de novo no card ativo limpa o filtro.'],
+  ['Alertas', 'Regras ativas, Disparos em aberto (?state=open), Críticos abertos (?severity=critical) e Resolvidos (?state=resolved).'],
+  ['Portal', '/portal?status=online, warning ou offline filtra a lista de máquinas do cliente.'],
+  ['Admin: clientes', 'Total de clientes, Clientes ativos, Agentes ativos (clientes com agente) e Sem agentes filtram a lista de clientes.'],
+  ['Admin: agentes do cliente', 'Total de credenciais, Agentes ativos, Agentes desatualizados e Revogados filtram a tabela de /admin/clients/[id]/agents.'],
+  ['Usuários', '/users?filter=active, admins ou operators.'],
 ] as const
 
 export function DocsHub() {
@@ -449,6 +504,23 @@ export function DocsHub() {
                 </dl>
               </PanelBody>
             </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<ShieldCheck className="h-4 w-4" />}
+                title="Scripts de Diagnóstico e Segurança (run_script)"
+                description="Allowlist idêntica no servidor e no agente Go; a saída aparece em console expansível na aba Comandos."
+              />
+              <PanelBody>
+                <dl className="divide-y divide-surface-line">
+                  {SCRIPT_COMMANDS.map(([name, text]) => (
+                    <Row key={name} term={<Code>{name}</Code>}>
+                      {text}
+                    </Row>
+                  ))}
+                </dl>
+              </PanelBody>
+            </Panel>
           </TabsContent>
 
           <TabsContent value="anydesk" className="space-y-6">
@@ -479,6 +551,88 @@ export function DocsHub() {
                   <Row term="Conexão">
                     O badge abre o protocolo <Code>anydesk:&lt;id&gt;</Code> com um clique e permite copiar o ID.
                   </Row>
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Monitor className="h-4 w-4" />}
+                title="Usuário Interativo & Sessões RDP"
+                description="O serviço roda como SYSTEM; o usuário logado vem da sessão, não do dono do processo."
+              />
+              <PanelBody>
+                <dl className="divide-y divide-surface-line">
+                  <Row term="Console (WMI)">
+                    <Code>Win32_ComputerSystem.UserName</Code>, sem o prefixo de domínio; contas de sistema são ignoradas.
+                  </Row>
+                  <Row term="Sessão RDP (fallback)">
+                    Sessões RDP/Terminal Services não preenchem o WMI. O agente cai para <Code>query user</Code> e{' '}
+                    <Code>parseQueryUserOutput</Code> escolhe a sessão <Code>Ativo</Code>/<Code>Active</Code> (ou a primeira
+                    sessão humana listada).
+                  </Row>
+                  <Row term="Sem ninguém logado">
+                    O agente envia vazio e o servidor preserva o último usuário conhecido.
+                  </Row>
+                </dl>
+              </PanelBody>
+            </Panel>
+          </TabsContent>
+
+          <TabsContent value="exports" className="space-y-6">
+            <Panel>
+              <PanelHeader
+                icon={<FileSpreadsheet className="h-4 w-4" />}
+                title="Matriz de Exportações do Tenant"
+                description="401 sem sessão, 403 fora do escopo. Salvo indicação, CSV com BOM UTF-8, delimitador ; e prefixo ' contra formula injection."
+              />
+              <PanelBody className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Exige acesso ao tenant (<Code>canAccessTenant</Code>). Softwares, Periféricos, Contas locais e o Dossiê
+                  da máquina também aceitam <Code>CLIENT_VIEWER</Code> do próprio cliente (<Code>canReadTenantData</Code>).
+                </p>
+                <dl className="divide-y divide-surface-line">
+                  {TENANT_EXPORTS.map(([name, route, text]) => (
+                    <Row key={route} term={name}>
+                      <Code>{route}</Code>
+                      <span className="mt-1 block">{text}</span>
+                    </Row>
+                  ))}
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<FileSpreadsheet className="h-4 w-4" />}
+                title="Exportações do Portal e da Administração"
+                description="Cada rota repete a verificação de papel no servidor."
+              />
+              <PanelBody>
+                <dl className="divide-y divide-surface-line">
+                  {PLATFORM_EXPORTS.map(([name, route, text]) => (
+                    <Row key={route} term={name}>
+                      <Code>{route}</Code>
+                      <span className="mt-1 block">{text}</span>
+                    </Row>
+                  ))}
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Filter className="h-4 w-4" />}
+                title="Filtros Interativos por KPI"
+                description="Os cards de KPI são clicáveis e filtram a lista da própria tela."
+              />
+              <PanelBody>
+                <dl className="divide-y divide-surface-line">
+                  {KPI_FILTERS.map(([name, text]) => (
+                    <Row key={name} term={name}>
+                      {text}
+                    </Row>
+                  ))}
                 </dl>
               </PanelBody>
             </Panel>
