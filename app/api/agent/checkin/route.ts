@@ -18,6 +18,13 @@ function isSystemAccountName(u: string | null | undefined): boolean {
   return !u || u.trim() === '' || u.toUpperCase() === 'SYSTEM' || u.endsWith('$')
 }
 
+// O check-in nao traz a plataforma explicitamente; deduz pelo nome do SO.
+function resolveAgentPlatform(sistema: string | null | undefined): 'windows' | 'linux' {
+  return sistema && /linux|ubuntu|debian|centos|rhel|fedora|arch|suse|alpine|mint|kali|gentoo/i.test(sistema)
+    ? 'linux'
+    : 'windows'
+}
+
 export async function POST(req: NextRequest) {
   const auth = await validateAgentApiKey(req)
   if (!auth.ok) return authErrorResponse(auth)
@@ -408,7 +415,9 @@ export async function POST(req: NextRequest) {
 
     const isOutdated = body.agentVersion && body.agentVersion !== LATEST_AGENT_VERSION
     const serverUrl = await getCurrentServerUrl()
-    const binarySha256 = isOutdated ? await getAgentBinarySha256() : null
+    const targetPlatform = resolveAgentPlatform(body.sistema)
+    const binarySha256 = isOutdated ? await getAgentBinarySha256(targetPlatform) : null
+    const binaryFile = targetPlatform === 'linux' ? 'inventario-agent-linux' : 'inventario-agent.exe'
 
     return NextResponse.json(
       {
@@ -417,7 +426,7 @@ export async function POST(req: NextRequest) {
         updateAvailable: isOutdated,
         updateMetadata: isOutdated ? {
             version: LATEST_AGENT_VERSION,
-            url: `${serverUrl}/inventario-agent.exe`,
+            url: `${serverUrl}/${binaryFile}`,
             sha256: binarySha256,
         } : null,
         client: auth.agentAuth.clientSlug

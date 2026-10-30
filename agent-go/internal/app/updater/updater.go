@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -41,16 +42,53 @@ Remove-Item -Path $PSCommandPath -Force -ErrorAction SilentlyContinue
 `, escapePowerShellSingleQuoted(tempExe), escapePowerShellSingleQuoted(currentExe))
 }
 
+func escapePosixSingleQuoted(s string) string { return strings.ReplaceAll(s, "'", "'\\''") }
+
+// buildLinuxUpdateScript gera o script /bin/sh de troca do binario no Linux,
+// com backup e rollback automatico caso a unidade systemd nao suba.
+func buildLinuxUpdateScript(tempBin, currentBin string) string {
+	return fmt.Sprintf(`#!/bin/sh
+sleep 2
+TEMP='%s'
+TARGET='%s'
+BAK="${TARGET}.bak"
+systemctl stop inventario-agent 2>/dev/null || true
+sleep 1
+if [ -f "$TARGET" ]; then cp -f "$TARGET" "$BAK" 2>/dev/null || true; fi
+cp -f "$TEMP" "$TARGET" && chmod 0755 "$TARGET"
+if systemctl start inventario-agent 2>/dev/null; then
+  rm -f "$BAK" 2>/dev/null || true
+else
+  if [ -f "$BAK" ]; then
+    cp -f "$BAK" "$TARGET" && chmod 0755 "$TARGET"
+    systemctl start inventario-agent 2>/dev/null || true
+  fi
+fi
+rm -f "$TEMP" "$0" 2>/dev/null || true
+`, escapePosixSingleQuoted(tempBin), escapePosixSingleQuoted(currentBin))
+}
+
 func RunAsync(downloadUrl, expectedSHA256 string) {
 	log.Printf("[UPDATER] Baixando atualizacao de %s\n", downloadUrl)
 
-	updateDir := filepath.Join(os.Getenv("ProgramData"), "InventarioAgent", "updates")
-	if os.Getenv("ProgramData") == "" {
-		updateDir = os.TempDir()
+	isLinux := runtime.GOOS == "linux"
+	var updateDir, tempExe, scriptPath string
+	if isLinux {
+		updateDir = "/var/lib/inventario-agent/updates"
+		if err := os.MkdirAll(updateDir, 0o755); err != nil {
+			updateDir = os.TempDir()
+		}
+		tempExe = filepath.Join(updateDir, "inventario-agent.update")
+		scriptPath = filepath.Join(updateDir, "inventario-updater.sh")
+	} else {
+		updateDir = filepath.Join(os.Getenv("ProgramData"), "InventarioAgent", "updates")
+		if os.Getenv("ProgramData") == "" {
+			updateDir = os.TempDir()
+		}
+		_ = os.MkdirAll(updateDir, 0o755)
+		tempExe = filepath.Join(updateDir, "inventario-agent.update.exe")
+		scriptPath = filepath.Join(updateDir, "inventario-updater.ps1")
 	}
-	_ = os.MkdirAll(updateDir, 0o755)
-	tempExe := filepath.Join(updateDir, "inventario-agent.update.exe")
-	scriptPath := filepath.Join(updateDir, "inventario-updater.ps1")
 
 	resp, err := http.Get(downloadUrl)
 	if err != nil {
@@ -94,6 +132,9 @@ func RunAsync(downloadUrl, expectedSHA256 string) {
 	}
 
 	scriptContent := buildUpdateScript(tempExe, currentExe)
+	if isLinux {
+		scriptContent = buildLinuxUpdateScript(tempExe, currentExe)
+	}
 
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	if err != nil {
@@ -103,7 +144,12 @@ func RunAsync(downloadUrl, expectedSHA256 string) {
 
 	log.Printf("[UPDATER] Iniciando script temporal de substituicao e paralisando agente atual...")
 
-	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-WindowStyle", "Hidden", "-File", scriptPath)
+	var cmd *exec.Cmd
+	if isLinux {
+		cmd = exec.Command("/bin/sh", scriptPath)
+	} else {
+		cmd = exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-WindowStyle", "Hidden", "-File", scriptPath)
+	}
 	err = cmd.Start()
 	if err != nil {
 		log.Printf("[UPDATER] Erro fatal: powershell de auto-update nao spawnou! %v\n", err)

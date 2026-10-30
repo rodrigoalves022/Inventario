@@ -24,11 +24,11 @@ const { statMock, readFileMock, fsState } = vi.hoisted(() => {
     content: 'binario-v1',
     shouldFailStat: false,
   }
-  const statMock = vi.fn(async () => {
+  const statMock = vi.fn(async (_path?: unknown) => {
     if (fsState.shouldFailStat) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
     return { mtimeMs: fsState.mtimeMs }
   })
-  const readFileMock = vi.fn(async () => Buffer.from(fsState.content))
+  const readFileMock = vi.fn(async (_path?: unknown) => Buffer.from(fsState.content))
   return { statMock, readFileMock, fsState }
 })
 
@@ -124,6 +124,7 @@ const { devicesByAgentAuthId, authResultRef, fakePrisma } = vi.hoisted(() => {
         return { id, hostname: created.hostname, status: created.status }
       }),
     },
+    hardware: { upsert: vi.fn(async () => ({ id: 'hw-1' })) },
     collectionLog: { create: vi.fn(async () => ({ id: 'log-1' })) },
     agentCheckLog: { create: vi.fn(async () => ({ id: 'checklog-1' })) },
   }
@@ -194,6 +195,35 @@ describe('POST /api/agent/checkin — updateMetadata só preenchido quando isOut
       version: '1.1.0',
       url: 'https://inventario.example.com/inventario-agent.exe',
       sha256: sha256Of('binario-atual'),
+    })
+  })
+
+  it('agente Linux desatualizado recebe a URL e o sha256 do binário Linux; Windows segue com o .exe', async () => {
+    fsState.content = 'binario-linux'
+    statMock.mockImplementation(async (path: unknown) => ({ mtimeMs: String(path).includes('linux') ? 1 : 2 }))
+    readFileMock.mockImplementation(async (path: unknown) =>
+      Buffer.from(String(path).includes('linux') ? 'binario-linux' : 'binario-windows'),
+    )
+
+    setAuthOk('agent-linux-1')
+    const { POST } = await import('@/app/api/agent/checkin/route')
+    const linux = await (
+      await POST(buildRequest({ hostname: 'srv-linux', agentVersion: '0.9.0', sistema: 'Ubuntu 22.04 LTS' }))
+    ).json()
+
+    expect(linux.updateMetadata).toMatchObject({
+      url: 'https://inventario.example.com/inventario-agent-linux',
+      sha256: sha256Of('binario-linux'),
+    })
+
+    setAuthOk('agent-win-1')
+    const win = await (
+      await POST(buildRequest({ hostname: 'pc-win', agentVersion: '0.9.0', sistema: 'Windows 11 Pro' }))
+    ).json()
+
+    expect(win.updateMetadata).toMatchObject({
+      url: 'https://inventario.example.com/inventario-agent.exe',
+      sha256: sha256Of('binario-windows'),
     })
   })
 })

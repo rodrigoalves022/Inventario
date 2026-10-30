@@ -3997,6 +3997,8 @@ atual (não o script antigo) e de auditoria de segurança do comando gerado.
 
 ### 24. Auto-update do agente é só Windows — MÉDIO (achado do planejamento da Sprint A4)
 
+**Status**: ✅ Resolvido na Sprint A14 — ver linha A14 da tabela no fim deste arquivo.
+
 **Origem**: orquestrador, durante o planejamento da Sprint A4 (2026-10-19), conferido pelo
 `sprint-planner` contra o código depois de `2a4d138`.
 
@@ -4154,3 +4156,4 @@ Todas as páginas passaram a usar os mesmos blocos de composição (`KpiCard`, `
 | **A11** | `df24887` | Ações diretas de atualização individual e em massa em `/admin/clients/[id]/agents`, badges de versão (`Atualizado` / `v1.1.0 disponível`) e cobertura completa de `AUDIT_ACTION_LABEL`. |
 | **A12** | `d214304` | Busca global por AnyDesk ID na paleta `Ctrl+K` (`GET /api/tenant/[clientSlug]/devices/search`) e coluna `AnyDesk ID` na exportação CSV. |
 | **A13** | — | `EnqueueUpdateAgentButton` (comando `update_agent` em 1 clique) e badge de versão no cabeçalho de `/app/[clientSlug]/assets/[id]` (`info` se atual, `warning` com "vX disponível" se desatualizado; botão só aparece para quem opera e com agente desatualizado). Versão do agente também em `/computers`, `/servers` (tabela e cartões) e `/portal/devices/[id]`; `/computers` passa a buscar por versão. |
+| **A14** | — | Auto-updater multiplataforma. Agente Go: no Linux, `RunAsync` baixa para `/var/lib/inventario-agent/updates` (fallback `os.TempDir()`), valida SHA-256 e executa `/bin/sh inventario-updater.sh`, que para a unidade `inventario-agent`, faz backup `.bak`, troca o binário (`chmod 0755`), reinicia e faz rollback se o start falhar; Windows inalterado (PowerShell). Check-in: `resolveAgentPlatform(sistema)` escolhe `/inventario-agent-linux` + SHA-256 do binário Linux, ou `/inventario-agent.exe` + SHA-256 do Windows. Resolve o Backlog Item 24. |
