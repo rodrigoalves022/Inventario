@@ -12,6 +12,7 @@ import (
 	"inventario-agent/internal/app/checkin"
 	appinstall "inventario-agent/internal/app/install"
 	"inventario-agent/internal/config"
+	appversion "inventario-agent/internal/version"
 	"inventario-agent/internal/platform/windows/service"
 )
 
@@ -105,7 +106,9 @@ func runAutoInstall(ac *AutoConfig) {
 	os.Exit(0)
 }
 
-var version = "1.1.0"
+
+
+var version = appversion.Version
 
 func main() {
 	if len(os.Args) < 2 {

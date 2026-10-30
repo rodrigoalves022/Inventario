@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
+/** Versao mais recente do agente publicada em public/ (comparada no check-in). */
+export const LATEST_AGENT_VERSION = '1.1.0'
+
 export type AgentPlatform = 'windows' | 'linux'
 
 // Fonte única de publish: o binário efetivamente servido em

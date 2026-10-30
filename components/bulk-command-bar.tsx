@@ -35,7 +35,7 @@ const idleState: BulkCommandActionState = { status: 'idle', message: null }
 /** Mesmo catalogo fechado de components/device-command-panel.tsx (um device
  * por vez), so que aqui um unico form cobre os 5 tipos — a barra flutuante
  * nao tem espaco pra 4 forms lado a lado como no painel de detalhe. */
-const BULK_COMMAND_TYPES = ['collect_now', 'collect_metrics_now', 'restart_service', 'run_script', 'restart_computer'] as const
+const BULK_COMMAND_TYPES = ['collect_now', 'collect_metrics_now', 'update_agent', 'restart_service', 'run_script', 'restart_computer'] as const
 type BulkCommandType = (typeof BULK_COMMAND_TYPES)[number]
 
 function SubmitButton({ label, destructive }: { label: string; destructive?: boolean }) {

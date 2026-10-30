@@ -23,14 +23,14 @@ PUBLIC_DIR := ../public
 ## Compila para Windows (x64) e publica em ../public/ — fonte servida pelo app
 windows:
 	@echo "[BUILD] Compilando para Windows..."
-	GOOS=windows GOARCH=amd64 $(GO) build -ldflags "-s -w -X main.version=$(VERSION)" -o dist/$(APPNAME).exe ./cmd/$(APPNAME)
+	GOOS=windows GOARCH=amd64 $(GO) build -ldflags "-s -w -X inventario-agent/internal/version.Version=$(VERSION)" -o dist/$(APPNAME).exe ./cmd/$(APPNAME)
 	@cp dist/$(APPNAME).exe $(PUBLIC_DIR)/$(APPNAME).exe
 	@echo "[OK] $(PUBLIC_DIR)/$(APPNAME).exe publicado (copia em dist/$(APPNAME).exe)"
 
 ## Compila para Linux (x64) — sem publish: coletores Linux ainda nao existem (factory_stub.go)
 linux:
 	@echo "[BUILD] Compilando para Linux..."
-	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "-s -w -X main.version=$(VERSION)" -o dist/$(APPNAME)-linux ./cmd/$(APPNAME)
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "-s -w -X inventario-agent/internal/version.Version=$(VERSION)" -o dist/$(APPNAME)-linux ./cmd/$(APPNAME)
 	@echo "[OK] dist/$(APPNAME)-linux pronto"
 
 ## Ambos em sequencia

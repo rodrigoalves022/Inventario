@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
 import { toast } from 'sonner'
-import { Activity, Power, RefreshCw, Terminal, Wrench } from 'lucide-react'
+import { Activity, Download, Power, RefreshCw, Terminal, Wrench } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -63,6 +63,23 @@ function CollectMetricsNowForm({ tenantSlug, deviceId }: { tenantSlug: string; d
       <SubmitButton>
         <Activity className="h-4 w-4" />
         Coletar métricas agora
+      </SubmitButton>
+    </form>
+  )
+}
+
+function UpdateAgentNowForm({ tenantSlug, deviceId }: { tenantSlug: string; deviceId: string }) {
+  const [state, formAction] = useActionState(enqueueDeviceCommandAction, idleState)
+  useCommandFeedback(state)
+
+  return (
+    <form action={formAction} className="flex flex-col gap-1.5">
+      <input type="hidden" name="tenantSlug" value={tenantSlug} />
+      <input type="hidden" name="assetId" value={deviceId} />
+      <input type="hidden" name="type" value="update_agent" />
+      <SubmitButton>
+        <Download className="h-4 w-4" />
+        Atualizar agente agora
       </SubmitButton>
     </form>
   )
@@ -176,6 +193,7 @@ export function DeviceCommandPanel({
   return (
     <div className="grid gap-4 rounded-xl border bg-card p-4 sm:grid-cols-2">
       <CollectMetricsNowForm tenantSlug={tenantSlug} deviceId={deviceId} />
+      <UpdateAgentNowForm tenantSlug={tenantSlug} deviceId={deviceId} />
       <RestartComputerForm tenantSlug={tenantSlug} deviceId={deviceId} hostname={hostname} />
       <RestartServiceForm tenantSlug={tenantSlug} deviceId={deviceId} />
       <RunScriptForm tenantSlug={tenantSlug} deviceId={deviceId} />

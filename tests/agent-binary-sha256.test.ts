@@ -172,7 +172,7 @@ describe('POST /api/agent/checkin — updateMetadata só preenchido quando isOut
     setAuthOk('agent-uptodate-1')
 
     const { POST } = await import('@/app/api/agent/checkin/route')
-    const response = await POST(buildRequest({ hostname: 'PC-ATUALIZADO', agentVersion: '1.0.0' }))
+    const response = await POST(buildRequest({ hostname: 'PC-ATUALIZADO', agentVersion: '1.1.0' }))
     const json = await response.json()
 
     expect(response.status).toBe(200)
@@ -191,7 +191,7 @@ describe('POST /api/agent/checkin — updateMetadata só preenchido quando isOut
     expect(response.status).toBe(200)
     expect(json.updateAvailable).toBe(true)
     expect(json.updateMetadata).toMatchObject({
-      version: '1.0.0',
+      version: '1.1.0',
       url: 'https://inventario.example.com/inventario-agent.exe',
       sha256: sha256Of('binario-atual'),
     })

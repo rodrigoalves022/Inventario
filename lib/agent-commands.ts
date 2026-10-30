@@ -13,6 +13,7 @@ export const AGENT_COMMAND_TTL_MS = 15 * 60 * 1000 // comando não reclamado exp
 export const agentCommandInputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('collect_now') }),
   z.object({ type: z.literal('collect_metrics_now') }),
+  z.object({ type: z.literal('update_agent') }),
   z.object({
     type: z.literal('restart_service'),
     serviceName: z.enum(RESTARTABLE_SERVICES),
@@ -36,6 +37,7 @@ export function toParamsJson(input: AgentCommandInput): string | null {
   switch (input.type) {
     case 'collect_now':
     case 'collect_metrics_now':
+    case 'update_agent':
     case 'restart_computer':
       return null
     case 'restart_service':
@@ -48,6 +50,7 @@ export function toParamsJson(input: AgentCommandInput): string | null {
 export const COMMAND_TYPE_LABELS: Record<string, string> = {
   collect_now: 'Forçar coleta completa',
   collect_metrics_now: 'Coletar métricas agora',
+  update_agent: 'Atualizar agente agora',
   restart_service: 'Reiniciar serviço',
   run_script: 'Rodar script',
   restart_computer: 'Reiniciar máquina',

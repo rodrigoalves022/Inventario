@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { validateAgentApiKey, authErrorResponse } from '@/lib/auth'
 import { getCurrentServerUrl } from '@/lib/server-url'
-import { getAgentBinarySha256 } from '@/lib/agent-binary'
+import { getAgentBinarySha256, LATEST_AGENT_VERSION } from '@/lib/agent-binary'
 import { deriveInventoryIssues, getWarningTransitionIssues } from '@/lib/inventory-alerts'
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 import { reconcileAlertEvents } from '@/lib/alert-rules'
@@ -90,6 +90,9 @@ export async function POST(req: NextRequest) {
       : []
     const nextStatus = warningIssues.length > 0 ? 'warning' : 'online'
 
+    // update_agent forca um check-in com 0.0.0 so pra disparar o updater; nao persistir.
+    const persistedAgentVersion = body.agentVersion && body.agentVersion !== "0.0.0" ? body.agentVersion : undefined
+
     const device = await prisma.device.upsert({
       where: { agentAuthId: auth.agentAuth.id },
       create: {
@@ -106,7 +109,7 @@ export async function POST(req: NextRequest) {
         // Sprint 11 (B): mesmo campo que ja alimentava a mensagem do
         // CollectionLog abaixo e a decisao de updateAvailable — agora tambem
         // persistido por dispositivo, pra exibir no card de saude.
-        agentVersion: body.agentVersion ?? null,
+        agentVersion: persistedAgentVersion ?? null,
       },
       update: {
         hostname,
@@ -122,7 +125,7 @@ export async function POST(req: NextRequest) {
         // Check-in parcial (sem AnyDesk) nao apaga um ID ja conhecido.
         ...(body.anydeskId ? { anydeskId: body.anydeskId } : {}),
         status: nextStatus,
-        agentVersion: body.agentVersion ?? null,
+        ...(persistedAgentVersion ? { agentVersion: persistedAgentVersion } : {}),
         updatedAt: new Date(),
       },
     })
@@ -403,7 +406,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const LATEST_AGENT_VERSION = "1.0.0"
     const isOutdated = body.agentVersion && body.agentVersion !== LATEST_AGENT_VERSION
     const serverUrl = await getCurrentServerUrl()
     const binarySha256 = isOutdated ? await getAgentBinarySha256() : null

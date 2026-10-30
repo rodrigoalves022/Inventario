@@ -26,7 +26,7 @@ const APP_NAME = 'inventario-agent'
 function build(goos, goarch, outputName) {
   const outputPath = join(distDir, outputName)
   console.log(`[build-agent] Compilando ${goos}/${goarch} -> dist/${outputName}...`)
-  execFileSync('go', ['build', '-ldflags', `-s -w -X main.version=${VERSION}`, '-o', outputPath, `./cmd/${APP_NAME}`], {
+  execFileSync('go', ['build', '-ldflags', `-s -w -X inventario-agent/internal/version.Version=${VERSION}`, '-o', outputPath, `./cmd/${APP_NAME}`], {
     cwd: agentDir,
     env: { ...process.env, GOOS: goos, GOARCH: goarch },
     stdio: 'inherit',

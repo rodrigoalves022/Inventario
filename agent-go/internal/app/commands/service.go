@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"inventario-agent/internal/app/checkin"
 	"inventario-agent/internal/config"
@@ -43,6 +44,8 @@ func execute(cfg *config.Config, cmd *httpapi.PendingCommand) httpapi.CommandRes
 		return executeCollectNow(cfg)
 	case "collect_metrics_now":
 		return executeCollectMetricsNow(cfg)
+	case "update_agent":
+		return executeUpdateAgent(cfg)
 	case "restart_computer":
 		return executeRestartComputer()
 	case "restart_service":
@@ -82,6 +85,19 @@ func executeCollectMetricsNow(cfg *config.Config) httpapi.CommandResult {
 		return httpapi.CommandResult{Status: "failed", ErrorMessage: err.Error()}
 	}
 	return httpapi.CommandResult{Status: "done", Output: "metricas enviadas: " + payload.Hostname}
+}
+
+func executeUpdateAgent(cfg *config.Config) httpapi.CommandResult {
+	go func() {
+		time.Sleep(2 * time.Second)
+		if err := checkin.ForceUpdateOnce(cfg); err != nil {
+			log.Printf("[COMMANDS] Falha ao acionar ForceUpdateOnce: %v", err)
+		}
+	}()
+	return httpapi.CommandResult{
+		Status: "done",
+		Output: "atualizacao remota do agente iniciada (download + verificacao SHA-256 + reinicio do servico)",
+	}
 }
 
 // allowlist espelha lib/agent-commands.ts (RESTARTABLE_SERVICES / SCRIPT_CATALOG_IDS) -

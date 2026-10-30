@@ -8,10 +8,39 @@ import (
 	"inventario-agent/internal/config"
 	"inventario-agent/internal/domain/inventory"
 	"inventario-agent/internal/transport/httpapi"
+	"inventario-agent/internal/version"
 )
 
 func CollectOnce() (*inventory.Payload, error) {
-	return collectors.New().Collect()
+	payload, err := collectors.New().Collect()
+	if err != nil {
+		return nil, err
+	}
+	if payload.AgentVersion == "" {
+		payload.AgentVersion = version.Version
+	}
+	return payload, nil
+}
+
+// ForceUpdateOnce envia um check-in sinalizando AgentVersion="0.0.0" para que
+// o servidor devolva updateAvailable=true + updateMetadata (URL e SHA-256 do
+// binario publicado) e o cliente HTTP dispare updater.RunAsync imediatamente.
+func ForceUpdateOnce(cfg *config.Config) error {
+	payload, err := CollectOnce()
+	if err != nil {
+		return fmt.Errorf("coleta: %w", err)
+	}
+	payload.AgentVersion = "0.0.0"
+
+	client, err := httpapi.NewClient(cfg.ServerURL, cfg.APIKey)
+	if err != nil {
+		return fmt.Errorf("cliente HTTP: %w", err)
+	}
+
+	if err := client.Send(payload); err != nil {
+		return fmt.Errorf("envio: %w", err)
+	}
+	return nil
 }
 
 func SendOnce(cfg *config.Config) (*inventory.Payload, error) {
@@ -38,6 +67,9 @@ func SendMetricsOnce(cfg *config.Config) (*inventory.MetricsPayload, error) {
 	payload, err := collectors.New().CollectMetrics()
 	if err != nil {
 		return nil, fmt.Errorf("coleta de metricas: %w", err)
+	}
+	if payload.AgentVersion == "" {
+		payload.AgentVersion = version.Version
 	}
 
 	client, err := httpapi.NewClient(cfg.ServerURL, cfg.APIKey)
