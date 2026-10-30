@@ -4194,11 +4194,19 @@ Sincroniza `/docs` (`components/docs-hub.tsx`), `docs/AGENT.md` e este arquivo c
 
 ## Sprint A16 — Desinstalação Remota de Agente e Limite de Slug
 
+Commit: `eff89ae`.
+
 Entrega os Backlog Items 21 e 14.
 
 - **`uninstall_agent` (Item 21):** novo comando no catálogo (`lib/agent-commands.ts`, `COMMAND_TYPE_LABELS`). `UninstallAgentForm` em `DeviceCommandPanel` (`AlertDialog` de alto atrito, botão destrutivo com `Trash2`). No agente Go, `executeUninstallAgent` responde `done` e, após 4 s (tempo para `ReportCommandResult`), dispara um processo desanexado: PowerShell no Windows (para/remove o serviço `InventarioAgent`, chave de `Uninstall`, `ProgramData` e `Program Files`) ou `/bin/sh` no Linux (remove unit, `/opt`, `/var/lib` e `/usr/local/bin`), e então `os.Exit(0)`. No script Linux o `systemctl stop` fica por último, pois derruba o cgroup do próprio script. Em `POST /api/agent/commands/[id]/result`, `done` de `uninstall_agent` revoga o `AgentAuth` (`updateMany` com `isActive: true`, idempotente), expira comandos `pending`/`running` e grava `agent_auth.remote_uninstall` — tudo numa transação, com o audit só se a revogação ocorreu.
 - **Slug (Item 14):** `slugifyClientName` trunca em 64 caracteres sem hífen final; `createClientSchema` (`app/admin/clients/actions.ts`) exige `.max(64)`.
 - **Testes:** `agent-commands-flow` (revogação, expiração da fila, auditoria; `failed` não revoga) e `create-client-action` (slug explícito >64 rejeitado; slug derivado truncado).
+
+## Sprint A17 — Diagnóstico Remoto e Visualizador de Saída
+
+- **Scripts:** `gpupdate_force`, `network_diag` e `system_health_summary` no catálogo (`SCRIPT_CATALOG_IDS`/`LABELS`), em `allowedScripts` e em `execute_windows.go`. `network_diag` e `system_health_summary` também rodam em Linux/não-Windows via `sh -c` (`execute_stub.go`).
+- **UI:** `CommandHistoryItem` em `components/device-detail-tabs.tsx` exibe a saída em `<pre className="data-mono">` expansível, com botão "Copiar saída" (feedback "Copiado" por 2 s). Saída renderizada sempre como texto.
+- **Testes:** `device-detail-tabs-command-output`, paridade da allowlist.
 
 ## Roadmap alinhado — Sprints A17–A20
 

@@ -56,6 +56,12 @@ func executeRunScript(scriptID string) httpapi.CommandResult {
 		return runCommand("explorer.exe")
 	case "flush_print_spooler":
 		return executeFlushPrintSpooler()
+	case "gpupdate_force":
+		return runCommand("gpupdate", "/force")
+	case "network_diag":
+		return runCommand("cmd", "/C", "ipconfig /all & route print -4 & netstat -ano | findstr LISTENING")
+	case "system_health_summary":
+		return runCommand("powershell", "-NoProfile", "-Command", "Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 15 Name,Id,@{N='RAM_MB';E={[math]::Round($_.WorkingSet64/1MB,1)}},CPU | Format-Table -AutoSize | Out-String -Width 120")
 	default:
 		return httpapi.CommandResult{Status: "failed", ErrorMessage: "script desconhecido: " + scriptID}
 	}

@@ -1138,42 +1138,97 @@ export function DeviceDetailTabs({
               </p>
             ) : (
               <div className="divide-y">
-                {commands.map((command) => {
-                  let output: string | null = null
-                  try {
-                    const parsed = command.resultJson ? JSON.parse(command.resultJson) : null
-                    output = parsed?.errorMessage || parsed?.output || null
-                  } catch {
-                    output = null
-                  }
-
-                  return (
-                    <div key={command.id} className="flex items-start justify-between gap-4 p-4">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium">
-                          {COMMAND_TYPE_LABELS[command.type] ?? command.type}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(command.createdAt).toLocaleString('pt-BR')}
-                        </p>
-                        {output && (
-                          <p className="truncate font-mono text-xs text-muted-foreground" title={output}>
-                            {output}
-                          </p>
-                        )}
-                      </div>
-                      <StatusPill
-                        tone={COMMAND_STATUS_TONES[command.status] ?? 'neutral'}
-                        label={COMMAND_STATUS_LABELS[command.status] ?? command.status}
-                      />
-                    </div>
-                  )
-                })}
+                {commands.map((command) => (
+                  <CommandHistoryItem key={command.id} command={command} />
+                ))}
               </div>
             )}
           </Panel>
         </TabsContent>
       )}
     </Tabs>
+  )
+}
+
+function parseCommandDetail(command: DeviceCommand): { output: string | null; scriptId: string | null } {
+  let output: string | null = null
+  try {
+    const parsed = command.resultJson ? JSON.parse(command.resultJson) : null
+    const text = [parsed?.errorMessage, parsed?.output].filter((v) => typeof v === 'string' && v).join('\n\n')
+    output = text || null
+  } catch {
+    output = null
+  }
+  const params = (command as DeviceCommand & { paramsJson?: string | null }).paramsJson
+  let scriptId: string | null = null
+  try {
+    const parsedParams = params ? JSON.parse(params) : null
+    scriptId = parsedParams?.scriptId ?? parsedParams?.serviceName ?? null
+  } catch {
+    scriptId = null
+  }
+  return { output, scriptId }
+}
+
+export function CommandHistoryItem({ command }: { command: DeviceCommand }) {
+  const { output, scriptId } = parseCommandDetail(command)
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const collapsible = !!output && (output.length > 140 || output.includes('\n'))
+  const displayedOutput = output && (!collapsible || expanded ? output : output.split('\n')[0].slice(0, 140))
+
+  async function copy() {
+    if (!output) return
+    try {
+      await navigator.clipboard?.writeText(output)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard indisponível: sem feedback
+    }
+  }
+
+  return (
+    <div className="p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <p className="text-sm font-medium">
+            {COMMAND_TYPE_LABELS[command.type] ?? command.type}
+            {scriptId && <span className="ml-2 font-mono text-xs text-muted-foreground">{scriptId}</span>}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {new Date(command.createdAt).toLocaleString('pt-BR')}
+          </p>
+        </div>
+        <StatusPill
+          tone={COMMAND_STATUS_TONES[command.status] ?? 'neutral'}
+          label={COMMAND_STATUS_LABELS[command.status] ?? command.status}
+        />
+      </div>
+      {output && (
+        <div className="mt-2">
+          <div className="flex items-center gap-3 text-xs">
+            {collapsible && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                aria-expanded={expanded}
+                className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                {expanded ? 'Recolher saída' : 'Ver saída completa'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={copy}
+              className="text-muted-foreground hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {copied ? 'Copiado' : 'Copiar saída'}
+            </button>
+          </div>
+          <pre className="data-mono mt-2 max-h-64 overflow-auto rounded-lg border border-surface-line bg-background/80 p-3 text-xs leading-relaxed text-foreground whitespace-pre-wrap">{displayedOutput}</pre>
+        </div>
+      )}
+    </div>
   )
 }

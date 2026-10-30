@@ -106,10 +106,13 @@ func executeUpdateAgent(cfg *config.Config) httpapi.CommandResult {
 // o servidor ja valida antes de enfileirar, isto e defesa em profundidade no agente.
 var allowedServices = map[string]bool{"Spooler": true, "wuauserv": true, "BITS": true, "Dnscache": true}
 var allowedScripts = map[string]bool{
-	"flush_dns":           true,
-	"clear_temp_files":    true,
-	"restart_explorer":    true,
-	"flush_print_spooler": true,
+	"flush_dns":             true,
+	"clear_temp_files":      true,
+	"restart_explorer":      true,
+	"flush_print_spooler":   true,
+	"gpupdate_force":        true,
+	"network_diag":          true,
+	"system_health_summary": true,
 }
 
 func isAllowedService(name string) bool { return allowedServices[name] }

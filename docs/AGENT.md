@@ -80,7 +80,7 @@ Também existem `install`, `uninstall`, `run`, `debug`, `metrics`, `discovery` e
   3. Aba *Comandos* da máquina: **Atualizar agente agora**.
   4. `BulkCommandBar`: seleção múltipla em Computadores, Servidores ou Todos os dispositivos.
 
-Catálogo fechado de comandos remotos: `collect_now`, `collect_metrics_now`, `update_agent`, `restart_service` (`Spooler`, `wuauserv`, `BITS`, `Dnscache`), `run_script` (`flush_dns`, `clear_temp_files`, `restart_explorer`, `flush_print_spooler`) e `restart_computer`.
+Catálogo fechado de comandos remotos: `collect_now`, `collect_metrics_now`, `update_agent`, `restart_service` (`Spooler`, `wuauserv`, `BITS`, `Dnscache`), `run_script` (`flush_dns`, `clear_temp_files`, `restart_explorer`, `flush_print_spooler`, `gpupdate_force`, `network_diag`, `system_health_summary`), `restart_computer` e `uninstall_agent`.
 
 ## 6. AnyDesk ID e usuário interativo
 

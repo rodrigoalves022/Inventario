@@ -6,7 +6,7 @@ import { z } from 'zod'
  * texto de script livre pela rede. Expandir aqui e no agente juntos, nunca só de um lado.
  */
 export const RESTARTABLE_SERVICES = ['Spooler', 'wuauserv', 'BITS', 'Dnscache'] as const
-export const SCRIPT_CATALOG_IDS = ['flush_dns', 'clear_temp_files', 'restart_explorer', 'flush_print_spooler'] as const
+export const SCRIPT_CATALOG_IDS = ['flush_dns', 'clear_temp_files', 'restart_explorer', 'flush_print_spooler', 'gpupdate_force', 'network_diag', 'system_health_summary'] as const
 
 export const AGENT_COMMAND_TTL_MS = 15 * 60 * 1000 // comando não reclamado expira em 15min
 
@@ -71,4 +71,7 @@ export const SCRIPT_CATALOG_LABELS: Record<(typeof SCRIPT_CATALOG_IDS)[number], 
   clear_temp_files: 'Limpar arquivos temporários',
   restart_explorer: 'Reiniciar Explorer',
   flush_print_spooler: 'Limpar fila de impressão',
+  gpupdate_force: 'Atualizar políticas de grupo (gpupdate /force)',
+  network_diag: 'Diagnóstico de rede (IP, rotas e portas)',
+  system_health_summary: 'Top processos por consumo de RAM/CPU',
 }

@@ -149,8 +149,9 @@ const REMOTE_COMMANDS = [
   ['collect_metrics_now', 'Força uma coleta imediata de métricas (CPU, RAM, disco, uptime).'],
   ['update_agent', 'Atualiza o agente para a versão publicada (SHA-256 + rollback).'],
   ['restart_service', 'Reinicia um serviço da allowlist: Spooler, wuauserv, BITS ou Dnscache.'],
-  ['run_script', 'Executa um script fechado: flush_dns, clear_temp_files, restart_explorer ou flush_print_spooler.'],
+  ['run_script', 'Executa um script fechado: flush_dns, clear_temp_files, restart_explorer ou flush_print_spooler, gpupdate_force, network_diag ou system_health_summary.'],
   ['restart_computer', 'Reinicia a máquina.'],
+  ['uninstall_agent', 'Desinstala o agente remotamente e revoga a credencial.'],
 ] as const
 
 export function DocsHub() {
