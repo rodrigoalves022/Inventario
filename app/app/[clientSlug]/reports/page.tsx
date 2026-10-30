@@ -1,4 +1,4 @@
-import { Download, FileText } from 'lucide-react'
+import { Activity, AlertTriangle, Cpu, Download, FileText, HardDrive, History, Monitor, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/ui/kpi-card'
@@ -63,12 +63,16 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Taxa de disponibilidade"
+          subtitle="proporção online do parque"
+          icon={<Activity />}
           value={`${summary.availabilityPercent}%`}
           tone="success"
           emphasizeValue
         />
         <KpiCard
           label="Dispositivos online"
+          subtitle="conectados recentemente"
+          icon={<Wifi />}
           value={summary.online}
           tone="info"
           emphasizeValue
@@ -76,6 +80,8 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
         />
         <KpiCard
           label="Dispositivos offline"
+          subtitle="sem comunicação recente"
+          icon={<WifiOff />}
           value={summary.offline}
           tone="destructive"
           emphasizeValue
@@ -83,6 +89,8 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
         />
         <KpiCard
           label="Status warning"
+          subtitle="com alerta operacional"
+          icon={<AlertTriangle />}
           value={summary.warning}
           tone="warning"
           emphasizeValue
@@ -104,6 +112,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>
           <PanelHeader
+            icon={<Monitor />}
             title="Distribuição de sistemas operacionais"
             description="Máquinas por sistema operacional reportado, em proporção do parque."
           />
@@ -131,6 +140,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
 
         <Panel>
           <PanelHeader
+            icon={<HardDrive />}
             title="Uso de disco por máquina"
             description="Quantidade de máquinas por faixa de uso — discos de tamanhos diferentes não se resumem a um único percentual somado."
           />
@@ -169,6 +179,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>
           <PanelHeader
+            icon={<Cpu />}
             title="Distribuição de RAM"
             description="Quantidade de máquinas por faixa de memória instalada."
           />
@@ -197,6 +208,7 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
 
         <Panel>
           <PanelHeader
+            icon={<History />}
             title="Últimas coletas"
             description="As 10 coletas mais recentes enviadas pelos agentes."
           />

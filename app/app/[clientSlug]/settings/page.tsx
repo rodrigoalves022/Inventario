@@ -1,3 +1,4 @@
+import { Building2, Shield, Webhook } from 'lucide-react'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -69,6 +70,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
 
       <Panel>
         <PanelHeader
+          icon={<Building2 />}
           title="Dados da empresa e contatos de emergência"
           description="Identificação corporativa do cliente, janela de manutenção e contatos técnicos 24x7 para escalonamento de incidentes críticos."
         />
@@ -79,6 +81,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
 
       <Panel>
         <PanelHeader
+          icon={<Shield />}
           title="Políticas de segurança"
           description="Expiração de sessão, limite de tentativas de login, lista de IPs permitidos e retenção da trilha de auditoria deste cliente."
         />
@@ -90,6 +93,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
       {/* Casca Panel (Sprint V20) — ver nota em alerts/page.tsx. */}
       <Panel>
         <PanelHeader
+          icon={<Webhook />}
           title="Webhooks"
           description={
             <>

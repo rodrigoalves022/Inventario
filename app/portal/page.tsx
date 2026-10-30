@@ -1,21 +1,15 @@
 import Link from 'next/link'
-import { AlertCircle, ChevronRight, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ChevronRight, Monitor, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { requirePortalContext } from '@/lib/portal-context'
-import { cn } from '@/lib/utils'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
+import { StatusPill } from '@/components/ui/status-pill'
 
 function statusMeta(status: string) {
-  if (status === 'online') {
-    return { label: 'Online', icon: Wifi, className: 'border-success/30 bg-success/10 text-success' }
-  }
-  if (status === 'offline') {
-    return {
-      label: 'Offline',
-      icon: WifiOff,
-      className: 'border-destructive/30 bg-destructive/10 text-destructive',
-    }
-  }
-  return { label: 'Atenção', icon: AlertCircle, className: 'border-warning/30 bg-warning/10 text-warning' }
+  if (status === 'online') return { label: 'Online', tone: 'success' as const }
+  if (status === 'offline') return { label: 'Offline', tone: 'destructive' as const }
+  return { label: 'Atenção', tone: 'warning' as const }
 }
 
 function formatRelative(date: Date | null) {
@@ -56,13 +50,6 @@ export default async function PortalHomePage() {
   const warning = devices.filter((device) => device.status === 'warning').length
   const offline = total - online - warning
 
-  const summary = [
-    { label: 'Máquinas', value: total },
-    { label: 'Online', value: online },
-    { label: 'Em atenção', value: warning },
-    { label: 'Offline', value: offline },
-  ]
-
   return (
     <div className="space-y-8">
       <div>
@@ -73,70 +60,87 @@ export default async function PortalHomePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {summary.map((item) => (
-          <div key={item.label} className="rounded-xl border bg-card p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {item.label}
+        <KpiCard label="Máquinas" value={total} subtitle="equipamentos monitorados" icon={<Monitor />} />
+        <KpiCard
+          label="Online"
+          value={online}
+          subtitle="reportando normalmente"
+          icon={<Wifi />}
+          tone="success"
+          emphasizeValue={online > 0}
+        />
+        <KpiCard
+          label="Em atenção"
+          value={warning}
+          subtitle="com alerta operacional"
+          icon={<AlertCircle />}
+          tone={warning > 0 ? 'warning' : 'neutral'}
+          emphasizeValue={warning > 0}
+        />
+        <KpiCard
+          label="Offline"
+          value={offline}
+          subtitle="sem check-in recente"
+          icon={<WifiOff />}
+          tone={offline > 0 ? 'destructive' : 'neutral'}
+          emphasizeValue={offline > 0}
+        />
+      </div>
+
+      <Panel>
+        <PanelHeader
+          icon={<Monitor />}
+          title="Máquinas"
+          description={`${total} equipamento(s) ativo(s) no inventário de ${context.clientName}.`}
+        />
+        <PanelBody flush>
+          {devices.length === 0 ? (
+            <p className="px-5 pb-5 text-sm text-muted-foreground">
+              Nenhuma máquina reportou inventário ainda. Assim que o agente for instalado, ela aparece
+              aqui automaticamente.
             </p>
-            <p className="mt-1 text-3xl font-bold text-foreground">{item.value}</p>
-          </div>
-        ))}
-      </div>
+          ) : (
+            <ul className="divide-y divide-surface-line border-t border-surface-line">
+              {devices.map((device) => {
+                const meta = statusMeta(device.status)
+                return (
+                  <li key={device.id}>
+                    <Link
+                      href={`/portal/devices/${device.id}`}
+                      className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/40"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                          <Monitor className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="data-mono truncate font-medium text-foreground">{device.hostname}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {device.networks[0]?.ip ?? 'sem IP'}
+                            {device.hardware?.sistema ? ` · ${device.hardware.sistema}` : ''}
+                            {device.usuario ? ` · ${device.usuario}` : ''}
+                          </p>
+                        </div>
+                      </div>
 
-      <div className="overflow-hidden rounded-xl border bg-card">
-        <div className="border-b px-5 py-3">
-          <h2 className="text-sm font-semibold text-foreground">Máquinas</h2>
-        </div>
-
-        {devices.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-muted-foreground">
-            Nenhuma máquina reportou inventário ainda. Assim que o agente for instalado, ela aparece
-            aqui automaticamente.
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {devices.map((device) => {
-              const meta = statusMeta(device.status)
-              return (
-                <li key={device.id}>
-                  <Link
-                    href={`/portal/devices/${device.id}`}
-                    className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/40"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">{device.hostname}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {device.networks[0]?.ip ?? 'sem IP'}
-                        {device.hardware?.sistema ? ` · ${device.hardware.sistema}` : ''}
-                        {device.usuario ? ` · ${device.usuario}` : ''}
-                      </p>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-4">
-                      <span className="hidden text-xs text-muted-foreground sm:inline">
-                        {device._count.software} programas
-                      </span>
-                      <span className="hidden text-xs text-muted-foreground md:inline">
-                        {formatRelative(device.updatedAt)}
-                      </span>
-                      <span
-                        className={cn(
-                          'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-                          meta.className
-                        )}
-                      >
-                        <meta.icon className="h-3.5 w-3.5" />
-                        {meta.label}
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </div>
+                      <div className="flex shrink-0 items-center gap-4">
+                        <span className="hidden text-xs text-muted-foreground sm:inline">
+                          {device._count.software} programas
+                        </span>
+                        <span className="hidden text-xs text-muted-foreground md:inline">
+                          {formatRelative(device.updatedAt)}
+                        </span>
+                        <StatusPill tone={meta.tone} label={meta.label} />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </PanelBody>
+      </Panel>
     </div>
   )
 }

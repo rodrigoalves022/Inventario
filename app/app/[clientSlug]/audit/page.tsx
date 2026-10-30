@@ -7,15 +7,19 @@ import { getTenantBasePath } from '@/lib/tenant-links'
 import { listAuditLogs } from '@/lib/audit-log'
 import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 import { canViewTenantAudit, getSessionPermissionUser } from '@/lib/permissions'
-import { 
-  History, 
-  Search, 
-  KeyRound, 
-  Trash2, 
+import {
+  ClipboardList,
+  History,
+  Search,
+  KeyRound,
+  Trash2,
   Filter,
+  Users,
   Calendar as CalendarIcon,
   XCircle
 } from 'lucide-react'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
+import { AUDIT_ACTION_LABEL } from '@/lib/audit-action-labels'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { 
@@ -97,35 +101,50 @@ export default async function TenantAuditPage({
       {/* Summary Grid — cada card filtra a tabela abaixo (mesmo padrao dos
           outros grids de resumo clicaveis do tenant). Usa o KpiCard
           (components/ui/kpi-card.tsx) em vez de reimplementar o hover à mão. */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Log do Tenant"
           value={logs.length}
+          subtitle="no recorte atual (máx. 200)"
           icon={<History />}
           tone="primary"
           href={`${basePath}/audit`}
         />
         <KpiCard
+          label="Operadores no Recorte"
+          value={new Set(logs.map((l) => l.actorEmail).filter(Boolean)).size}
+          subtitle="contas com atividade"
+          icon={<Users />}
+        />
+        <KpiCard
           label="Acesso a Chaves"
           value={credentialViews}
+          subtitle="visualizações de credenciais"
           icon={<KeyRound />}
           tone="info"
-          emphasizeValue
+          emphasizeValue={credentialViews > 0}
           href={`${basePath}/audit?action=credentials.view`}
         />
         <KpiCard
           label="Exclusões"
           value={deviceDeletes}
+          subtitle="máquinas removidas"
           icon={<Trash2 />}
-          tone="destructive"
-          emphasizeValue
+          tone={deviceDeletes > 0 ? 'destructive' : 'neutral'}
+          emphasizeValue={deviceDeletes > 0}
           href={`${basePath}/audit?action=device.delete`}
         />
       </div>
 
       {/* Filter Bar — rotulos em `.section-label` (Sprint V20), nao a variante
           artesanal de 10px/widest. Sem shadow-sm: borda de 1px ja declara a superficie. */}
-      <div className="rounded-xl border border-surface-line bg-card px-5 py-4">
+      <Panel>
+        <PanelHeader
+          icon={<Filter />}
+          title="Filtros de auditoria"
+          description="Refine por ação, operador ou período."
+        />
+        <PanelBody>
         <form method="GET" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-end">
           <div className="space-y-2">
             <label className="section-label flex items-center gap-1.5">
@@ -137,8 +156,11 @@ export default async function TenantAuditPage({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as ações</SelectItem>
-                <SelectItem value="credentials.view">Visualização de credenciais</SelectItem>
-                <SelectItem value="device.delete">Exclusão de máquina</SelectItem>
+                {Object.entries(AUDIT_ACTION_LABEL).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -177,7 +199,8 @@ export default async function TenantAuditPage({
             </Button>
           </div>
         </form>
-      </div>
+        </PanelBody>
+      </Panel>
 
       {logs.length >= AUDIT_LOG_LIMIT ? (
         <p role="note" className="text-xs text-muted-foreground">
@@ -185,14 +208,23 @@ export default async function TenantAuditPage({
         </p>
       ) : null}
 
-      <AuditLogTable
-        logs={logs}
-        emptyMessage="Nenhum evento registrado nos critérios selecionados para este tenant."
-        tenantBasePath={basePath}
-        paginated
-        initialPage={parsePageNumber(filters.page)}
-        initialPageSize={parsePageSize(filters.limit)}
-      />
+      <Panel>
+        <PanelHeader
+          icon={<ClipboardList />}
+          title="Eventos registrados"
+          description={`${logs.length} evento(s) listado(s) para ${tenant.name}.`}
+        />
+        <PanelBody flush>
+          <AuditLogTable
+            logs={logs}
+            emptyMessage="Nenhum evento registrado nos critérios selecionados para este tenant."
+            tenantBasePath={basePath}
+            paginated
+            initialPage={parsePageNumber(filters.page)}
+            initialPageSize={parsePageSize(filters.limit)}
+          />
+        </PanelBody>
+      </Panel>
     </div>
   )
 }

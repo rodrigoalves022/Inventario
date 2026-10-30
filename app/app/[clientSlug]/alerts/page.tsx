@@ -5,11 +5,13 @@ import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissio
 import { AlertRulesPanel } from '@/components/alert-rules-panel'
 import { ALERT_METRIC_LABELS, parseSoftwareBlacklistMetadata, type AlertMetric } from '@/lib/alert-rules'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
-import { cn } from '@/lib/utils'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
+import { AlertTriangle, BellRing, CheckCircle2, History, ShieldAlert } from 'lucide-react'
 
-const SEVERITY_STYLES: Record<string, string> = {
-  warning: 'border-warning/30 bg-warning/10 text-warning',
-  critical: 'border-destructive/30 bg-destructive/10 text-destructive',
+const SEVERITY_TONES: Record<string, StatusPillTone> = {
+  warning: 'warning',
+  critical: 'destructive',
 }
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -46,6 +48,9 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
     }),
   ])
 
+  const openCount = events.filter((e) => !e.resolvedAt).length
+  const criticalOpenCount = events.filter((e) => !e.resolvedAt && e.severity === 'critical').length
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -57,6 +62,39 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
         </div>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Regras Ativas"
+          value={rules.filter((r) => r.enabled).length}
+          subtitle={`de ${rules.length} configurada(s)`}
+          icon={<BellRing />}
+          tone="primary"
+        />
+        <KpiCard
+          label="Disparos em Aberto"
+          value={openCount}
+          subtitle="aguardando normalização"
+          icon={<AlertTriangle />}
+          tone={openCount > 0 ? 'destructive' : 'neutral'}
+          emphasizeValue={openCount > 0}
+        />
+        <KpiCard
+          label="Críticos Abertos"
+          value={criticalOpenCount}
+          subtitle="severidade crítica ativa"
+          icon={<ShieldAlert />}
+          tone={criticalOpenCount > 0 ? 'destructive' : 'neutral'}
+          emphasizeValue={criticalOpenCount > 0}
+        />
+        <KpiCard
+          label="Resolvidos (Recentes)"
+          value={events.filter((e) => Boolean(e.resolvedAt)).length}
+          subtitle="nos últimos 50 disparos"
+          icon={<CheckCircle2 />}
+          tone="success"
+        />
+      </div>
+
       {/*
         Casca Panel (Sprint V20): mesma regua do resto do tenant — rounded-xl,
         px-5, titulo text-base. Listas dentro do painel sao linhas com
@@ -64,6 +102,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
       */}
       <Panel>
         <PanelHeader
+          icon={<BellRing />}
           title="Regras"
           description="Condições avaliadas a cada coleta do agente."
         />
@@ -83,14 +122,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
                       {rule.pattern ? ` ("${rule.pattern}")` : ''}
                     </p>
                   </div>
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium',
-                      rule.enabled ? 'border-success/30 bg-success/10 text-success' : 'text-muted-foreground'
-                    )}
-                  >
-                    {rule.enabled ? 'Ativa' : 'Desativada'}
-                  </span>
+                  <StatusPill tone={rule.enabled ? 'success' : 'neutral'} label={rule.enabled ? 'Ativa' : 'Desativada'} />
                 </div>
               ))}
             </div>
@@ -100,6 +132,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
 
       <Panel>
         <PanelHeader
+          icon={<History />}
           title="Histórico de disparos"
           description="Os 50 disparos mais recentes, abertos e resolvidos."
         />
@@ -145,24 +178,14 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          'rounded-full border px-2.5 py-0.5 text-xs font-medium',
-                          SEVERITY_STYLES[event.severity] ?? 'text-muted-foreground'
-                        )}
-                      >
-                        {SEVERITY_LABELS[event.severity] ?? event.severity}
-                      </span>
-                      <span
-                        className={cn(
-                          'rounded-full border px-2.5 py-0.5 text-xs font-medium',
-                          event.resolvedAt
-                            ? 'text-muted-foreground'
-                            : 'border-destructive/30 bg-destructive/10 text-destructive'
-                        )}
-                      >
-                        {event.resolvedAt ? 'Resolvido' : 'Aberto'}
-                      </span>
+                      <StatusPill
+                        tone={SEVERITY_TONES[event.severity] ?? 'neutral'}
+                        label={SEVERITY_LABELS[event.severity] ?? event.severity}
+                      />
+                      <StatusPill
+                        tone={event.resolvedAt ? 'neutral' : 'destructive'}
+                        label={event.resolvedAt ? 'Resolvido' : 'Aberto'}
+                      />
                     </div>
                   </div>
                 )
