@@ -38,6 +38,7 @@ export type TenantServerRow = {
   effectiveStatus: 'online' | 'warning' | 'offline'
   detailsPath: string
   anydeskId?: string | null
+  agentVersion?: string | null
 }
 
 /** Mesmo vocabulario de STATUS EFETIVO de /computers (online | warning |
@@ -194,6 +195,11 @@ export function TenantServersTable({
                   >
                     {server.hostname}
                   </Link>
+                  {server.agentVersion ? (
+                    <span className="data-mono mt-1 block text-[11px] text-muted-foreground">
+                      Agente v{server.agentVersion}
+                    </span>
+                  ) : null}
                 </td>
                 <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{server.ip ?? '-'}
                   <AnydeskBadge anydeskId={server.anydeskId} compact />

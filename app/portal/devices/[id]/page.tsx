@@ -98,6 +98,9 @@ export default async function PortalDeviceDetailPage({
                     tone={getStatusTone(deviceHealth.effectiveStatus)}
                     label={formatStatus(deviceHealth.effectiveStatus)}
                   />
+                  {device.agentVersion ? (
+                    <StatusPill tone="info" label={`Agente v${device.agentVersion}`} />
+                  ) : null}
                 </div>
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span className="data-mono">{primaryNetwork?.ip ?? 'IP não informado'}</span>

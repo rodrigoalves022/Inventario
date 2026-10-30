@@ -5,7 +5,8 @@ import { AnydeskBadge } from '@/components/anydesk-badge'
 import { auth } from '@/auth'
 import { DeleteAssetButton } from '@/components/delete-asset-button'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs-lazy'
-import { EnqueueCollectNowButton } from '@/components/enqueue-command-button'
+import { EnqueueCollectNowButton, EnqueueUpdateAgentButton } from '@/components/enqueue-command-button'
+import { LATEST_AGENT_VERSION } from '@/lib/agent-binary'
 import { Button } from '@/components/ui/button'
 import { canDeleteTenantAsset, canManageAssetRecord, canOperateTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { Panel, PanelBody } from '@/components/ui/panel'
@@ -149,6 +150,16 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
                     {asset.hostname}
                   </h1>
                   <StatusPill tone={getStatusTone(asset.status)} label={formatStatus(asset.status)} />
+                  {asset.agentVersion ? (
+                    <StatusPill
+                      tone={asset.agentVersion === LATEST_AGENT_VERSION ? 'info' : 'warning'}
+                      label={
+                        asset.agentVersion === LATEST_AGENT_VERSION
+                          ? `Agente v${asset.agentVersion}`
+                          : `Agente v${asset.agentVersion} · v${LATEST_AGENT_VERSION} disponível`
+                      }
+                    />
+                  ) : null}
                 </div>
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span className="data-mono">{primaryNetwork?.ip ?? 'IP não informado'}</span>
@@ -173,6 +184,9 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {canRunCommands && asset.agentVersion !== LATEST_AGENT_VERSION && (
+                <EnqueueUpdateAgentButton assetId={asset.id} tenantSlug={tenantSlug} />
+              )}
               {canRunCommands && <EnqueueCollectNowButton assetId={asset.id} tenantSlug={tenantSlug} />}
               {canDeleteAsset && (
                 <DeleteAssetButton assetId={asset.id} assetName={asset.hostname} tenantSlug={tenantSlug} />

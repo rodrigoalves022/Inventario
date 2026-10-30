@@ -74,6 +74,7 @@ export default async function TenantServersPage({ params, searchParams }: PagePr
         effectiveStatus: getEffectiveDeviceStatus(device.status, issues) as 'online' | 'warning' | 'offline',
         detailsPath: getTenantPath(tenantSlug, `assets/${device.id}`),
         anydeskId: device.anydeskId ?? null,
+        agentVersion: device.agentVersion ?? null,
       }
     })
 

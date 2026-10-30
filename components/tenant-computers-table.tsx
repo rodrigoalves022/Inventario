@@ -187,7 +187,8 @@ export function TenantComputersTable({
         // Precisa bater em processador tambem: /processors linka pra ca com
         // ?search=<nome do processador> (ver components/tenant-processors-table.tsx).
         (device.processador ?? '').toLowerCase().includes(normalized) ||
-        (digitsOnly.length > 0 && (device.anydeskId ?? '').toLowerCase().includes(digitsOnly))
+        (digitsOnly.length > 0 && (device.anydeskId ?? '').toLowerCase().includes(digitsOnly)) ||
+        Boolean(device.agentVersion?.toLowerCase().includes(normalized))
 
       const matchesStatus = statusFilter === 'all' || device.effectiveStatus === statusFilter
       const matchesCritical =
@@ -458,6 +459,11 @@ export function TenantComputersTable({
                       <div className="mt-1">
                         <AnydeskBadge anydeskId={device.anydeskId} compact />
                       </div>
+                      {device.agentVersion ? (
+                        <span className="data-mono text-[11px] text-muted-foreground">
+                          Agente v{device.agentVersion}
+                        </span>
+                      ) : null}
                     </td>
                     <td className={TABLE_CELL_CLASS}>
                       <div className="flex items-center gap-3 text-xs font-medium">
@@ -530,6 +536,11 @@ export function TenantComputersTable({
                       {device.ip ?? '0.0.0.0'}
                     </code>
                     <AnydeskBadge anydeskId={device.anydeskId} compact />
+                    {device.agentVersion ? (
+                      <span className="data-mono text-[11px] text-muted-foreground">
+                        Agente v{device.agentVersion}
+                      </span>
+                    ) : null}
                     <span className={cn(
                       'flex items-center gap-1',
                       device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'

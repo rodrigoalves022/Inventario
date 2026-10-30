@@ -4129,3 +4129,28 @@ hash pela plataforma reportada. Precisa acontecer **antes** de subir `LATEST_AGE
 - 2FA/TOTP, lista de sessões com IP/dispositivo e "desconectar outras sessões" exigem persistência de sessão (schema).
 - As preferências de notificação são registradas mas ainda não filtram nenhum envio de alerta.
 - Políticas globais (timeout de sessão, allowlist de IP, retenção) e logotipo white-label.
+
+---
+
+## Sprints V25–V29 — Unificação visual Bento Grid
+
+Todas as páginas passaram a usar os mesmos blocos de composição (`KpiCard`, `Panel`, `PanelHeader`, `StatusPill`), eliminando estilos ad hoc.
+
+- **Tenant:** `/storage`, `/processors`, `/software`, `/peripherals`, `/alerts`, `/audit`, `/reports`, `/settings`, `/network`, `/assets/[id]`.
+- **Portal:** `/portal`, `/portal/reports`, `/portal/devices/[id]`.
+- **Admin:** `/admin/clients`, `/admin/clients/[id]/agents`, `/admin/clients/audit`, `/admin/users`.
+
+---
+
+## Sprints A5–A13 — Arquitetura Enterprise do Agente Go (`v1.1.0`)
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A5** | `812a459` | Coleta passiva de `anydeskId` (`ad.anynet.id`), coluna `Device.anydeskId`, validação Zod e `<AnydeskBadge />` com cópia em 1 clique e deep link `anydesk:<id>`. |
+| **A6** | `a7dad8c` | Instalação idempotente em `C:\Program Files\InventarioAgent\inventario-agent.exe` / `/usr/local/bin/inventario-agent` (removendo o trailer `<<INV_CONFIG>>`), auto-recovery no SCM, registro em `Add/Remove Programs`, resolução do usuário interativo (`Win32_ComputerSystem.UserName`) e Console Local PowerUser (`manage`, `status`, `stop`, `start`, `restart`, `unlink`, `purge`). |
+| **A7** | `5613aea` | Auto-updater atômico com backup `.bak` e rollback automático em `ProgramData\InventarioAgent\updates`; busca por AnyDesk ID em `/computers`; KPIs + AnyDesk em `/servers` e `/portal`. |
+| **A8** | `e89c4ef` | Versão unificada `1.1.0` (`internal/version`) reportada no check-in e nas métricas; comando remoto `update_agent` ("Atualizar agente agora") individual e em lote. |
+| **A9 & A10** | `0d4e288` | Central de Documentação in-app (`/docs`, Master-Detail Bento Grid com blocos copiáveis), `docs/AGENT.md` e atualização do serviço local `InventarioAgent` para `v1.1.0`. |
+| **A11** | `df24887` | Ações diretas de atualização individual e em massa em `/admin/clients/[id]/agents`, badges de versão (`Atualizado` / `v1.1.0 disponível`) e cobertura completa de `AUDIT_ACTION_LABEL`. |
+| **A12** | `d214304` | Busca global por AnyDesk ID na paleta `Ctrl+K` (`GET /api/tenant/[clientSlug]/devices/search`) e coluna `AnyDesk ID` na exportação CSV. |
+| **A13** | — | `EnqueueUpdateAgentButton` (comando `update_agent` em 1 clique) e badge de versão no cabeçalho de `/app/[clientSlug]/assets/[id]` (`info` se atual, `warning` com "vX disponível" se desatualizado; botão só aparece para quem opera e com agente desatualizado). Versão do agente também em `/computers`, `/servers` (tabela e cartões) e `/portal/devices/[id]`; `/computers` passa a buscar por versão. |

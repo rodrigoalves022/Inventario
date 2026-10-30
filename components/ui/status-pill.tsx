@@ -45,6 +45,8 @@ const STATUS_PILL_TONE = {
   success: 'border-success/35 bg-success/10 text-success',
   /** Ausente (presenca) / warning (status efetivo) — atencao, nao falha. */
   warning: 'border-warning/35 bg-warning/10 text-warning',
+  /** Informativo (ex.: versao do agente em dia) — sem juizo de saude. */
+  info: 'border-info/35 bg-info/10 text-info',
   /** Offline como falha ativa (status efetivo de /computers e /servers). */
   destructive: 'border-destructive/35 bg-destructive/10 text-destructive',
   /**

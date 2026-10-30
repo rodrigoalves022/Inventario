@@ -16,6 +16,7 @@ export type TenantDeviceForRow = {
   id: string
   hostname: string
   anydeskId?: string | null
+  agentVersion?: string | null
   status: string
   updatedAt: Date
   hardware: { sistema: string | null; processador: string | null; ramTotalGb: number | null } | null
@@ -29,6 +30,7 @@ export type TenantDeviceRow = {
   hostname: string
   ip: string | null
   anydeskId?: string | null
+  agentVersion?: string | null
   sistema: string | null
   processador: string | null
   ramTotalGb: number | null
@@ -81,6 +83,7 @@ export function buildTenantDeviceRow(
     hostname: device.hostname,
     ip: device.networks[0]?.ip ?? null,
     anydeskId: device.anydeskId ?? null,
+    agentVersion: device.agentVersion ?? null,
     sistema: device.hardware?.sistema ?? null,
     processador: device.hardware?.processador ?? null,
     ramTotalGb: device.hardware?.ramTotalGb ?? null,
