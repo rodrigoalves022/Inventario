@@ -20,6 +20,7 @@ type Win32_ComputerSystem struct {
 	Model               string
 	Domain              string
 	TotalPhysicalMemory uint64
+	UserName            string
 }
 
 type Win32_BIOS struct {
@@ -83,11 +84,13 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 	}
 
 	var cs []Win32_ComputerSystem
-	if err := wmi.Query("SELECT Name, Manufacturer, Model, Domain, TotalPhysicalMemory FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
+	csUserName := ""
+	if err := wmi.Query("SELECT Name, Manufacturer, Model, Domain, TotalPhysicalMemory, UserName FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
 		payload.Hostname = cs[0].Name
 		payload.Fabricante = cs[0].Manufacturer
 		payload.Modelo = cs[0].Model
 		payload.Dominio = cs[0].Domain
+		csUserName = cs[0].UserName
 		payload.RamTotalGb = int(math.Round(float64(cs[0].TotalPhysicalMemory) / (1024 * 1024 * 1024)))
 	}
 
@@ -182,7 +185,7 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 		}
 	}
 
-	payload.Usuario = os.Getenv("USERNAME")
+	payload.Usuario = resolveInteractiveUser(csUserName)
 	payload.AnydeskID = anydesk.CollectID()
 	payload.Software = collectSoftwareFromRegistry()
 	payload.Seguranca = collectSecurity()
@@ -204,4 +207,32 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 	}
 
 	return payload, nil
+}
+
+func isSystemAccount(name string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(name))
+	return upper == "SYSTEM" || upper == "LOCAL SERVICE" || upper == "NETWORK SERVICE" || strings.HasSuffix(upper, "$")
+}
+
+// resolveInteractiveUser devolve o usuario humano logado no console. Como
+// servico (Session 0) USERNAME e' SYSTEM/HOST$, entao so o WMI (UserName de
+// Win32_ComputerSystem) enxerga a sessao interativa; sem ninguem logado,
+// devolve vazio para o servidor preservar o ultimo usuario conhecido.
+func resolveInteractiveUser(wmiUser string) string {
+	wmiUser = strings.TrimSpace(wmiUser)
+	if wmiUser != "" {
+		if isSystemAccount(wmiUser) {
+			return ""
+		}
+		if idx := strings.LastIndex(wmiUser, `\`); idx >= 0 {
+			return strings.TrimSpace(wmiUser[idx+1:])
+		}
+		return wmiUser
+	}
+
+	envUser := strings.TrimSpace(os.Getenv("USERNAME"))
+	if isSystemAccount(envUser) {
+		return ""
+	}
+	return envUser
 }

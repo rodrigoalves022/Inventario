@@ -14,6 +14,10 @@ import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const checkinSchema = agentCheckinSchema
 
+function isSystemAccountName(u: string | null | undefined): boolean {
+  return !u || u.trim() === '' || u.toUpperCase() === 'SYSTEM' || u.endsWith('$')
+}
+
 export async function POST(req: NextRequest) {
   const auth = await validateAgentApiKey(req)
   if (!auth.ok) return authErrorResponse(auth)
@@ -96,7 +100,7 @@ export async function POST(req: NextRequest) {
         fabricante: body.fabricante,
         modelo: body.modelo,
         dominio: body.dominio,
-        usuario: body.usuario,
+        usuario: isSystemAccountName(body.usuario) ? null : body.usuario,
         anydeskId: body.anydeskId ?? null,
         status: nextStatus,
         // Sprint 11 (B): mesmo campo que ja alimentava a mensagem do
@@ -113,7 +117,8 @@ export async function POST(req: NextRequest) {
         fabricante: body.fabricante,
         modelo: body.modelo,
         dominio: body.dominio,
-        usuario: body.usuario,
+        // Sem usuario humano (SYSTEM, HOST$, vazio) preserva o ultimo conhecido.
+        ...(!isSystemAccountName(body.usuario) ? { usuario: body.usuario } : {}),
         // Check-in parcial (sem AnyDesk) nao apaga um ID ja conhecido.
         ...(body.anydeskId ? { anydeskId: body.anydeskId } : {}),
         status: nextStatus,

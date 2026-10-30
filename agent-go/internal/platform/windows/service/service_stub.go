@@ -25,3 +25,11 @@ func Stop() error {
 func RunService(isDebug bool) error {
 	return fmt.Errorf("modo servico ainda nao suportado nesta plataforma")
 }
+
+func CanonicalBinaryPath() string {
+	return "inventario-agent"
+}
+
+func QueryState() string {
+	return "Desconhecido"
+}

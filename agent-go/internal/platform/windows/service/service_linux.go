@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -109,16 +108,25 @@ RestartSec=10
 WantedBy=multi-user.target
 `
 
-func Install() error {
-	if _, err := os.Stat(unitPath); err == nil {
-		return fmt.Errorf("servico '%s' ja esta instalado. Use 'uninstall' primeiro", ServiceName)
-	}
+func CanonicalBinaryPath() string {
+	return "/usr/local/bin/inventario-agent"
+}
 
-	exePath, err := os.Executable()
-	if err != nil {
-		return err
+func QueryState() string {
+	out, _ := exec.Command("systemctl", "is-active", ServiceName).Output()
+	if strings.TrimSpace(string(out)) == "active" {
+		return "Em execucao (active)"
 	}
-	exePath, err = filepath.Abs(exePath)
+	if _, err := os.Stat(unitPath); err == nil {
+		return "Parado (inactive)"
+	}
+	return "Nao instalado"
+}
+
+func Install() error {
+	_ = Uninstall()
+
+	exePath, err := copyExecutableToCanonicalPath()
 	if err != nil {
 		return err
 	}

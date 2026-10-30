@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,7 +30,22 @@ func elevateAndExit() {
 	exe, _ := os.Executable()
 	cwd, _ := os.Getwd()
 	verb, _ := syscall.UTF16PtrFromString("runas")
-	argv, _ := syscall.UTF16PtrFromString("autoinstall")
+	// Repassa os argumentos originais (status, purge -yes, ...); sem argumentos
+	// mantem o fluxo antigo de autoinstall do instalador baixado; se o binario
+	// nao tem o trailer <<INV_CONFIG>> (ja instalado), abre o menu "manage".
+	params := "autoinstall"
+	if len(os.Args) <= 1 {
+		if ac, _ := extractAutoConfig(); ac == nil {
+			params = "manage"
+		}
+	} else {
+		quoted := make([]string, 0, len(os.Args)-1)
+		for _, a := range os.Args[1:] {
+			quoted = append(quoted, syscall.EscapeArg(a))
+		}
+		params = strings.Join(quoted, " ")
+	}
+	argv, _ := syscall.UTF16PtrFromString(params)
 	dir, _ := syscall.UTF16PtrFromString(cwd)
 	exePath, _ := syscall.UTF16PtrFromString(exe)
 

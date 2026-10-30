@@ -105,7 +105,7 @@ func runAutoInstall(ac *AutoConfig) {
 	os.Exit(0)
 }
 
-var version = "1.0.0"
+var version = "1.1.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -118,8 +118,10 @@ func main() {
 			return
 		}
 
-		printUsage()
-		os.Exit(1)
+		// Binario ja instalado (sem trailer de config): Console PowerUser.
+		requireElevation()
+		runPowerUserMenu()
+		return
 	}
 
 	switch os.Args[1] {
@@ -139,15 +141,20 @@ func main() {
 			log.Fatalf("[!] %v\n", err)
 		}
 	case "start":
-		if err := service.Start(); err != nil {
-			log.Fatalf("[!] %v\n", err)
-		}
-		fmt.Println("[+] Servico iniciado.")
+		handleStart(false)
+	case "restart":
+		handleStart(true)
 	case "stop":
-		if err := service.Stop(); err != nil {
-			log.Fatalf("[!] %v\n", err)
-		}
-		fmt.Println("[+] Servico parado.")
+		handleStop()
+	case "status":
+		printStatusReport()
+	case "unlink":
+		handleUnlink()
+	case "purge":
+		handlePurge(os.Args[2:])
+	case "manage", "poweruser":
+		requireElevation()
+		runPowerUserMenu()
 	case "run":
 		if err := service.RunService(false); err != nil {
 			log.Fatalf("[!] Erro no servico: %v\n", err)
@@ -317,6 +324,11 @@ Uso:
   inventario-agent.exe uninstall
   inventario-agent.exe start
   inventario-agent.exe stop
+  inventario-agent.exe restart
+  inventario-agent.exe status
+  inventario-agent.exe unlink
+  inventario-agent.exe purge [-yes]
+  inventario-agent.exe manage
   inventario-agent.exe debug
   inventario-agent.exe collect
   inventario-agent.exe checkin [-config CAMINHO]

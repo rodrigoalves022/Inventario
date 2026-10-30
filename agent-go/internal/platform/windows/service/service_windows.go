@@ -14,6 +14,7 @@ import (
 	"inventario-agent/internal/config"
 	"inventario-agent/internal/transport/httpapi"
 
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -180,13 +181,73 @@ func pollAndExecuteCommands(client *httpapi.Client, cfg *config.Config) {
 	commands.PollAndExecute(client, cfg)
 }
 
-func Install() error {
-	exePath, err := os.Executable()
+func CanonicalBinaryPath() string {
+	progFiles := os.Getenv("ProgramFiles")
+	if progFiles == "" {
+		progFiles = `C:\Program Files`
+	}
+	return filepath.Join(progFiles, "InventarioAgent", "inventario-agent.exe")
+}
+
+func QueryState() string {
+	manager, err := mgr.Connect()
+	if err != nil {
+		return "Desconhecido"
+	}
+	defer manager.Disconnect()
+
+	serviceHandle, err := manager.OpenService(ServiceName)
+	if err != nil {
+		return "Nao instalado"
+	}
+	defer serviceHandle.Close()
+
+	status, err := serviceHandle.Query()
+	if err != nil {
+		return "Desconhecido"
+	}
+	switch status.State {
+	case svc.Running:
+		return "Em execucao (Running)"
+	case svc.Stopped:
+		return "Parado (Stopped)"
+	default:
+		return "Transicao"
+	}
+}
+
+const uninstallRegistryKey = `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\InventarioAgent`
+func registerInstalledProgram(targetPath string) error {
+	key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, uninstallRegistryKey, registry.SET_VALUE)
 	if err != nil {
 		return err
 	}
+	defer key.Close()
 
-	exePath, err = filepath.Abs(exePath)
+	for name, value := range map[string]string{
+		"DisplayName":          ServiceDisplayName,
+		"Publisher":            "Inventario Enterprise",
+		"DisplayVersion":       "1.1.0",
+		"DisplayIcon":          targetPath,
+		"InstallLocation":      filepath.Dir(targetPath),
+		"UninstallString":      fmt.Sprintf("\"%s\" purge", targetPath),
+		"QuietUninstallString": fmt.Sprintf("\"%s\" purge -yes", targetPath),
+	} {
+		if err := key.SetStringValue(name, value); err != nil {
+			return err
+		}
+	}
+	_ = key.SetDWordValue("NoModify", 1)
+	_ = key.SetDWordValue("NoRepair", 1)
+	return nil
+}
+
+func Install() error {
+	// Estado limpo: remove servico anterior (se houver) antes de copiar o
+	// binario, para o arquivo nao estar em uso.
+	_ = Uninstall()
+
+	targetPath, err := copyExecutableToCanonicalPath()
 	if err != nil {
 		return err
 	}
@@ -197,15 +258,9 @@ func Install() error {
 	}
 	defer manager.Disconnect()
 
-	existingService, err := manager.OpenService(ServiceName)
-	if err == nil {
-		existingService.Close()
-		return fmt.Errorf("servico '%s' ja esta instalado. Use 'uninstall' primeiro", ServiceName)
-	}
-
 	createdService, err := manager.CreateService(
 		ServiceName,
-		exePath,
+		targetPath,
 		mgr.Config{
 			DisplayName:      ServiceDisplayName,
 			Description:      ServiceDescription,
@@ -218,6 +273,16 @@ func Install() error {
 		return fmt.Errorf("criacao do servico: %w", err)
 	}
 	defer createdService.Close()
+
+	_ = createdService.SetRecoveryActions([]mgr.RecoveryAction{
+		{Type: mgr.ServiceRestart, Delay: 10 * time.Second},
+		{Type: mgr.ServiceRestart, Delay: 30 * time.Second},
+		{Type: mgr.ServiceRestart, Delay: 60 * time.Second},
+	}, 86400)
+
+	if err := registerInstalledProgram(targetPath); err != nil {
+		log.Printf("[WARN] Registro em Aplicativos Instalados falhou: %v", err)
+	}
 
 	if err := eventlog.InstallAsEventCreate(ServiceName, eventlog.Error|eventlog.Warning|eventlog.Info); err != nil {
 		log.Printf("[WARN] Event log nao configurado: %v", err)
@@ -251,6 +316,7 @@ func Uninstall() error {
 	}
 
 	_ = eventlog.Remove(ServiceName)
+	_ = registry.DeleteKey(registry.LOCAL_MACHINE, uninstallRegistryKey)
 	log.Printf("[OK] Servico '%s' removido.", ServiceName)
 	return nil
 }

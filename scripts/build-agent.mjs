@@ -20,7 +20,7 @@ const agentDir = join(__dirname, '..', 'agent-go')
 const distDir = join(agentDir, 'dist')
 const publicDir = join(__dirname, '..', 'public')
 
-const VERSION = '1.0.0'
+const VERSION = '1.1.0'
 const APP_NAME = 'inventario-agent'
 
 function build(goos, goarch, outputName) {
