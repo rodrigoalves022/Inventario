@@ -1,11 +1,25 @@
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Panel, PanelBody } from '@/components/ui/panel'
+import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs-lazy'
 import prisma from '@/lib/prisma'
 import { getPortalDeviceMetrics, requirePortalContext, requirePortalDevice } from '@/lib/portal-context'
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
+
+function getStatusTone(status: string): StatusPillTone {
+  if (status === 'online') return 'success'
+  if (status === 'offline') return 'destructive'
+  return 'warning'
+}
+
+function formatStatus(status: string) {
+  if (status === 'online') return 'Online'
+  if (status === 'offline') return 'Offline'
+  return 'Atenção'
+}
 
 // Funcao de modulo (fora do corpo do componente) para o Date.now() nao ser
 // tratado como chamada impura durante o render pela regra react-hooks/purity.
@@ -55,25 +69,57 @@ export default async function PortalDeviceDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4 border-b pb-4">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 gap-2">
-          <Link href="/portal">
-            <ArrowLeft className="h-4 w-4" />
-            Máquinas
-          </Link>
-        </Button>
-
+      <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{device.hostname}</h1>
-          <p className="text-sm text-muted-foreground">
-            {primaryNetwork?.ip ?? 'IP não informado'}
-            {' · '}
-            Última coleta:{' '}
-            {latestLog?.coletadoEm
-              ? new Date(latestLog.coletadoEm).toLocaleString('pt-BR')
-              : 'sem coletas'}
-          </p>
+          <Button asChild variant="ghost" size="sm" className="-ml-2 gap-2 text-muted-foreground hover:text-foreground">
+            <Link href="/portal">
+              <ArrowLeft className="h-4 w-4" />
+              Máquinas
+            </Link>
+          </Button>
         </div>
+
+        <Panel>
+          <PanelBody className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <span
+                aria-hidden="true"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary"
+              >
+                <Monitor className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h1 className="data-mono truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                    {device.hostname}
+                  </h1>
+                  <StatusPill
+                    tone={getStatusTone(deviceHealth.effectiveStatus)}
+                    label={formatStatus(deviceHealth.effectiveStatus)}
+                  />
+                </div>
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span className="data-mono">{primaryNetwork?.ip ?? 'IP não informado'}</span>
+                  {device.hardware?.sistema ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{device.hardware.sistema}</span>
+                    </>
+                  ) : null}
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    Última coleta:{' '}
+                    <span className="data-mono text-foreground">
+                      {latestLog?.coletadoEm
+                        ? new Date(latestLog.coletadoEm).toLocaleString('pt-BR')
+                        : 'sem coletas'}
+                    </span>
+                  </span>
+                </p>
+              </div>
+            </div>
+          </PanelBody>
+        </Panel>
       </div>
 
       {/* canRunCommands=false: a aba de comandos nem e montada no portal. */}

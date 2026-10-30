@@ -9,8 +9,10 @@ import {
   TABLE_DATA_CELL_CLASS,
   TABLE_HEAD_CLASS,
   TABLE_HEAD_ROW_CLASS,
-  TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
+import { Network, Radar, Router, Wifi } from 'lucide-react'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { DiscoveredDevicesTable, type DiscoveredDeviceRow } from '@/components/discovered-devices-table'
 import { DISCOVERED_DEVICE_TYPES, type DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
 import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
@@ -129,6 +131,11 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
   const segments = Array.from(grouped.values()).sort((left, right) => left.subnet.localeCompare(right.subnet))
   const discoveryEnabled = tenantSettings?.discoveryEnabled ?? false
 
+  const totalSegments = segments.length
+  const totalHosts = segments.reduce((sum, seg) => sum + seg.devices, 0)
+  const activeHosts = segments.reduce((sum, seg) => sum + seg.active, 0)
+  const discoveredCount = discoveredDevices.length
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -140,75 +147,112 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
         </div>
       </div>
 
-      <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className={TABLE_HEAD_ROW_CLASS}>
-              <th className={TABLE_HEAD_CLASS}>Segmento</th>
-              <th className={TABLE_HEAD_CLASS}>Subnet</th>
-              <th className={TABLE_HEAD_CLASS}>Gateway</th>
-              <th className={TABLE_HEAD_CLASS}>Total</th>
-              <th className={TABLE_HEAD_CLASS}>Ativos</th>
-              <th className={TABLE_HEAD_CLASS}>Utilização</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {segments.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                  Nenhuma interface de rede reportada ainda para este tenant.
-                </td>
-              </tr>
-            ) : (
-              segments.map((segment) => {
-                const utilization = segment.devices > 0 ? (segment.active / segment.devices) * 100 : 0
-                return (
-                  <tr key={segment.subnet} className={STATIC_ROW_HOVER_CLASS}>
-                    <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>{segment.subnet}</td>
-                    <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{segment.subnet}</td>
-                    <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{segment.gateway}</td>
-                    <td className={cn(TABLE_CELL_CLASS, 'tabular-nums text-muted-foreground')}>{segment.devices}</td>
-                    <td className={TABLE_CELL_CLASS}>
-                      <span className="inline-flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-success" />
-                        {segment.active}
-                      </span>
-                    </td>
-                    <td className={TABLE_CELL_CLASS}>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-20 rounded-full bg-secondary">
-                          <div className="h-full rounded-full bg-primary" style={{ width: `${utilization}%` }} />
-                        </div>
-                        <span className="text-xs text-muted-foreground">{utilization.toFixed(0)}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Segmentos (/24)"
+          value={totalSegments}
+          subtitle="Sub-redes identificadas pelas interfaces"
+          icon={<Network className="h-4 w-4" />}
+          tone="primary"
+        />
+        <KpiCard
+          label="Hosts Mapeados"
+          value={totalHosts}
+          subtitle={`${networks.length} interface${networks.length !== 1 ? 's' : ''} reportada${networks.length !== 1 ? 's' : ''}`}
+          icon={<Router className="h-4 w-4" />}
+          tone="neutral"
+        />
+        <KpiCard
+          label="Hosts Online"
+          value={activeHosts}
+          subtitle="Dispositivos ativos nos segmentos"
+          icon={<Wifi className="h-4 w-4" />}
+          tone={activeHosts > 0 ? 'success' : 'neutral'}
+        />
+        <KpiCard
+          label="Descobertos s/ Agente"
+          value={discoveredCount}
+          subtitle={discoveryEnabled ? 'Varredura automática ativa' : 'Varredura de rede desabilitada'}
+          icon={<Radar className="h-4 w-4" />}
+          tone={discoveredCount > 0 ? 'info' : 'neutral'}
+        />
       </div>
+
+      <Panel>
+        <PanelHeader
+          icon={<Network className="h-4 w-4" />}
+          title="Segmentos de rede (/24)"
+          description="Sub-redes derivadas das interfaces reportadas pelos agentes instalados."
+        />
+        <PanelBody flush className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className={TABLE_HEAD_ROW_CLASS}>
+                <th className={TABLE_HEAD_CLASS}>Segmento</th>
+                <th className={TABLE_HEAD_CLASS}>Subnet</th>
+                <th className={TABLE_HEAD_CLASS}>Gateway</th>
+                <th className={TABLE_HEAD_CLASS}>Total</th>
+                <th className={TABLE_HEAD_CLASS}>Ativos</th>
+                <th className={TABLE_HEAD_CLASS}>Utilização</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-line">
+              {segments.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    Nenhuma interface de rede reportada ainda para este tenant.
+                  </td>
+                </tr>
+              ) : (
+                segments.map((segment) => {
+                  const utilization = segment.devices > 0 ? (segment.active / segment.devices) * 100 : 0
+                  return (
+                    <tr key={segment.subnet} className={STATIC_ROW_HOVER_CLASS}>
+                      <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>{segment.subnet}</td>
+                      <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{segment.subnet}</td>
+                      <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{segment.gateway}</td>
+                      <td className={cn(TABLE_CELL_CLASS, 'tabular-nums text-muted-foreground')}>{segment.devices}</td>
+                      <td className={TABLE_CELL_CLASS}>
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-success" />
+                          {segment.active}
+                        </span>
+                      </td>
+                      <td className={TABLE_CELL_CLASS}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-20 rounded-full bg-secondary">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${utilization}%` }} />
+                          </div>
+                          <span className="text-xs text-muted-foreground">{utilization.toFixed(0)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </PanelBody>
+      </Panel>
 
       {/* Sprint 14 (RF028) — secao NOVA, adicional a de segmentos acima (que
           continua derivando das interfaces das maquinas COM agente). Esta lista
           e' o oposto: dispositivos SEM agente, achados pela varredura. */}
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Dispositivos Descobertos na Rede</h2>
-          <p className="text-sm text-muted-foreground">
-            {discoveredDevices.length} dispositivo{discoveredDevices.length !== 1 ? 's' : ''} sem agente instalado
-            {discoveredDevices.length !== 1 ? ' catalogados' : ' catalogado'} pela varredura dos agentes deste tenant.
-          </p>
-        </div>
-
-        <DiscoveredDevicesTable
-          devices={discoveredDevices}
-          discoveryEnabled={discoveryEnabled}
-          initialPage={initialPage}
-          initialPageSize={initialPageSize}
+      <Panel>
+        <PanelHeader
+          icon={<Radar className="h-4 w-4" />}
+          title="Dispositivos descobertos na rede"
+          description={`${discoveredDevices.length} dispositivo${discoveredDevices.length !== 1 ? 's' : ''} sem agente instalado catalogado${discoveredDevices.length !== 1 ? 's' : ''} pela varredura dos agentes deste tenant.`}
         />
-      </div>
+        <PanelBody>
+          <DiscoveredDevicesTable
+            devices={discoveredDevices}
+            discoveryEnabled={discoveryEnabled}
+            initialPage={initialPage}
+            initialPageSize={initialPageSize}
+          />
+        </PanelBody>
+      </Panel>
     </div>
   )
 }
