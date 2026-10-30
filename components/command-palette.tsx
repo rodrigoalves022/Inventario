@@ -6,6 +6,7 @@ import { CornerDownLeft, Monitor, Search, Server } from 'lucide-react'
 
 import type { ShellNavSection } from '@/lib/shell-navigation'
 import { getTenantPath } from '@/lib/tenant-links'
+import { formatAnydeskId } from '@/components/anydesk-badge'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import {
   Command,
@@ -57,6 +58,7 @@ type DeviceHit = {
   id: string
   hostname: string
   ip: string | null
+  anydeskId?: string | null
   isServer: boolean
 }
 
@@ -301,7 +303,7 @@ export function CommandPalette({
           <CommandInput
             value={search}
             onValueChange={setSearch}
-            placeholder={tenantSlug ? 'Buscar página, hostname ou IP...' : 'Buscar página...'}
+            placeholder={tenantSlug ? 'Buscar página, hostname, IP ou AnyDesk...' : 'Buscar página...'}
             className="text-[0.9375rem]"
           />
           <CommandList className="max-h-[min(24rem,60vh)] p-1">
@@ -348,7 +350,7 @@ export function CommandPalette({
                       // `value` carrega hostname e IP — os mesmos campos pelos
                       // quais o servidor casou —, entao o filtro local do cmdk
                       // nunca esconde um resultado que a rota ja devolveu.
-                      value={`${device.hostname} ${device.ip ?? ''}`}
+                      value={`${device.hostname} ${device.ip ?? ''} ${device.anydeskId ?? ''} ${device.anydeskId ? formatAnydeskId(device.anydeskId) : ''}`}
                       onSelect={() => handleSelect(getTenantPath(tenantSlug, `assets/${device.id}`))}
                       className="group cursor-pointer gap-3 rounded-lg px-3 py-2.5 data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
                     >
@@ -357,9 +359,14 @@ export function CommandPalette({
                       {device.ip && (
                         <span className="data-mono shrink-0 text-xs text-muted-foreground">{device.ip}</span>
                       )}
+                      {device.anydeskId && (
+                        <span className="data-mono shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
+                          AD {formatAnydeskId(device.anydeskId)}
+                        </span>
+                      )}
                       <CornerDownLeft
                         aria-hidden
-                        className="ml-auto h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
+                        className="ml-auto h-3.5 w-3.5 shrink-0opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
                       />
                     </CommandItem>
                   )

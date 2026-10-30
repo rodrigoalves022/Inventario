@@ -76,6 +76,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
   }
 
   const term = parsed.data.q
+  // AnyDesk IDs sao guardados sem espacos; o usuario costuma digitar "123 456 789".
+  const compactTerm = term.replace(/\s+/g, '')
 
   const devices = await prisma.device.findMany({
     where: {
@@ -83,6 +85,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
       OR: [
         { hostname: { contains: term, mode: 'insensitive' } },
         { networks: { some: { ip: { contains: term } } } },
+        ...(compactTerm.length >= 2 ? [{ anydeskId: { contains: compactTerm } }] : []),
       ],
     },
     orderBy: { updatedAt: 'desc' },
@@ -90,6 +93,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
     select: {
       id: true,
       hostname: true,
+      anydeskId: true,
       hardware: { select: { sistema: true } },
       networks: { where: { isPrimary: true }, select: { ip: true } },
     },
@@ -101,6 +105,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
         id: device.id,
         hostname: device.hostname,
         ip: device.networks[0]?.ip ?? null,
+        anydeskId: device.anydeskId ?? null,
         // O mesmo predicado que /computers e /servers usam para se dividir —
         // a paleta rotula o dispositivo com o mesmo vocabulario das listagens.
         isServer: isServerOperatingSystem(device.hardware?.sistema ?? null),

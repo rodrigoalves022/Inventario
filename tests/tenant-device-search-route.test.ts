@@ -26,6 +26,7 @@ type FakeDevice = {
   hostname: string
   sistema: string | null
   ip: string | null
+  anydeskId?: string | null
   updatedAt: Date
 }
 
@@ -60,6 +61,7 @@ const { clients, devices, sessionRef, fakePrisma, lastFindManyArgs } = vi.hoiste
         lastFindManyArgs.value = args
         const requiredSlug = args.where.agentAuth?.is?.client?.is?.slug
         const term = extractTerm(args.where.OR)
+        const anydeskTerm = extractAnydeskTerm(args.where.OR)
 
         return [...devices.values()]
           .filter((device) => device.clientSlug === requiredSlug)
@@ -68,13 +70,15 @@ const { clients, devices, sessionRef, fakePrisma, lastFindManyArgs } = vi.hoiste
             const lowered = term.toLowerCase()
             return (
               device.hostname.toLowerCase().includes(lowered) ||
-              (device.ip ?? '').toLowerCase().includes(lowered)
+              (device.ip ?? '').toLowerCase().includes(lowered) ||
+              (anydeskTerm !== null && (device.anydeskId ?? '').includes(anydeskTerm))
             )
           })
           .slice(0, args.take ?? 8)
           .map((device) => ({
             id: device.id,
             hostname: device.hostname,
+            anydeskId: device.anydeskId ?? null,
             hardware: { sistema: device.sistema },
             networks: device.ip ? [{ ip: device.ip }] : [],
           }))
@@ -87,6 +91,15 @@ const { clients, devices, sessionRef, fakePrisma, lastFindManyArgs } = vi.hoiste
     for (const clause of or) {
       const hostname = clause.hostname as { contains?: string } | undefined
       if (hostname?.contains) return hostname.contains
+    }
+    return null
+  }
+
+  function extractAnydeskTerm(or: Array<Record<string, unknown>> | undefined): string | null {
+    if (!or) return null
+    for (const clause of or) {
+      const anydesk = clause.anydeskId as { contains?: string } | undefined
+      if (anydesk?.contains) return anydesk.contains
     }
     return null
   }
@@ -215,6 +228,23 @@ describe('GET /api/tenant/[clientSlug]/devices/search — escopo e resultado', (
     const byId = new Map(body.devices.map((device) => [device.id, device.isServer]))
     expect(byId.get('device-srv')).toBe(true)
     expect(byId.get('device-pc')).toBe(false)
+  })
+
+  it('busca por AnyDesk ID com ou sem espacos devolve so o dispositivo do tenant e inclui anydeskId', async () => {
+    seedClient({ id: 'client-a', slug: 'cliente-a', organizationId: 'org-a' })
+    seedDevice({ id: 'device-1', clientSlug: 'cliente-a', hostname: 'MAQ-AD', anydeskId: '123456789' })
+    seedDevice({ id: 'device-2', clientSlug: 'cliente-a', hostname: 'MAQ-SEM-AD' })
+    seedDevice({ id: 'device-3', clientSlug: 'cliente-b', hostname: 'MAQ-OUTRO', anydeskId: '123456789' })
+    sessionRef.user = { id: 'user-a', email: 'admin@org-a.local', role: 'ORG_ADMIN', organizationId: 'org-a' }
+
+    const { GET } = await import('@/app/api/tenant/[clientSlug]/devices/search/route')
+    for (const query of ['123456789', '123 456 789']) {
+      const response = await GET(request('cliente-a', query), buildContext('cliente-a') as never)
+      const body = (await response.json()) as { devices: Array<{ id: string; anydeskId: string | null }> }
+
+      expect(response.status).toBe(200)
+      expect(body.devices).toEqual([{ id: 'device-1', hostname: 'MAQ-AD', anydeskId: '123456789', ip: null, isServer: false }])
+    }
   })
 
   it('termo com menos de 2 caracteres devolve 200 com lista vazia, nao 400', async () => {

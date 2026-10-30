@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildDeviceReportSummary, getRowEffectiveStatus, type DeviceReportRow } from '@/lib/reports/device-report'
+import {
+  buildDeviceReportSummary,
+  getRowEffectiveStatus,
+  renderDeviceReportCsv,
+  type DeviceReportRow,
+} from '@/lib/reports/device-report'
 
 function makeRow(overrides: Partial<DeviceReportRow>): DeviceReportRow {
   return {
@@ -88,5 +93,19 @@ describe('buildDeviceReportSummary — contagem de "offline" via status efetivo'
     })
     const fixedSummary = buildDeviceReportSummary([fixedRow])
     expect(fixedSummary.offline).toBe(1) // ...e sim em quem produz `status` sem recalcular (getDeviceReportRows, corrigido)
+  })
+})
+
+describe('renderDeviceReportCsv — AnyDesk ID (Sprint A12)', () => {
+  it('inclui a coluna AnyDesk ID apos IP com o valor da linha (vazio quando ausente)', () => {
+    const csv = renderDeviceReportCsv([
+      makeRow({ hostname: 'HOST-AD', ip: '10.0.0.5', anydeskId: '123456789' }),
+      makeRow({ hostname: 'HOST-SEM', ip: '10.0.0.6' }),
+    ])
+    const [header, withId, withoutId] = csv.replace(String.fromCharCode(0xfeff), '').split('\r\n')
+
+    expect(header.split(',').slice(0, 4)).toEqual(['Hostname', 'Status', 'IP', 'AnyDesk ID'])
+    expect(withId.split(',').slice(0, 4)).toEqual(['HOST-AD', 'online', '10.0.0.5', '123456789'])
+    expect(withoutId.split(',').slice(0, 4)).toEqual(['HOST-SEM', 'online', '10.0.0.6', ''])
   })
 })

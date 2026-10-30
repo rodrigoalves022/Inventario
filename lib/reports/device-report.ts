@@ -9,6 +9,8 @@ export type DeviceReportRow = {
   hostname: string
   status: string
   ip: string | null
+  /** Sprint A12. ID do AnyDesk do dispositivo (opcional para nao quebrar helpers de teste). */
+  anydeskId?: string | null
   sistema: string | null
   processador: string | null
   ramTotalGb: number | null
@@ -207,6 +209,7 @@ export async function getDeviceReportRows(
       hostname: device.hostname,
       status: effectiveStatus,
       ip: device.networks[0]?.ip ?? null,
+      anydeskId: device.anydeskId ?? null,
       sistema: device.hardware?.sistema ?? null,
       processador: device.hardware?.processador ?? null,
       ramTotalGb: device.hardware?.ramTotalGb ?? null,
@@ -375,6 +378,7 @@ const CSV_HEADERS = [
   'Hostname',
   'Status',
   'IP',
+  'AnyDesk ID',
   'Sistema operacional',
   'Processador',
   'RAM total (GB)',
@@ -396,6 +400,7 @@ export function renderDeviceReportCsv(rows: DeviceReportRow[]): string {
       row.hostname,
       row.status,
       row.ip ?? '',
+      row.anydeskId ?? '',
       row.sistema ?? '',
       row.processador ?? '',
       row.ramTotalGb != null ? String(row.ramTotalGb) : '',
