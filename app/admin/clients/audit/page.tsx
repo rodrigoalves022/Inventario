@@ -5,9 +5,13 @@ import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permission
 import prisma from '@/lib/prisma'
 import { AuditLogTable } from '@/components/audit-log-table'
 import { listAuditLogs } from '@/lib/audit-log'
+import { AUDIT_ACTION_LABEL } from '@/lib/audit-action-labels'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { 
   History, 
   Search, 
+  Building2,
   KeyRound, 
   Trash2, 
   Filter,
@@ -74,13 +78,14 @@ export default async function ClientsAuditPage({
 
   const credentialViews = logs.filter((log) => log.action === 'credentials.view').length
   const deviceDeletes = logs.filter((log) => log.action === 'device.delete').length
+  const tenantsInScope = new Set(logs.map((l) => l.clientId).filter(Boolean)).size
 
   return (
     <div className="flex min-h-screen">
       <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
-      <div className="flex-1 pl-64">
+      <div className="min-w-0 flex-1 lg:pl-64">
         <Header />
-        <main className="p-6">
+        <main className="p-4 lg:p-6">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -99,33 +104,43 @@ export default async function ClientsAuditPage({
               </div>
             </div>
 
-            {/* Summary Grid */}
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-primary/40">
-                <div className="flex items-center gap-3 mb-1">
-                  <History className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total de Eventos</p>
-                </div>
-                <p className="text-2xl font-bold text-foreground">{logs.length}</p>
-              </div>
-              <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-info/40">
-                <div className="flex items-center gap-3 mb-1">
-                  <KeyRound className="h-4 w-4 text-info" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Acesso a Chaves</p>
-                </div>
-                <p className="text-2xl font-bold text-info">{credentialViews}</p>
-              </div>
-              <div className="rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-destructive/40">
-                <div className="flex items-center gap-3 mb-1">
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Exclusões</p>
-                </div>
-                <p className="text-2xl font-bold text-destructive">{deviceDeletes}</p>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard
+                label="Total de Eventos"
+                value={logs.length}
+                subtitle="no recorte atual (máx. 200)"
+                icon={<History />}
+              />
+              <KpiCard
+                label="Tenants no Recorte"
+                value={tenantsInScope}
+                subtitle="clientes com atividade"
+                icon={<Building2 />}
+              />
+              <KpiCard
+                label="Acesso a Chaves"
+                value={credentialViews}
+                subtitle="visualizações de credenciais"
+                icon={<KeyRound />}
+                tone="info"
+              />
+              <KpiCard
+                label="Exclusões"
+                value={deviceDeletes}
+                subtitle="máquinas removidas"
+                icon={<Trash2 />}
+                tone={deviceDeletes > 0 ? 'destructive' : 'neutral'}
+                emphasizeValue={deviceDeletes > 0}
+              />
             </div>
 
-            {/* Filter Bar */}
-            <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <Panel>
+              <PanelHeader
+                icon={<Filter />}
+                title="Filtros de auditoria"
+                description="Refine por ação, tenant, operador ou janela de datas."
+              />
+              <PanelBody>
               <form method="GET" className="grid gap-4 md:grid-cols-2 xl:grid-cols-5 items-end">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
@@ -137,8 +152,11 @@ export default async function ClientsAuditPage({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas as ações</SelectItem>
-                      <SelectItem value="credentials.view">Visualização de credenciais</SelectItem>
-                      <SelectItem value="device.delete">Exclusão de máquina</SelectItem>
+                      {Object.entries(AUDIT_ACTION_LABEL).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -194,13 +212,27 @@ export default async function ClientsAuditPage({
                   </Button>
                 </div>
               </form>
-            </div>
+              </PanelBody>
+            </Panel>
 
-            <AuditLogTable 
-              logs={logs} 
-              emptyMessage="Nenhum evento registrado nos critérios selecionados." 
-              showTenant 
-            />
+            <Panel>
+              <PanelHeader
+                icon={<History />}
+                title="Eventos registrados"
+                description={
+                  logs.length >= 200
+                    ? 'Exibindo os 200 eventos mais recentes. Refine os filtros acima para recortes específicos.'
+                    : `${logs.length} evento(s) listado(s).`
+                }
+              />
+              <PanelBody flush>
+                <AuditLogTable
+                  logs={logs}
+                  emptyMessage="Nenhum evento registrado nos critérios selecionados."
+                  showTenant
+                />
+              </PanelBody>
+            </Panel>
           </div>
         </main>
       </div>

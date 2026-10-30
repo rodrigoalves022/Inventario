@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation'
-import { AlertTriangle, KeyRound, ShieldOff, WifiOff } from 'lucide-react'
+import { AlertTriangle, Info, KeyRound, Shield, ShieldOff, WifiOff } from 'lucide-react'
 import { Sidebar, Header } from '@/components/sidebar'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { canAccessGlobalAdmin, getSessionPermissionUser } from '@/lib/permissions'
-import { cn } from '@/lib/utils'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
+import { StatusPill } from '@/components/ui/status-pill'
 
 const OFFLINE_THRESHOLD_DAYS = 7
 
@@ -57,39 +59,20 @@ export default async function SecurityPage() {
     prisma.localAccount.count({ where: { isAdmin: true, habilitada: true } }),
   ])
 
-  const indicators = [
-    {
-      label: 'Máquinas em alerta',
-      value: devicesWarning,
-      description: 'Disco ou memória abaixo do limiar configurado no tenant.',
-      icon: AlertTriangle,
-    },
-    {
-      label: `Sem coleta há ${OFFLINE_THRESHOLD_DAYS}+ dias`,
-      value: devicesStale,
-      description: 'O agente pode ter sido removido, bloqueado ou a máquina desativada.',
-      icon: WifiOff,
-    },
-    {
-      label: 'Credenciais de agente revogadas',
-      value: revokedAgents,
-      description: 'Chaves que não podem mais enviar inventário.',
-      icon: ShieldOff,
-    },
-    {
-      label: 'Acessos a credenciais',
-      value: credentialViews,
-      description: 'Visualizações registradas na auditoria.',
-      icon: KeyRound,
-    },
+  const postureItems = [
+    { label: 'Antivírus inativo', value: antivirusOff },
+    { label: 'Firewall desativado', value: firewallOff },
+    { label: 'Secure Boot desativado', value: secureBootOff },
+    { label: 'UAC desativado', value: uacOff },
+    { label: 'Contas admin habilitadas', value: adminAccounts },
   ]
 
   return (
     <div className="flex min-h-screen">
       <Sidebar user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
-      <div className="flex-1 pl-64">
+      <div className="min-w-0 flex-1 lg:pl-64">
         <Header />
-        <main className="p-6">
+        <main className="p-4 lg:p-6">
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Segurança</h1>
@@ -99,80 +82,92 @@ export default async function SecurityPage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {indicators.map((indicator) => (
-                <div key={indicator.label} className="rounded-xl border bg-card p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <indicator.icon className="h-4 w-4" />
-                    <p className="text-xs font-medium uppercase tracking-wide">{indicator.label}</p>
-                  </div>
-                  <p className="text-3xl font-bold text-foreground">{indicator.value}</p>
-                  <p className="text-xs text-muted-foreground">{indicator.description}</p>
-                </div>
-              ))}
+              <KpiCard
+                label="Máquinas em alerta"
+                value={devicesWarning}
+                icon={<AlertTriangle />}
+                tone={devicesWarning > 0 ? 'warning' : 'neutral'}
+                emphasizeValue={devicesWarning > 0}
+                subtitle="disco ou memória abaixo do limiar"
+              />
+              <KpiCard
+                label={`Sem coleta há ${OFFLINE_THRESHOLD_DAYS}+ dias`}
+                value={devicesStale}
+                icon={<WifiOff />}
+                tone={devicesStale > 0 ? 'warning' : 'neutral'}
+                emphasizeValue={devicesStale > 0}
+                subtitle="agente removido, bloqueado ou inativo"
+              />
+              <KpiCard
+                label="Credenciais de agente revogadas"
+                value={revokedAgents}
+                icon={<ShieldOff />}
+                subtitle="chaves bloqueadas para envio"
+              />
+              <KpiCard
+                label="Acessos a credenciais"
+                value={credentialViews}
+                icon={<KeyRound />}
+                tone="info"
+                subtitle="visualizações registradas na auditoria"
+              />
             </div>
 
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-sm font-semibold text-foreground">Postura de segurança</h2>
-                <p className="text-xs text-muted-foreground">
-                  {withPosture} de {totalDevices} máquinas já reportaram
-                </p>
-              </div>
-
-              {withPosture === 0 ? (
-                <div className="rounded-xl border border-dashed p-6">
-                  <p className="text-sm text-muted-foreground">
-                    Nenhuma máquina reportou postura de segurança ainda. O agente precisa ser
-                    atualizado para a versão que coleta esses dados.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                    {[
-                      { label: 'Antivírus inativo', value: antivirusOff },
-                      { label: 'Firewall desativado', value: firewallOff },
-                      { label: 'Secure Boot desativado', value: secureBootOff },
-                      { label: 'UAC desativado', value: uacOff },
-                      { label: 'Contas admin habilitadas', value: adminAccounts },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className={cn(
-                          'rounded-xl border p-4',
-                          item.value > 0 ? 'border-destructive/30 bg-destructive/5' : 'bg-card'
-                        )}
-                      >
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          {item.label}
-                        </p>
-                        <p
-                          className={cn(
-                            'mt-1 text-2xl font-bold',
-                            item.value > 0 ? 'text-destructive' : 'text-foreground'
-                          )}
-                        >
-                          {item.value}
+            <div className="grid items-start gap-6 xl:grid-cols-12">
+              <div className="xl:col-span-8">
+                <Panel>
+                  <PanelHeader
+                    icon={<Shield />}
+                    title="Postura de segurança"
+                    description={`${withPosture} de ${totalDevices} máquinas já reportaram postura de segurança.`}
+                  />
+                  <PanelBody>
+                    {withPosture === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma máquina reportou postura de segurança ainda. O agente precisa ser
+                        atualizado para a versão que coleta esses dados.
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        <ul className="divide-y divide-surface-line">
+                          {postureItems.map((item) => (
+                            <li key={item.label} className="flex items-center justify-between gap-4 py-3">
+                              <span className="text-sm text-foreground">{item.label}</span>
+                              <StatusPill
+                                tone={item.value > 0 ? 'destructive' : 'success'}
+                                label={item.value > 0 ? `${item.value} afetada(s)` : 'Conforme'}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-xs text-muted-foreground">
+                          Só entram nestas contagens as máquinas que reportaram o item como desativado.
+                          O que o agente não conseguiu apurar — antivírus em Windows Server, BitLocker
+                          ausente, TPM sem privilégio — fica de fora em vez de ser contado como problema.
                         </p>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </PanelBody>
+                </Panel>
+              </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    Só entram nestas contagens as máquinas que reportaram o item como desativado.
-                    O que o agente não conseguiu apurar — antivírus em Windows Server, BitLocker
-                    ausente, TPM sem privilégio — fica de fora em vez de ser contado como problema.
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-dashed p-6 space-y-2">
-              <h2 className="text-sm font-semibold text-foreground">Ainda não coletado</h2>
-              <p className="text-sm text-muted-foreground">
-                Atualizações pendentes do Windows exigem a API do Windows Update Agent e ainda não
-                são coletadas. Nenhum indicador desta página é estimado.
-              </p>
+              <div className="xl:col-span-4">
+                <Panel>
+                  <PanelHeader
+                    icon={<Info />}
+                    title="Escopo e governança da coleta"
+                    description="O que entra e o que ainda não é coletado pelo agente."
+                  />
+                  <PanelBody className="space-y-3 text-sm text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">Ainda não coletado:</span>{' '}
+                      atualizações pendentes do Windows exigem a API do Windows Update Agent e ainda
+                      não são coletadas.
+                    </p>
+                    <p>Nenhum indicador desta página é estimado.</p>
+                  </PanelBody>
+                </Panel>
+              </div>
             </div>
           </div>
         </main>

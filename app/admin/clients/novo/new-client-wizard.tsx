@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, Check, Loader2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -267,7 +267,7 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
   const step = !pkg ? 0 : connected ? 2 : 1
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8">
+    <div className="space-y-6">
       <div className="space-y-4">
         <Button asChild variant="ghost" size="sm" className="-ml-2 gap-2">
           <Link href="/admin/clients">
@@ -279,6 +279,7 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
         <Stepper current={step} finished={connected} />
       </div>
 
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
       {/* ---------- Passo 1 ---------- */}
       {!pkg && (
         <Panel>
@@ -334,6 +335,37 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
           <FirstCheckinPanel checkin={checkin} clientSlug={pkg.clientSlug} />
         </div>
       )}
+
+      <Panel>
+        <PanelHeader
+          icon={<ShieldCheck />}
+          title="Fluxo de provisionamento"
+          description="Como funciona o vínculo seguro das máquinas deste cliente."
+        />
+        <PanelBody>
+          <ol className="divide-y divide-surface-line text-sm">
+            <li className="space-y-1 py-3 first:pt-0">
+              <p className="font-medium text-foreground">1. Chave única por tenant</p>
+              <p className="text-muted-foreground">
+                Cada cliente recebe uma chave própria, embutida no instalador.
+              </p>
+            </li>
+            <li className="space-y-1 py-3">
+              <p className="font-medium text-foreground">2. Pacote Windows e Linux</p>
+              <p className="text-muted-foreground">
+                Instalador .exe para Windows e .sh para Linux, ambos com hash SHA-256.
+              </p>
+            </li>
+            <li className="space-y-1 py-3 last:pb-0">
+              <p className="font-medium text-foreground">3. Primeira coleta automática</p>
+              <p className="text-muted-foreground">
+                Após a instalação, a primeira coleta chega em até 60 s.
+              </p>
+            </li>
+          </ol>
+        </PanelBody>
+      </Panel>
+      </div>
     </div>
   )
 }

@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Bot, CheckCircle2, Monitor, ShieldOff, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { StatusPill } from '@/components/ui/status-pill'
 import {
@@ -214,6 +215,34 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
           </PanelBody>
         </Panel>
       ) : (
+        <>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            label="Total de Agentes"
+            value={agents.length}
+            subtitle="credenciais emitidas"
+            icon={<Bot />}
+          />
+          <KpiCard
+            label="Agentes Ativos"
+            value={activeCount}
+            subtitle="autorizados a enviar coleta"
+            icon={<CheckCircle2 />}
+            tone="success"
+          />
+          <KpiCard
+            label="Com Máquina Vinculada"
+            value={agents.filter((a) => a.isActive && a.hasDevice).length}
+            subtitle="já realizaram check-in"
+            icon={<Monitor />}
+          />
+          <KpiCard
+            label="Revogados"
+            value={agents.filter((a) => !a.isActive).length}
+            subtitle="bloqueados permanentemente"
+            icon={<ShieldOff />}
+          />
+        </div>
         <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
           <table className="w-full text-sm">
             <thead>
@@ -285,6 +314,7 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
