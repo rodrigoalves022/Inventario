@@ -1,3 +1,5 @@
+import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
@@ -80,6 +82,12 @@ export default async function TenantStoragePage({ params, searchParams }: PagePr
             {storageDevices.length} dispositivo{storageDevices.length !== 1 ? 's' : ''} com armazenamento reportado para a empresa atual.
           </p>
         </div>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/api/tenant/${tenantSlug}/storage/csv`} download>
+            <Download className="h-4 w-4 mr-2" />
+            Baixar CSV
+          </a>
+        </Button>
       </div>
 
       <TenantStorageTable

@@ -151,7 +151,8 @@ const REMOTE_COMMANDS = [
   ['restart_service', 'Reinicia um serviço da allowlist: Spooler, wuauserv, BITS ou Dnscache.'],
   ['run_script', 'Executa um script fechado: flush_dns, clear_temp_files, restart_explorer ou flush_print_spooler, gpupdate_force, network_diag ou system_health_summary.'],
   ['restart_computer', 'Reinicia a máquina.'],
-  ['uninstall_agent', 'Desinstala o agente remotamente e revoga a credencial.'],
+  ['uninstall_agent', 'Desinstala o agente remotamente e revoga a credencial (Sprint A16).'],
+  ['run_script (diagnóstico)', 'gpupdate_force, network_diag e system_health_summary; a saída aparece em console expansível na aba Comandos (A17). Relatórios analíticos, catálogos de software/periféricos/contas locais e exportações CSV (incl. Armazenamento e Processadores) chegaram nas Sprints A18–A26.'],
 ] as const
 
 export function DocsHub() {

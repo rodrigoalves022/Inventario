@@ -26,9 +26,22 @@ export default async function PortalLayout({ children }: { children: React.React
           </Link>
 
           <div className="flex items-center gap-4">
-            <Link href="/portal/reports" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-              Relatórios
-            </Link>
+            <nav aria-label="Portal" className="flex items-center gap-4">
+              {[
+                { href: '/portal', label: 'Dispositivos' },
+                { href: '/portal/software', label: 'Softwares' },
+                { href: '/portal/peripherals', label: 'Periféricos' },
+                { href: '/portal/reports', label: 'Relatórios' },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {context.viewerName || context.viewerEmail}
             </span>

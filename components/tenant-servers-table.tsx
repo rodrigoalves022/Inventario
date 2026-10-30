@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { Search, Server } from 'lucide-react'
+import { LATEST_AGENT_VERSION } from '@/lib/agent-version'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Panel, PanelHeader } from '@/components/ui/panel'
@@ -41,6 +43,12 @@ export type TenantServerRow = {
   detailsPath: string
   anydeskId?: string | null
   agentVersion?: string | null
+}
+
+type ServerFilter = 'all' | 'online' | 'attention' | 'outdated_agent'
+
+function isOutdatedAgent(server: TenantServerRow): boolean {
+  return Boolean(server.agentVersion && server.agentVersion !== LATEST_AGENT_VERSION)
 }
 
 /** Mesmo vocabulario de STATUS EFETIVO de /computers (online | warning |
@@ -85,12 +93,24 @@ export function TenantServersTable({
   const [search, setSearch] = useState('')
   const canBulkOperate = Boolean(tenantSlug && canOperate)
 
+  const [statusFilter, setStatusFilter] = useState<ServerFilter>('all')
+
+  const onlineCount = servers.filter((server) => server.effectiveStatus === 'online').length
+  const attentionCount = servers.length - onlineCount
+  const outdatedCount = servers.filter(isOutdatedAgent).length
+
   const filteredServers = useMemo(() => {
     const normalized = search.trim().toLowerCase()
     const digitsOnly = normalized.replace(/\s+/g, '')
-    if (normalized.length === 0) return servers
+    const byStatus = servers.filter((server) => {
+      if (statusFilter === 'online') return server.effectiveStatus === 'online'
+      if (statusFilter === 'attention') return server.effectiveStatus !== 'online'
+      if (statusFilter === 'outdated_agent') return isOutdatedAgent(server)
+      return true
+    })
+    if (normalized.length === 0) return byStatus
 
-    return servers.filter(
+    return byStatus.filter(
       (server) =>
         server.hostname.toLowerCase().includes(normalized) ||
         (server.ip ?? '').toLowerCase().includes(normalized) ||
@@ -99,10 +119,15 @@ export function TenantServersTable({
         (digitsOnly.length > 0 && (server.anydeskId ?? '').replace(/\s+/g, '').toLowerCase().includes(digitsOnly)) ||
         Boolean(server.agentVersion?.toLowerCase().includes(normalized)),
     )
-  }, [servers, search])
+  }, [servers, search, statusFilter])
 
   // Ordem filtrar -> contar -> paginar.
   const slice = getPageSlice(filteredServers, page, pageSize)
+
+  function changeFilter(next: ServerFilter) {
+    setStatusFilter((current) => (current === next ? 'all' : next))
+    changePage(1)
+  }
 
   function changeSearch(nextSearch: string) {
     setSearch(nextSearch)
@@ -151,6 +176,41 @@ export function TenantServersTable({
   }
 
   return (
+    <div className="space-y-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiCard
+        label="Total de servidores"
+        value={servers.length}
+        onClick={() => changeFilter('all')}
+        active={statusFilter === 'all'}
+        testId="servers-kpi-all"
+      />
+      <KpiCard
+        label="Servidores online"
+        value={onlineCount}
+        tone="success"
+        onClick={() => changeFilter('online')}
+        active={statusFilter === 'online'}
+        testId="servers-kpi-online"
+      />
+      <KpiCard
+        label="Offline / Warning"
+        value={attentionCount}
+        tone={attentionCount > 0 ? 'warning' : 'neutral'}
+        onClick={() => changeFilter('attention')}
+        active={statusFilter === 'attention'}
+        testId="servers-kpi-attention"
+      />
+      <KpiCard
+        label="Agente desatualizado"
+        value={outdatedCount}
+        subtitle={`v${LATEST_AGENT_VERSION} é a atual`}
+        tone={outdatedCount > 0 ? 'warning' : 'neutral'}
+        onClick={() => changeFilter('outdated_agent')}
+        active={statusFilter === 'outdated_agent'}
+        testId="servers-kpi-outdated"
+      />
+    </div>
     <Panel className="overflow-hidden">
       <PanelHeader
         icon={<Server className="h-4 w-4" />}
@@ -275,5 +335,6 @@ export function TenantServersTable({
         />
       )}
     </Panel>
+    </div>
   )
 }

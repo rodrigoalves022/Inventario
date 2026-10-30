@@ -4216,3 +4216,14 @@ Entrega os Backlog Items 21 e 14.
 | **A18** | Conformidade de versão. Filtro "desatualizados" em `TenantComputersTable` (`/computers`, `/assets`) com seleção em lote para `update_agent` contra `LATEST_AGENT_VERSION`. | Reutilizar a comparação de versão de A13 e o `BulkCommandBar`; o filtro deve ser sincronizado com a query string, como `?critical=`. Considerar comparar por plataforma, já que Linux e Windows têm binários distintos. |
 | **A19** | Ciclo de vida/garantia (ITAM). Indicadores de garantia vencida e a vencer em 30 dias (`garantiaAte`) na aba Patrimônio e em `lib/reports/device-report.ts`. | Cálculo em função pura e testável, com data injetável; sem alterar o schema (campo já existe). Os limiares (30 dias) devem ser constantes compartilhadas entre UI e relatório. |
 | **A20** | Exportação CSV de ativos descobertos (`DiscoveredDevicesTable`, `/network`) e observabilidade de rede. | Escapar campos iniciados por `=`, `+`, `-`, `@` (CSV injection) e reutilizar o exportador CSV existente; filtrar sempre por tenant. |
+
+## Sprints A18–A23 — Relatórios analíticos, catálogos e exportações CSV (`84b8dd8`)
+
+- Visão `/reports` analítica reformulada; catálogos de software, periféricos e contas locais; exportações CSV (`reports`, `audit`, `software`, `peripherals`) com BOM UTF-8, delimitador `;` e escape de fórmulas.
+
+## Sprint A26 — Filtro de agente desatualizado e CSV de Armazenamento/Processadores
+
+- **`TenantServersTable`:** KPI cards clicáveis (Total, Online, Offline/Warning, Agente desatualizado vs `LATEST_AGENT_VERSION`) que filtram a tabela; clicar de novo no card ativo limpa o filtro.
+- **CSV:** `GET /api/tenant/[clientSlug]/storage/csv` e `/processors/csv` (401 sem sessão, 403 sem acesso ao tenant; BOM UTF-8, `;`, prefixo `'` contra formula injection). Botão "Baixar CSV" em `/storage` e `/processors`.
+- **Resumo A16–A26:** `uninstall_agent` (A16); scripts `gpupdate_force`/`network_diag`/`system_health_summary` com visualizador de saída (A17); relatórios, catálogos e CSVs (A18–A23); A26 acima.
+- **Testes:** `tests/storage-processors-csv-routes.test.ts`.

@@ -16,6 +16,7 @@ import {
   Settings,
   Shield,
   Usb,
+  UserCheck,
   Users,
 } from 'lucide-react'
 import { isOrgAdmin, isOrgOperator, isPlatformAdmin, type PermissionUser } from '@/lib/permissions'
@@ -92,6 +93,7 @@ const TENANT_ROUTES: readonly TenantRouteDef[] = [
   { segment: 'network', name: 'Rede', icon: Network, section: 'Inventário', access: 'tenant' },
   { segment: 'software', name: 'Softwares', icon: Package, section: 'Inventário', access: 'tenant' },
   { segment: 'peripherals', name: 'Periféricos', icon: Usb, section: 'Inventário', access: 'tenant' },
+  { segment: 'local-accounts', name: 'Contas locais', icon: UserCheck, section: 'Inventário', access: 'tenant' },
   {
     // Listagem unificada: nao entra no menu (o dashboard ja e a porta de
     // entrada dela), mas e o pai de `/assets/<id>` na trilha.

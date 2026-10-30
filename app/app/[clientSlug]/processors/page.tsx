@@ -1,3 +1,5 @@
+import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
@@ -63,6 +65,12 @@ export default async function TenantProcessorsPage({ params, searchParams }: Pag
             {processors.length} modelo{processors.length !== 1 ? 's' : ''} encontrado{processors.length !== 1 ? 's' : ''} no inventário da empresa selecionada.
           </p>
         </div>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/api/tenant/${tenantSlug}/processors/csv`} download>
+            <Download className="h-4 w-4 mr-2" />
+            Baixar CSV
+          </a>
+        </Button>
       </div>
 
       <TenantProcessorsTable
