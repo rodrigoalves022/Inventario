@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
+import { AnydeskBadge } from '@/components/anydesk-badge'
 import { cn } from '@/lib/utils'
 import {
   CLICKABLE_ROW_CLASS,
@@ -36,6 +37,7 @@ export type TenantServerRow = {
   storageLabel: string | null
   effectiveStatus: 'online' | 'warning' | 'offline'
   detailsPath: string
+  anydeskId?: string | null
 }
 
 /** Mesmo vocabulario de STATUS EFETIVO de /computers (online | warning |
@@ -193,7 +195,9 @@ export function TenantServersTable({
                     {server.hostname}
                   </Link>
                 </td>
-                <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{server.ip ?? '-'}</td>
+                <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{server.ip ?? '-'}
+                  <AnydeskBadge anydeskId={server.anydeskId} compact />
+                </td>
                 <td className={TABLE_CELL_CLASS}>{server.sistema ?? '-'}</td>
                 <td className={cn(TABLE_CELL_CLASS, 'max-w-[240px] truncate text-muted-foreground')}>
                   {server.processador ?? '-'}

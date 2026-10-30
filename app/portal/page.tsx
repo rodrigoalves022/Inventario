@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { AlertCircle, ChevronRight, Monitor, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { requirePortalContext } from '@/lib/portal-context'
+import { AnydeskBadge } from '@/components/anydesk-badge'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -35,6 +36,7 @@ export default async function PortalHomePage() {
       status: true,
       updatedAt: true,
       usuario: true,
+      anydeskId: true,
       hardware: { select: { sistema: true } },
       networks: {
         where: { isPrimary: true },
@@ -120,6 +122,9 @@ export default async function PortalHomePage() {
                             {device.hardware?.sistema ? ` · ${device.hardware.sistema}` : ''}
                             {device.usuario ? ` · ${device.usuario}` : ''}
                           </p>
+                          {device.anydeskId && (
+                            <div className="mt-1"><AnydeskBadge anydeskId={device.anydeskId} compact /></div>
+                          )}
                         </div>
                       </div>
 

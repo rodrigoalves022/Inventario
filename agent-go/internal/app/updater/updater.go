@@ -13,10 +13,44 @@ import (
 	"strings"
 )
 
+func escapePowerShellSingleQuoted(s string) string { return strings.ReplaceAll(s, "'", "''") }
+
+// buildUpdateScript gera o script PowerShell de troca do binario, com backup
+// e rollback automatico caso o novo servico nao suba.
+func buildUpdateScript(tempExe, currentExe string) string {
+	return fmt.Sprintf(`
+Start-Sleep -Seconds 3
+$temp = '%s'
+$target = '%s'
+$bak = $target + '.bak'
+Stop-Service -Name 'InventarioAgent' -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+if (Test-Path $target) { Copy-Item -Path $target -Destination $bak -Force -ErrorAction SilentlyContinue }
+Copy-Item -Path $temp -Destination $target -Force
+try {
+  Start-Service -Name 'InventarioAgent' -ErrorAction Stop
+  Remove-Item -Path $bak -Force -ErrorAction SilentlyContinue
+} catch {
+  if (Test-Path $bak) {
+    Copy-Item -Path $bak -Destination $target -Force -ErrorAction SilentlyContinue
+    Start-Service -Name 'InventarioAgent' -ErrorAction SilentlyContinue
+  }
+}
+Remove-Item -Path $temp -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $PSCommandPath -Force -ErrorAction SilentlyContinue
+`, escapePowerShellSingleQuoted(tempExe), escapePowerShellSingleQuoted(currentExe))
+}
+
 func RunAsync(downloadUrl, expectedSHA256 string) {
 	log.Printf("[UPDATER] Baixando atualizacao de %s\n", downloadUrl)
 
-	tempExe := filepath.Join(os.TempDir(), "inventario-agent.update.exe")
+	updateDir := filepath.Join(os.Getenv("ProgramData"), "InventarioAgent", "updates")
+	if os.Getenv("ProgramData") == "" {
+		updateDir = os.TempDir()
+	}
+	_ = os.MkdirAll(updateDir, 0o755)
+	tempExe := filepath.Join(updateDir, "inventario-agent.update.exe")
+	scriptPath := filepath.Join(updateDir, "inventario-updater.ps1")
 
 	resp, err := http.Get(downloadUrl)
 	if err != nil {
@@ -59,16 +93,8 @@ func RunAsync(downloadUrl, expectedSHA256 string) {
 		return
 	}
 
-	scriptContent := fmt.Sprintf(`
-Start-Sleep -Seconds 3
-Stop-Service -Name InventarioAgent -Force -ErrorAction SilentlyContinue
-Copy-Item -Path "%s" -Destination "%s" -Force
-Start-Service -Name InventarioAgent
-Remove-Item -Path "%s" -Force -ErrorAction SilentlyContinue
-Remove-Item $PSCommandPath -Force -ErrorAction SilentlyContinue
-`, tempExe, currentExe, tempExe)
+	scriptContent := buildUpdateScript(tempExe, currentExe)
 
-	scriptPath := filepath.Join(os.TempDir(), "inventario-updater.ps1")
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	if err != nil {
 		log.Printf("[UPDATER] Erro ao criar script droppable de substituicao: %v\n", err)

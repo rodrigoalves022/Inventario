@@ -176,6 +176,7 @@ export function TenantComputersTable({
 
   const filteredDevices = useMemo(() => {
     const normalized = search.trim().toLowerCase()
+    const digitsOnly = normalized.replace(/\s+/g, '')
 
     return devices.filter((device) => {
       const matchesSearch =
@@ -185,7 +186,8 @@ export function TenantComputersTable({
         (device.sistema ?? '').toLowerCase().includes(normalized) ||
         // Precisa bater em processador tambem: /processors linka pra ca com
         // ?search=<nome do processador> (ver components/tenant-processors-table.tsx).
-        (device.processador ?? '').toLowerCase().includes(normalized)
+        (device.processador ?? '').toLowerCase().includes(normalized) ||
+        (digitsOnly.length > 0 && (device.anydeskId ?? '').toLowerCase().includes(digitsOnly))
 
       const matchesStatus = statusFilter === 'all' || device.effectiveStatus === statusFilter
       const matchesCritical =

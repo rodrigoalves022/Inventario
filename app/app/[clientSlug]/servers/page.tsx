@@ -1,3 +1,5 @@
+import { Server, Wifi, TriangleAlert, WifiOff } from 'lucide-react'
+import { KpiCard } from '@/components/ui/kpi-card'
 import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -71,8 +73,13 @@ export default async function TenantServersPage({ params, searchParams }: PagePr
           : null,
         effectiveStatus: getEffectiveDeviceStatus(device.status, issues) as 'online' | 'warning' | 'offline',
         detailsPath: getTenantPath(tenantSlug, `assets/${device.id}`),
+        anydeskId: device.anydeskId ?? null,
       }
     })
+
+  const onlineCount = servers.filter((server) => server.effectiveStatus === 'online').length
+  const warningCount = servers.filter((server) => server.effectiveStatus === 'warning').length
+  const offlineCount = servers.filter((server) => server.effectiveStatus === 'offline').length
 
   return (
     <div className="space-y-6">
@@ -85,6 +92,12 @@ export default async function TenantServersPage({ params, searchParams }: PagePr
         </div>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard label="Servidores" value={servers.length} subtitle="Total classificados como Server" icon={<Server className="h-4 w-4" />} tone="primary" />
+        <KpiCard label="Online" value={onlineCount} subtitle="Operando normalmente" icon={<Wifi className="h-4 w-4" />} tone={onlineCount > 0 ? 'success' : 'neutral'} />
+        <KpiCard label="Em Atenção" value={warningCount} subtitle="Com alerta de disco ou RAM" icon={<TriangleAlert className="h-4 w-4" />} tone={warningCount > 0 ? 'warning' : 'neutral'} />
+        <KpiCard label="Desconectados" value={offlineCount} subtitle="Sem check-in recente" icon={<WifiOff className="h-4 w-4" />} tone={offlineCount > 0 ? 'destructive' : 'neutral'} />
+      </div>
 
       <TenantServersTable
         servers={servers}
