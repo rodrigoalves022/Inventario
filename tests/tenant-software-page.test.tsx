@@ -25,6 +25,8 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 import { GET } from '@/app/api/tenant/[clientSlug]/software/csv/route'
+import { getTenantDeviceWhere } from '@/lib/tenant-scope'
+import { buildSoftwareCatalog, deduplicateDeviceSoftware, isControlPanelSoftware } from '@/lib/software-catalog'
 import { TenantSoftwareTable, type SoftwareCatalogItem } from '@/components/tenant-software-table'
 
 const items: SoftwareCatalogItem[] = [
@@ -85,6 +87,52 @@ describe('<TenantSoftwareTable />', () => {
   })
 })
 
+describe('lib/software-catalog', () => {
+  it('isControlPanelSoftware descarta componentes internos', () => {
+    for (const nome of [
+      'vs_FileTracker_Singleton',
+      'vcpp_crt.redist.clickonce',
+      'Application Verifier x64 External Package',
+      'Windows SDK for Windows Store Apps Libs',
+      'Definition Update for Microsoft Defender',
+      'Update for Windows (KB5001234)',
+      'Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.38',
+    ]) {
+      expect(isControlPanelSoftware({ nome })).toBe(false)
+    }
+    expect(isControlPanelSoftware({ nome: 'Google Chrome', editor: 'Google LLC' })).toBe(true)
+  })
+
+  it('deduplicateDeviceSoftware mantém a maior versão por nome', () => {
+    const out = deduplicateDeviceSoftware([
+      { nome: 'Google Chrome', versao: '9.0' },
+      { nome: ' google chrome', versao: '10.0' },
+    ])
+    expect(out).toHaveLength(1)
+    expect(out[0].versao).toBe('10.0')
+  })
+
+  it('buildSoftwareCatalog agrupa por nome e junta versões', () => {
+    const catalog = buildSoftwareCatalog(
+      [
+        { id: 'a', hostname: 'pc-a', software: [{ nome: 'Google Chrome', versao: '1', editor: 'Google' }] },
+        { id: 'b', hostname: 'pc-b', software: [{ nome: 'Google Chrome', versao: '2', editor: 'Google' }, { nome: 'vs_x', versao: null, editor: null }] },
+      ],
+      ['chrome']
+    )
+    expect(catalog).toHaveLength(1)
+    expect(catalog[0]).toMatchObject({ versao: '1, 2', installationsCount: 2, isBlacklisted: true })
+  })
+})
+
+describe('initialTab', () => {
+  it('abre na aba informada', () => {
+    render(<TenantSoftwareTable items={items} tenantSlug="acme" initialTab="blacklisted" />)
+    expect(screen.queryByText('Chrome')).toBeNull()
+    expect(screen.getByText('uTorrent')).toBeTruthy()
+  })
+})
+
 describe('GET /api/tenant/[clientSlug]/software/csv', () => {
   const params = { params: Promise.resolve({ clientSlug: 'acme' }) }
   const req = {} as never
@@ -128,7 +176,7 @@ describe('GET /api/tenant/[clientSlug]/software/csv', () => {
 
     const res = await GET(req, params)
     expect(res.status).toBe(200)
-    expect(mocks.deviceFindMany.mock.calls[0][0].where).toEqual({ clientId: 'client-1' })
+    expect(mocks.deviceFindMany.mock.calls[0][0].where).toEqual(getTenantDeviceWhere('acme'))
 
     const bytes = new Uint8Array(await res.arrayBuffer())
     expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])

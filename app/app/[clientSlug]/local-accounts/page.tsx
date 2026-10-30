@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { Download, KeyRound, ShieldAlert, ShieldCheck, UserCheck, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -6,12 +7,19 @@ import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { TenantLocalAccountsTable, type TenantLocalAccountRow } from '@/components/tenant-local-accounts-table'
 
-export default async function TenantLocalAccountsPage({ params }: PageProps<'/app/[clientSlug]'>) {
+const TABS = ['all', 'admin_enabled', 'never_expires', 'critical'] as const
+
+export default async function TenantLocalAccountsPage({
+  params,
+  searchParams,
+}: PageProps<'/app/[clientSlug]'> & { searchParams: Promise<{ tab?: string }> }) {
   const { clientSlug } = await params
+  const { tab } = await searchParams
+  const initialTab = TABS.find((t) => t === tab) ?? 'all'
   const tenant = await requireTenantContext(clientSlug)
 
   const devices = await prisma.device.findMany({
-    where: { clientId: tenant.id },
+    where: getTenantDeviceWhere(tenant.slug),
     select: {
       id: true,
       hostname: true,
@@ -71,18 +79,21 @@ export default async function TenantLocalAccountsPage({ params }: PageProps<'/ap
           value={rows.length}
           icon={<Users className="h-4 w-4" />}
           tone="primary"
+          href="?tab=all"
         />
         <KpiCard
           label="Admins locais ativos"
           value={enabledAdminsCount}
           icon={<ShieldCheck className="h-4 w-4" />}
           tone={enabledAdminsCount > 0 ? 'warning' : 'success'}
+          href="?tab=admin_enabled"
         />
         <KpiCard
           label="Senha nunca expira (ativas)"
           value={neverExpiresCount}
           icon={<KeyRound className="h-4 w-4" />}
           tone={neverExpiresCount > 0 ? 'warning' : 'neutral'}
+          href="?tab=never_expires"
         />
         <KpiCard
           label="Risco crítico (Admin + Sem expiração)"
@@ -90,6 +101,7 @@ export default async function TenantLocalAccountsPage({ params }: PageProps<'/ap
           icon={<ShieldAlert className="h-4 w-4" />}
           tone={criticalCount > 0 ? 'destructive' : 'success'}
           emphasizeValue={criticalCount > 0}
+          href="?tab=critical"
         />
       </div>
 
@@ -100,7 +112,7 @@ export default async function TenantLocalAccountsPage({ params }: PageProps<'/ap
           description="Contas locais reportadas pelos agentes deste tenant."
         />
         <PanelBody flush>
-          <TenantLocalAccountsTable rows={rows} tenantSlug={tenant.slug} />
+          <TenantLocalAccountsTable rows={rows} tenantSlug={tenant.slug} initialTab={initialTab} />
         </PanelBody>
       </Panel>
     </div>

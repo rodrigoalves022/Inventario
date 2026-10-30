@@ -24,7 +24,16 @@ function formatRelative(date: Date | null) {
   return `há ${days} dia${days > 1 ? 's' : ''}`
 }
 
-export default async function PortalHomePage() {
+type PortalStatusFilter = 'all' | 'online' | 'offline' | 'warning'
+
+export default async function PortalHomePage(
+  { searchParams }: { searchParams?: Promise<{ status?: string }> },
+) {
+  const params = (await searchParams) ?? {}
+  const statusFilter: PortalStatusFilter =
+    params.status === 'online' || params.status === 'offline' || params.status === 'warning'
+      ? params.status
+      : 'all'
   const context = await requirePortalContext()
 
   const devices = await prisma.device.findMany({
@@ -51,6 +60,14 @@ export default async function PortalHomePage() {
   const online = devices.filter((device) => device.status === 'online').length
   const warning = devices.filter((device) => device.status === 'warning').length
   const offline = total - online - warning
+  const visibleDevices =
+    statusFilter === 'all'
+      ? devices
+      : devices.filter((device) =>
+          statusFilter === 'offline'
+            ? device.status !== 'online' && device.status !== 'warning'
+            : device.status === statusFilter,
+        )
 
   return (
     <div className="space-y-8">
@@ -62,11 +79,13 @@ export default async function PortalHomePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Máquinas" value={total} subtitle="equipamentos monitorados" icon={<Monitor />} />
+        <KpiCard label="Máquinas" value={total} subtitle="equipamentos monitorados" icon={<Monitor />} href="/portal" active={statusFilter === 'all'} />
         <KpiCard
           label="Online"
           value={online}
           subtitle="reportando normalmente"
+          href="/portal?status=online"
+          active={statusFilter === 'online'}
           icon={<Wifi />}
           tone="success"
           emphasizeValue={online > 0}
@@ -75,6 +94,8 @@ export default async function PortalHomePage() {
           label="Em atenção"
           value={warning}
           subtitle="com alerta operacional"
+          href="/portal?status=warning"
+          active={statusFilter === 'warning'}
           icon={<AlertCircle />}
           tone={warning > 0 ? 'warning' : 'neutral'}
           emphasizeValue={warning > 0}
@@ -83,6 +104,8 @@ export default async function PortalHomePage() {
           label="Offline"
           value={offline}
           subtitle="sem check-in recente"
+          href="/portal?status=offline"
+          active={statusFilter === 'offline'}
           icon={<WifiOff />}
           tone={offline > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={offline > 0}
@@ -101,9 +124,13 @@ export default async function PortalHomePage() {
               Nenhuma máquina reportou inventário ainda. Assim que o agente for instalado, ela aparece
               aqui automaticamente.
             </p>
+          ) : visibleDevices.length === 0 ? (
+            <p className="px-5 pb-5 text-sm text-muted-foreground">
+              Nenhuma máquina com este status.
+            </p>
           ) : (
             <ul className="divide-y divide-surface-line border-t border-surface-line">
-              {devices.map((device) => {
+              {visibleDevices.map((device) => {
                 const meta = statusMeta(device.status)
                 return (
                   <li key={device.id}>

@@ -36,9 +36,22 @@ const FILTERS: Record<AccountFilter, (row: TenantLocalAccountRow) => boolean> = 
   critical: (row) => row.riskLevel === 'critical',
 }
 
-export function TenantLocalAccountsTable({ rows, tenantSlug }: { rows: TenantLocalAccountRow[]; tenantSlug: string }) {
+export function TenantLocalAccountsTable({
+  rows,
+  tenantSlug,
+  initialTab = 'all',
+}: {
+  rows: TenantLocalAccountRow[]
+  tenantSlug: string
+  initialTab?: AccountFilter
+}) {
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<AccountFilter>('all')
+  const [filter, setFilter] = useState<AccountFilter>(initialTab)
+  const [prevInitialTab, setPrevInitialTab] = useState(initialTab)
+  if (prevInitialTab !== initialTab) {
+    setPrevInitialTab(initialTab)
+    setFilter(initialTab)
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()

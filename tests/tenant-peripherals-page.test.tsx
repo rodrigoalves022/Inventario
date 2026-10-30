@@ -43,6 +43,20 @@ describe('TenantPeripheralsTable', () => {
     expect(screen.queryByText('HP LaserJet')).toBeNull()
   })
 
+  it('starts on initialCategory and follows prop changes', () => {
+    const { rerender } = render(<TenantPeripheralsTable rows={rows} tenantSlug="acme" initialCategory="printer" />)
+    expect(screen.getByText('HP LaserJet')).toBeTruthy()
+    expect(screen.queryByText('Dell P2419')).toBeNull()
+    rerender(<TenantPeripheralsTable rows={rows} tenantSlug="acme" initialCategory="usb" />)
+    expect(screen.getByText('Kingston DataTraveler')).toBeTruthy()
+    expect(screen.queryByText('HP LaserJet')).toBeNull()
+  })
+
+  it('uses deviceBasePath for machine links', () => {
+    render(<TenantPeripheralsTable rows={rows} tenantSlug="acme" deviceBasePath="/portal/devices" />)
+    expect(screen.getByRole('link', { name: 'PC-01' }).getAttribute('href')).toBe('/portal/devices/d1')
+  })
+
   it('links the machine to the asset page', () => {
     render(<TenantPeripheralsTable rows={rows} tenantSlug="acme" />)
     expect(screen.getByRole('link', { name: 'PC-01' }).getAttribute('href')).toBe('/app/acme/assets/d1')
@@ -72,6 +86,13 @@ describe('GET /api/tenant/[clientSlug]/peripherals/csv', () => {
     const res = await GET(req, params)
     expect(res.status).toBe(403)
     expect(mocks.findMany).not.toHaveBeenCalled()
+  })
+
+  it('scopes devices to active agents via getTenantDeviceWhere', async () => {
+    await GET(req, params)
+    const where = mocks.findMany.mock.calls[0][0].where
+    expect(where.clientId).toBeUndefined()
+    expect(JSON.stringify(where)).toContain('acme')
   })
 
   it('returns BOM CSV with formula injection protection', async () => {

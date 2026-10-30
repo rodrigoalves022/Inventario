@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
+import { getTenantPath } from '@/lib/tenant-links'
 import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
 import { AlertRulesPanel } from '@/components/alert-rules-panel'
 import { ALERT_METRIC_LABELS, parseSoftwareBlacklistMetadata, type AlertMetric } from '@/lib/alert-rules'
@@ -23,6 +24,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const session = await auth()
+  const basePath = getTenantPath(tenant.slug, 'alerts')
   const canManage = canManageTenantAlerts(getSessionPermissionUser(session), tenant)
 
   const [rules, events] = await Promise.all([
@@ -69,6 +71,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
           subtitle={`de ${rules.length} configurada(s)`}
           icon={<BellRing />}
           tone="primary"
+          href={basePath}
         />
         <KpiCard
           label="Disparos em Aberto"
@@ -77,6 +80,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
           icon={<AlertTriangle />}
           tone={openCount > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={openCount > 0}
+          href={`${basePath}?state=open`}
         />
         <KpiCard
           label="Críticos Abertos"
@@ -85,6 +89,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
           icon={<ShieldAlert />}
           tone={criticalOpenCount > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={criticalOpenCount > 0}
+          href={`${basePath}?severity=critical`}
         />
         <KpiCard
           label="Resolvidos (Recentes)"
@@ -92,6 +97,7 @@ export default async function TenantAlertsPage({ params }: PageProps<'/app/[clie
           subtitle="nos últimos 50 disparos"
           icon={<CheckCircle2 />}
           tone="success"
+          href={`${basePath}?state=resolved`}
         />
       </div>
 

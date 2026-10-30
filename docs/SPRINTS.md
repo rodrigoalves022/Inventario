@@ -4227,3 +4227,11 @@ Entrega os Backlog Items 21 e 14.
 - **CSV:** `GET /api/tenant/[clientSlug]/storage/csv` e `/processors/csv` (401 sem sessão, 403 sem acesso ao tenant; BOM UTF-8, `;`, prefixo `'` contra formula injection). Botão "Baixar CSV" em `/storage` e `/processors`.
 - **Resumo A16–A26:** `uninstall_agent` (A16); scripts `gpupdate_force`/`network_diag`/`system_health_summary` com visualizador de saída (A17); relatórios, catálogos e CSVs (A18–A23); A26 acima.
 - **Testes:** `tests/storage-processors-csv-routes.test.ts`.
+
+## Sprints A27–A32 — Polimento de UI, KPIs clicáveis e escopo de dispositivos ativos
+
+- **A27:** correção da sobreposição da busca do `Header` com o conteúdo.
+- **A28:** barras de progresso com tons semânticos calmos (`bg-info/60`, `bg-warning/70`, `bg-destructive/75`) no lugar de `bg-primary`.
+- **A29–A31:** KPI cards e sub-cards analíticos 100% clicáveis em todo o app (`href`/`active` em `KpiCard`).
+- **Painel de Controle:** filtro de software por `appwiz.cpl` e escopo de dispositivos ativos via `getTenantDeviceWhere`.
+- **A32:** `/portal` com KPI cards clicáveis (`?status=online|offline|warning`) que filtram a lista de máquinas; `searchParams` opcional. `/admin/clients/[id]/agents` não possui KPI cards na página (o painel é `client-agents-panel.tsx`, fora do escopo), então não houve alteração.

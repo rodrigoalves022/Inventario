@@ -53,8 +53,8 @@ describe('PortalSoftwarePage', () => {
       { id: 'd2', hostname: 'pc2', software: [{ nome: 'Chrome', versao: '1', editor: 'Google', installadoEm: null }] },
     ])
     findRules.mockResolvedValue([{ pattern: 'torrent' }])
-    render(await PortalSoftwarePage())
-    expect(findDevices.mock.calls[0][0].where).toEqual({ clientId: 'c1' })
+    render(await PortalSoftwarePage({ searchParams: Promise.resolve({}) }))
+    expect(findDevices.mock.calls[0][0].where).toEqual({ clientId: 'c1', agentAuth: { is: { isActive: true } } })
     expect(screen.getByText('Catálogo de Softwares')).toBeTruthy()
     expect(screen.getByText(/Acme/)).toBeTruthy()
     expect(screen.getByTestId('sw-table').textContent).toBe('2:acme')
@@ -75,8 +75,8 @@ describe('PortalPeripheralsPage', () => {
         usbDevices: [{ id: 'u1', nome: 'Mouse', vendorId: '1', productId: '2', serial: null }],
       },
     ])
-    render(await PortalPeripheralsPage())
-    expect(findDevices.mock.calls[0][0].where).toEqual({ clientId: 'c1' })
+    render(await PortalPeripheralsPage({ searchParams: Promise.resolve({}) }))
+    expect(findDevices.mock.calls[0][0].where).toEqual({ clientId: 'c1', agentAuth: { is: { isActive: true } } })
     expect(screen.getByText('Periféricos e Dispositivos USB')).toBeTruthy()
     expect(screen.getByText('Total de periféricos')).toBeTruthy()
     expect(screen.getByText('1 em rede')).toBeTruthy()

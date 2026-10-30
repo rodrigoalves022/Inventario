@@ -123,12 +123,14 @@ export default async function ClientsAuditPage({
                 value={logs.length}
                 subtitle="no recorte atual (máx. 200)"
                 icon={<History />}
+                href="/admin/clients/audit"
               />
               <KpiCard
                 label="Tenants no Recorte"
                 value={tenantsInScope}
                 subtitle="clientes com atividade"
                 icon={<Building2 />}
+                href="/admin/clients/audit"
               />
               <KpiCard
                 label="Acesso a Chaves"
@@ -136,6 +138,7 @@ export default async function ClientsAuditPage({
                 subtitle="visualizações de credenciais"
                 icon={<KeyRound />}
                 tone="info"
+                href="/admin/clients/audit?action=credentials.view"
               />
               <KpiCard
                 label="Exclusões"
@@ -144,6 +147,7 @@ export default async function ClientsAuditPage({
                 icon={<Trash2 />}
                 tone={deviceDeletes > 0 ? 'destructive' : 'neutral'}
                 emphasizeValue={deviceDeletes > 0}
+                href="/admin/clients/audit?action=device.delete"
               />
             </div>
 

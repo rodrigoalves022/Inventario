@@ -1,21 +1,30 @@
 import { Building2, Download, Package, ShieldAlert, Layers } from 'lucide-react'
 import prisma from '@/lib/prisma'
+import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
-import { TenantSoftwareTable, type SoftwareCatalogItem } from '@/components/tenant-software-table'
+import { buildSoftwareCatalog } from '@/lib/software-catalog'
+import { TenantSoftwareTable } from '@/components/tenant-software-table'
+
+const parseTab = (value: string | string[] | undefined): 'all' | 'blacklisted' | 'widespread' => {
+  const tab = Array.isArray(value) ? value[0] : value
+  return tab === 'blacklisted' || tab === 'widespread' ? tab : 'all'
+}
 
 const norm = (value: string | null | undefined) => (value ?? '').trim().toLowerCase()
 
-export default async function TenantSoftwarePage({ params }: PageProps<'/app/[clientSlug]'>) {
+export default async function TenantSoftwarePage({ params, searchParams }: PageProps<'/app/[clientSlug]'>) {
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
+  const { tab } = await searchParams
+  const initialTab = parseTab(tab)
 
   // Escopo sempre por `tenant.id` vindo de requireTenantContext (RNF004).
   const [devices, blacklistRules] = await Promise.all([
     prisma.device.findMany({
-      where: { clientId: tenant.id },
+      where: getTenantDeviceWhere(tenant.slug),
       select: {
         id: true,
         hostname: true,
@@ -33,38 +42,9 @@ export default async function TenantSoftwarePage({ params }: PageProps<'/app/[cl
     .map((rule) => (rule.pattern ?? '').trim().toLowerCase())
     .filter((pattern) => pattern.length > 0)
 
-  const catalog = new Map<string, SoftwareCatalogItem>()
-  let totalInstallations = 0
-  const editors = new Set<string>()
-
-  for (const device of devices) {
-    for (const entry of device.software) {
-      totalInstallations += 1
-      const editorKey = norm(entry.editor)
-      if (editorKey) editors.add(editorKey)
-
-      const key = `${norm(entry.nome)}|${norm(entry.versao)}|${editorKey}`
-      let item = catalog.get(key)
-      if (!item) {
-        item = {
-          key,
-          nome: entry.nome,
-          versao: entry.versao ?? null,
-          editor: entry.editor ?? null,
-          installationsCount: 0,
-          machines: [],
-          isBlacklisted: patterns.some((pattern) => entry.nome.toLowerCase().includes(pattern)),
-        }
-        catalog.set(key, item)
-      }
-      if (!item.machines.some((machine) => machine.id === device.id)) {
-        item.machines.push({ id: device.id, hostname: device.hostname })
-        item.installationsCount += 1
-      }
-    }
-  }
-
-  const catalogItems = Array.from(catalog.values()).sort((a, b) => a.nome.localeCompare(b.nome))
+  const catalogItems = buildSoftwareCatalog(devices, patterns)
+  const totalInstallations = catalogItems.reduce((sum, item) => sum + item.installationsCount, 0)
+  const editors = new Set(catalogItems.map((item) => norm(item.editor)).filter(Boolean))
   const blacklistedCount = catalogItems.filter((item) => item.isBlacklisted).length
 
   return (
@@ -86,13 +66,15 @@ export default async function TenantSoftwarePage({ params }: PageProps<'/app/[cl
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
+          href="?tab=all"
           label="Softwares distintos"
           value={catalogItems.length}
-          subtitle="Combinações software + versão"
+          subtitle="Aplicações únicas"
           icon={<Package className="h-4 w-4" />}
           tone="primary"
         />
         <KpiCard
+          href="?tab=widespread"
           label="Instalações totais"
           value={totalInstallations}
           subtitle="Registros em todas as máquinas"
@@ -100,6 +82,7 @@ export default async function TenantSoftwarePage({ params }: PageProps<'/app/[cl
           tone="neutral"
         />
         <KpiCard
+          href="?tab=all"
           label="Editores / Fabricantes"
           value={editors.size}
           subtitle="Fabricantes distintos"
@@ -107,6 +90,7 @@ export default async function TenantSoftwarePage({ params }: PageProps<'/app/[cl
           tone="info"
         />
         <KpiCard
+          href="?tab=blacklisted"
           label="Softwares restritos"
           value={blacklistedCount}
           subtitle={blacklistedCount > 0 ? 'Correspondem à blacklist ativa' : 'Nenhuma violação de blacklist'}
@@ -120,10 +104,10 @@ export default async function TenantSoftwarePage({ params }: PageProps<'/app/[cl
         <PanelHeader
           icon={<Package className="h-4 w-4" />}
           title="Softwares instalados"
-          description="Cada linha agrupa uma combinação de software, versão e fabricante."
+          description="Cada linha agrupa uma aplicação (versões distintas aparecem juntas)."
         />
         <PanelBody flush>
-          <TenantSoftwareTable items={catalogItems} tenantSlug={tenant.slug} />
+          <TenantSoftwareTable items={catalogItems} tenantSlug={tenant.slug} initialTab={initialTab} />
         </PanelBody>
       </Panel>
     </div>

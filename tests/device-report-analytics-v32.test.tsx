@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { LATEST_AGENT_VERSION } from '@/lib/agent-binary'
 import { buildDeviceReportSummary, type DeviceReportRow } from '@/lib/reports/device-report'
@@ -120,4 +122,46 @@ describe('buildDeviceReportSummary — Sprint A18 analytics', () => {
     expect(summary.fleetGovernance.totalAssetValue).toBe(0)
     expect(summary.processorDistribution).toEqual([])
   })
+})
+
+describe('Sprint A27 — clickable report cards and calm bars', () => {
+  it('propagates the device id to critical disks', () => {
+    const summary = buildDeviceReportSummary(
+      [
+        makeRow({
+          id: 'dev-1',
+          criticalDisks: [{ unidade: 'C:', capacidadeGb: 100, espacoLivreGb: 2 }],
+        }),
+      ],
+      NOW
+    )
+    expect(summary.criticalDisks[0].deviceId).toBe('dev-1')
+  })
+
+  const pages = {
+    tenant: readFileSync(join(process.cwd(), 'app/app/[clientSlug]/reports/page.tsx'), 'utf-8'),
+    portal: readFileSync(join(process.cwd(), 'app/portal/reports/page.tsx'), 'utf-8'),
+  }
+
+  for (const [name, source] of Object.entries(pages)) {
+    it(`${name}: all 4 top KpiCards have href`, () => {
+      const cards = source.match(/<KpiCard[\s\S]*?\n\s*\/>/g) ?? []
+      expect(cards).toHaveLength(4)
+      for (const card of cards) expect(card).toContain('href=')
+    })
+
+    it(`${name}: bars no longer use solid bg-primary`, () => {
+      expect(source).not.toContain('bg-primary"')
+      expect(source).not.toContain("'bg-primary'")
+      expect(source).not.toContain('bg-primary`')
+      expect(source).toContain('bg-info/60')
+      expect(source).toContain('bg-warning/70')
+      expect(source).toContain('bg-destructive/75')
+    })
+
+    it(`${name}: governance cards and matrix rows render links`, () => {
+      expect(source).toContain('href={item.href}')
+      expect(source).toMatch(/row\.id \?/)
+    })
+  }
 })

@@ -6,11 +6,19 @@ import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { TenantPeripheralsTable, type TenantPeripheralRow } from '@/components/tenant-peripherals-table'
 
-export default async function PortalPeripheralsPage() {
+const CATEGORIES = ['all', 'monitor', 'printer', 'usb'] as const
+
+export default async function PortalPeripheralsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ category?: string }>
+}) {
   const context = await requirePortalContext()
+  const { category } = (await searchParams) ?? {}
+  const initialCategory = CATEGORIES.find((c) => c === category) ?? 'all'
 
   const devices = await prisma.device.findMany({
-    where: { clientId: context.clientId },
+    where: { clientId: context.clientId, agentAuth: { is: { isActive: true } } },
     select: {
       id: true,
       hostname: true,
@@ -94,14 +102,27 @@ export default async function PortalPeripheralsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total de periféricos" value={rows.length} icon={<Cable className="h-4 w-4" />} tone="primary" />
-        <KpiCard label="Monitores" value={monitorsCount} icon={<Monitor className="h-4 w-4" />} tone="info" />
+        <KpiCard
+          label="Total de periféricos"
+          value={rows.length}
+          icon={<Cable className="h-4 w-4" />}
+          tone="primary"
+          href="?category=all"
+        />
+        <KpiCard
+          label="Monitores"
+          value={monitorsCount}
+          icon={<Monitor className="h-4 w-4" />}
+          tone="info"
+          href="?category=monitor"
+        />
         <KpiCard
           label="Impressoras"
           value={printersCount}
           subtitle={`${networkPrintersCount} em rede`}
           icon={<Printer className="h-4 w-4" />}
           tone="neutral"
+          href="?category=printer"
         />
         <KpiCard
           label="Dispositivos USB"
@@ -109,6 +130,7 @@ export default async function PortalPeripheralsPage() {
           subtitle="conectados nos endpoints"
           icon={<Usb className="h-4 w-4" />}
           tone="warning"
+          href="?category=usb"
         />
       </div>
 
@@ -119,7 +141,12 @@ export default async function PortalPeripheralsPage() {
           description="Periféricos reportados pelos agentes deste tenant."
         />
         <PanelBody flush>
-          <TenantPeripheralsTable rows={rows} tenantSlug={context.clientSlug} />
+          <TenantPeripheralsTable
+            rows={rows}
+            tenantSlug={context.clientSlug}
+            initialCategory={initialCategory}
+            deviceBasePath="/portal/devices"
+          />
         </PanelBody>
       </Panel>
     </div>

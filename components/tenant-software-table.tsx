@@ -28,19 +28,29 @@ export type SoftwareCatalogItem = {
   isBlacklisted: boolean
 }
 
-type SoftwareFilter = 'all' | 'blacklisted' | 'widespread'
+export type SoftwareFilter = 'all' | 'blacklisted' | 'widespread'
 
 const MAX_VISIBLE_MACHINES = 3
 
 export function TenantSoftwareTable({
   items,
   tenantSlug,
+  initialTab = 'all',
+  deviceBasePath,
 }: {
   items: SoftwareCatalogItem[]
   tenantSlug: string
+  initialTab?: SoftwareFilter
+  deviceBasePath?: string
 }) {
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<SoftwareFilter>('all')
+  const [filter, setFilter] = useState<SoftwareFilter>(initialTab)
+  const [lastInitialTab, setLastInitialTab] = useState(initialTab)
+  if (lastInitialTab !== initialTab) {
+    setLastInitialTab(initialTab)
+    setFilter(initialTab)
+  }
+  const basePath = deviceBasePath ?? `/app/${tenantSlug}/assets`
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -125,7 +135,7 @@ export function TenantSoftwareTable({
                         {item.machines.slice(0, MAX_VISIBLE_MACHINES).map((machine) => (
                           <Link
                             key={machine.id}
-                            href={`/app/${tenantSlug}/assets/${machine.id}`}
+                            href={`${basePath}/${machine.id}`}
                             className="text-primary hover:underline focus-visible:underline"
                           >
                             {machine.hostname}

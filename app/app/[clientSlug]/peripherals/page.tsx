@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { Cable, Download, Monitor, Printer, Usb } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -6,12 +7,19 @@ import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { TenantPeripheralsTable, type TenantPeripheralRow } from '@/components/tenant-peripherals-table'
 
-export default async function TenantPeripheralsPage({ params }: PageProps<'/app/[clientSlug]'>) {
+const CATEGORIES = ['all', 'monitor', 'printer', 'usb'] as const
+
+export default async function TenantPeripheralsPage({
+  params,
+  searchParams,
+}: PageProps<'/app/[clientSlug]'> & { searchParams: Promise<{ category?: string }> }) {
   const { clientSlug } = await params
+  const { category } = await searchParams
+  const initialCategory = CATEGORIES.find((c) => c === category) ?? 'all'
   const tenant = await requireTenantContext(clientSlug)
 
   const devices = await prisma.device.findMany({
-    where: { clientId: tenant.id },
+    where: getTenantDeviceWhere(tenant.slug),
     select: {
       id: true,
       hostname: true,
@@ -95,14 +103,27 @@ export default async function TenantPeripheralsPage({ params }: PageProps<'/app/
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total de periféricos" value={rows.length} icon={<Cable className="h-4 w-4" />} tone="primary" />
-        <KpiCard label="Monitores" value={monitorsCount} icon={<Monitor className="h-4 w-4" />} tone="info" />
+        <KpiCard
+          label="Total de periféricos"
+          value={rows.length}
+          icon={<Cable className="h-4 w-4" />}
+          tone="primary"
+          href="?category=all"
+        />
+        <KpiCard
+          label="Monitores"
+          value={monitorsCount}
+          icon={<Monitor className="h-4 w-4" />}
+          tone="info"
+          href="?category=monitor"
+        />
         <KpiCard
           label="Impressoras"
           value={printersCount}
           subtitle={`${networkPrintersCount} em rede`}
           icon={<Printer className="h-4 w-4" />}
           tone="neutral"
+          href="?category=printer"
         />
         <KpiCard
           label="Dispositivos USB"
@@ -110,6 +131,7 @@ export default async function TenantPeripheralsPage({ params }: PageProps<'/app/
           subtitle="conectados nos endpoints"
           icon={<Usb className="h-4 w-4" />}
           tone="warning"
+          href="?category=usb"
         />
       </div>
 
@@ -120,7 +142,7 @@ export default async function TenantPeripheralsPage({ params }: PageProps<'/app/
           description="Periféricos reportados pelos agentes deste tenant."
         />
         <PanelBody flush>
-          <TenantPeripheralsTable rows={rows} tenantSlug={tenant.slug} />
+          <TenantPeripheralsTable rows={rows} tenantSlug={tenant.slug} initialCategory={initialCategory} />
         </PanelBody>
       </Panel>
     </div>

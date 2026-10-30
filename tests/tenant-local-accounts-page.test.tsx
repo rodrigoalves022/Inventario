@@ -53,6 +53,15 @@ describe('TenantLocalAccountsTable', () => {
     expect(screen.queryByText('maria')).toBeNull()
   })
 
+  it('starts on initialTab and follows prop changes', () => {
+    const { rerender } = render(<TenantLocalAccountsTable rows={rows} tenantSlug="acme" initialTab="critical" />)
+    expect(screen.getByText('admin-local')).toBeTruthy()
+    expect(screen.queryByText('maria')).toBeNull()
+    rerender(<TenantLocalAccountsTable rows={rows} tenantSlug="acme" initialTab="never_expires" />)
+    expect(screen.getByText('maria')).toBeTruthy()
+    expect(screen.queryByText('guest')).toBeNull()
+  })
+
   it('links the machine to the asset page', () => {
     render(<TenantLocalAccountsTable rows={rows} tenantSlug="acme" />)
     expect(screen.getAllByRole('link', { name: 'PC-01' })[0].getAttribute('href')).toBe('/app/acme/assets/d1')
@@ -82,6 +91,13 @@ describe('GET /api/tenant/[clientSlug]/local-accounts/csv', () => {
     const res = await GET(req, params)
     expect(res.status).toBe(403)
     expect(mocks.findMany).not.toHaveBeenCalled()
+  })
+
+  it('scopes devices to active agents via getTenantDeviceWhere', async () => {
+    await GET(req, params)
+    const where = mocks.findMany.mock.calls[0][0].where
+    expect(where.clientId).toBeUndefined()
+    expect(JSON.stringify(where)).toContain('acme')
   })
 
   it('returns BOM CSV with formula injection protection', async () => {

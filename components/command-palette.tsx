@@ -178,13 +178,13 @@ export function CommandPaletteTrigger({
       onClick={onOpen}
       aria-label={label}
       aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
-      className="flex h-9 items-center gap-2 rounded-lg border border-surface-line bg-secondary/50 px-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:w-44 md:justify-between xl:w-60"
+      className="flex h-9 items-center gap-2 rounded-lg border border-surface-line bg-secondary/50 px-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none overflow-hidden md:w-56 md:justify-between xl:w-64"
     >
-      <span className="flex items-center gap-2">
+      <span className="flex min-w-0 flex-1 items-center gap-2">
         <Search className="h-4 w-4 shrink-0" />
         <span className="hidden truncate md:inline">{label}...</span>
       </span>
-      <KbdGroup className="hidden md:inline-flex" aria-hidden>
+      <KbdGroup className="hidden shrink-0 md:inline-flex" aria-hidden>
         <Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd>
         <Kbd>K</Kbd>
       </KbdGroup>

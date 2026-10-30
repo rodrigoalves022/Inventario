@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { canAccessTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
+import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 
 const CSV_HEADERS = ['Categoria', 'Periferico', 'Fabricante/Driver/VID', 'Serie/Porta', 'Detalhes', 'Maquina']
 
@@ -32,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
   }
 
   const devices = await prisma.device.findMany({
-    where: { clientId: tenant.id },
+    where: getTenantDeviceWhere(tenant.slug),
     select: {
       hostname: true,
       monitors: { select: { fabricante: true, modelo: true, serial: true, polegadas: true, conexao: true, ano: true } },

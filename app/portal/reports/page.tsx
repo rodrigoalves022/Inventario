@@ -11,6 +11,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
@@ -32,8 +33,30 @@ import {
   TABLE_HEAD_ROW_CLASS,
 } from '@/lib/table-styles'
 
-function BarRow({ label, right, percent, destructive }: { label: string; right: string; percent: number; destructive?: boolean }) {
-  return (
+const BAR_TONE_CLASS = {
+  info: 'bg-info/60',
+  success: 'bg-success/65',
+  warning: 'bg-warning/70',
+  destructive: 'bg-destructive/75',
+} as const
+
+function BarRow({
+  label,
+  right,
+  percent,
+  destructive,
+  tone = 'info',
+  href,
+}: {
+  label: string
+  right: string
+  percent: number
+  destructive?: boolean
+  tone?: keyof typeof BAR_TONE_CLASS
+  href?: string
+}) {
+  const barTone = destructive ? 'destructive' : tone
+  const content = (
     <div>
       <div className="mb-1 flex items-center justify-between gap-3 text-sm">
         <span className={destructive ? 'font-medium text-destructive' : 'text-foreground'}>{label}</span>
@@ -41,11 +64,20 @@ function BarRow({ label, right, percent, destructive }: { label: string; right: 
       </div>
       <div className="h-2 rounded-full bg-secondary">
         <div
-          className={`h-full rounded-full ${destructive ? 'bg-destructive' : 'bg-primary'}`}
+          className={`h-full rounded-full ${BAR_TONE_CLASS[barTone]}`}
           style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }}
         />
       </div>
     </div>
+  )
+  if (!href) return content
+  return (
+    <Link
+      href={href}
+      className="group -mx-2.5 block rounded-lg border border-transparent px-2.5 py-1.5 transition-colors hover:border-surface-line hover:bg-secondary/40"
+    >
+      {content}
+    </Link>
   )
 }
 
@@ -71,7 +103,7 @@ function DiskCell({ row }: { row: DeviceReportRow }) {
     <div className="min-w-[180px] space-y-1">
       <div className="h-1.5 rounded-full bg-secondary">
         <div
-          className={`h-full rounded-full ${pct >= 95 ? 'bg-destructive' : 'bg-primary'}`}
+          className={`h-full rounded-full ${pct >= 95 ? 'bg-destructive/75' : pct >= 80 ? 'bg-warning/70' : 'bg-info/60'}`}
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
@@ -100,23 +132,35 @@ export default async function PortalReportsPage() {
     { label: 'Firewall ativo', percent: sec.firewallActivePercent, known: sec.firewallKnownCount },
   ]
   const governanceItems = [
-    { label: 'Composição do parque', value: `${summary.computadores} computador(es) · ${summary.servidores} servidor(es)` },
+    {
+      label: 'Composição do parque',
+      value: `${summary.computadores} computador(es) · ${summary.servidores} servidor(es)`,
+      href: '/portal',
+    },
     {
       label: `Agentes atualizados (v${LATEST_AGENT_VERSION})`,
       value: `${gov.agentUpToDateCount} atualizado(s) · ${gov.agentOutdatedCount} desatualizado(s) (${gov.agentCompliancePercent}%)`,
+      href: '/portal',
     },
-    { label: 'Cobertura AnyDesk', value: `${gov.anydeskCount} de ${summary.totalDevices} máquina(s) (${gov.anydeskPercent}%)` },
+    {
+      label: 'Cobertura AnyDesk',
+      value: `${gov.anydeskCount} de ${summary.totalDevices} máquina(s) (${gov.anydeskPercent}%)`,
+      href: '/portal',
+    },
     {
       label: 'Cobertura de patrimônio',
       value: `${gov.patrimonioRegisteredCount} de ${summary.totalDevices} com etiqueta/responsável (${gov.patrimonioPercent}%)`,
+      href: '/portal',
     },
     {
       label: 'Valor patrimonial cadastrado',
       value: `R$ ${gov.totalAssetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      href: '/portal',
     },
     {
       label: 'Ciclo de vida / Garantias',
       value: `${gov.warrantyActiveCount} em dia · ${gov.warrantyExpiringSoonCount} vencendo em 30d · ${gov.warrantyExpiredCount} vencida(s)`,
+      href: '/portal',
     },
   ]
   const maxDisk = Math.max(...summary.diskUsageDistribution.map((b) => b.count), 1)
@@ -146,7 +190,6 @@ export default async function PortalReportsPage() {
         </div>
       </div>
 
-      {/* "Taxa de disponibilidade" e' percentual derivado: sem href (nao ha listagem que o componha). */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Taxa de disponibilidade"
@@ -155,6 +198,7 @@ export default async function PortalReportsPage() {
           value={`${summary.availabilityPercent}%`}
           tone="success"
           emphasizeValue
+          href="/portal"
         />
         <KpiCard
           label="Dispositivos online"
@@ -163,6 +207,7 @@ export default async function PortalReportsPage() {
           value={summary.online}
           tone="info"
           emphasizeValue
+          href="/portal"
         />
         <KpiCard
           label="Dispositivos offline"
@@ -171,6 +216,7 @@ export default async function PortalReportsPage() {
           value={summary.offline}
           tone="destructive"
           emphasizeValue
+          href="/portal"
         />
         <KpiCard
           label="Status warning"
@@ -179,6 +225,7 @@ export default async function PortalReportsPage() {
           value={summary.warning}
           tone="warning"
           emphasizeValue
+          href="/portal"
         />
       </div>
 
@@ -196,16 +243,24 @@ export default async function PortalReportsPage() {
                 label={bar.label}
                 right={`${bar.percent}% (${bar.known} de ${summary.totalDevices} máquinas apuradas)`}
                 percent={Number(bar.percent)}
+                href="/portal"
+                tone={Number(bar.percent) >= 80 ? 'success' : Number(bar.percent) >= 50 ? 'warning' : 'info'}
               />
             ))}
             <div className="border-t border-surface-line pt-4">
               <h3 className="section-label mb-2">Softwares não autorizados recentes</h3>
               {blacklistedSoftware.length === 0 ? (
-                <StatusPill tone="success" label="Nenhum software proibido detectado" />
+                <Link href="/portal/software?tab=blacklisted" className="inline-block">
+                  <StatusPill tone="success" label="Nenhum software proibido detectado" />
+                </Link>
               ) : (
                 <ul className="divide-y divide-surface-line">
                   {blacklistedSoftware.map((event, index) => (
-                    <li key={`${event.hostname}-${event.softwareNome}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <li key={`${event.hostname}-${event.softwareNome}-${index}`}>
+                      <Link
+                        href="/portal/software?tab=blacklisted"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg py-2 text-sm transition-colors hover:bg-secondary/40"
+                      >
                       <span>
                         <span className="data-mono font-medium text-foreground">{event.hostname}</span>
                         <span className="text-muted-foreground">
@@ -217,6 +272,7 @@ export default async function PortalReportsPage() {
                         tone={event.resolvedAt ? 'neutral' : 'destructive'}
                         label={event.resolvedAt ? 'Resolvido' : 'Em aberto'}
                       />
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -232,14 +288,18 @@ export default async function PortalReportsPage() {
             description="Composição do parque, versão dos agentes, cobertura de acesso remoto e ciclo de vida dos ativos."
           />
           <PanelBody>
-            <dl className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               {governanceItems.map((item) => (
-                <div key={item.label}>
-                  <dt className="section-label">{item.label}</dt>
-                  <dd className="mt-1 text-sm text-foreground">{item.value}</dd>
-                </div>
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="block rounded-lg border border-surface-line bg-secondary/25 p-3 transition-colors hover:border-surface-line-strong hover:bg-secondary/50"
+                >
+                  <p className="section-label">{item.label}</p>
+                  <p className="mt-1 text-sm text-foreground">{item.value}</p>
+                </Link>
               ))}
-            </dl>
+            </div>
           </PanelBody>
         </Panel>
       </div>
@@ -266,6 +326,16 @@ export default async function PortalReportsPage() {
                     right={String(bucket.count)}
                     percent={Math.round((bucket.count / maxDisk) * 100)}
                     destructive={bucket.label.includes('crítico')}
+                    href="/portal"
+                    tone={
+                      bucket.label.includes('crítico')
+                        ? 'destructive'
+                        : bucket.label.includes('80–95')
+                          ? 'warning'
+                          : bucket.label.includes('50–80')
+                            ? 'info'
+                            : 'success'
+                    }
                   />
                 ))}
               </div>
@@ -277,13 +347,18 @@ export default async function PortalReportsPage() {
               ) : (
                 <ul className="divide-y divide-surface-line">
                   {summary.criticalDisks.map((disk, index) => (
-                    <li key={`${disk.hostname}-${disk.unidade}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
-                      <span className="data-mono text-foreground">
-                        {disk.hostname} — {disk.unidade ?? 'disco'}
-                      </span>
-                      <span className="text-destructive">
-                        {disk.espacoLivreGb ?? '—'} GB livres de {disk.capacidadeGb ?? '—'} GB
-                      </span>
+                    <li key={`${disk.hostname}-${disk.unidade}-${index}`}>
+                      <Link
+                        href={disk.deviceId ? `/portal/devices/${disk.deviceId}` : '/portal'}
+                        className="flex items-center justify-between gap-3 rounded-lg py-2 text-sm transition-colors hover:bg-secondary/40"
+                      >
+                        <span className="data-mono text-foreground">
+                          {disk.hostname} — {disk.unidade ?? 'disco'}
+                        </span>
+                        <span className="text-destructive">
+                          {disk.espacoLivreGb ?? '—'} GB livres de {disk.capacidadeGb ?? '—'} GB
+                        </span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -306,7 +381,16 @@ export default async function PortalReportsPage() {
               ) : (
                 summary.osDistribution.map((item) => {
                   const percent = summary.totalDevices > 0 ? Math.round((item.value / summary.totalDevices) * 100) : 0
-                  return <BarRow key={item.name} label={item.name} right={`${item.value} (${percent}%)`} percent={percent} />
+                  return (
+                    <BarRow
+                      key={item.name}
+                      label={item.name}
+                      right={`${item.value} (${percent}%)`}
+                      percent={percent}
+                      tone="info"
+                      href="/portal"
+                    />
+                  )
                 })
               )}
             </section>
@@ -316,7 +400,14 @@ export default async function PortalReportsPage() {
                 <p className="text-sm text-muted-foreground">Nenhum processador reportado ainda.</p>
               ) : (
                 summary.processorDistribution.map((item) => (
-                  <BarRow key={item.name} label={item.name} right={String(item.value)} percent={Math.round((item.value / maxCpu) * 100)} />
+                  <BarRow
+                    key={item.name}
+                    label={item.name}
+                    right={String(item.value)}
+                    percent={Math.round((item.value / maxCpu) * 100)}
+                    tone="info"
+                    href="/portal"
+                  />
                 ))
               )}
             </section>
@@ -326,7 +417,14 @@ export default async function PortalReportsPage() {
                 <p className="text-sm text-muted-foreground">Nenhuma informação de memória reportada ainda.</p>
               ) : (
                 summary.ramDistribution.map((item) => (
-                  <BarRow key={item.label} label={item.label} right={String(item.count)} percent={Math.round((item.count / maxRam) * 100)} />
+                  <BarRow
+                    key={item.label}
+                    label={item.label}
+                    right={String(item.count)}
+                    percent={Math.round((item.count / maxRam) * 100)}
+                    tone="info"
+                    href="/portal"
+                  />
                 ))
               )}
             </section>
@@ -365,7 +463,12 @@ export default async function PortalReportsPage() {
                   rows.map((row) => (
                     <tr key={row.hostname} className={STATIC_ROW_HOVER_CLASS}>
                       <td className={TABLE_CELL_CLASS}>
-                        <p className="data-mono font-medium text-foreground">{row.hostname}</p>
+                        <Link
+                          href={row.id ? `/portal/devices/${row.id}` : '/portal'}
+                          className="data-mono font-medium text-foreground hover:text-primary hover:underline"
+                        >
+                          {row.hostname}
+                        </Link>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           <StatusPill
                             tone={row.deviceType === 'servidor' ? 'info' : 'neutral'}

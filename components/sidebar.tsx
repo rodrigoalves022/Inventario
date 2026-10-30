@@ -794,7 +794,7 @@ function ProfileMenu({ user, tenant }: { user: SidebarUser; tenant?: TenantShell
             aria-label={`Conta de ${label}`}
             className="flex h-9 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-surface-line-strong bg-secondary text-[11px] font-bold text-foreground">
               {getInitials(user)}
             </span>
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />

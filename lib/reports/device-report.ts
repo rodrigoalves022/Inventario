@@ -7,6 +7,8 @@ import { parseSoftwareBlacklistMetadata } from '@/lib/alert-rules'
 import { LATEST_AGENT_VERSION } from '@/lib/agent-binary'
 
 export type DeviceReportRow = {
+  /** Sprint A27. Device.id — usado para linkar a linha ao detalhe do ativo. */
+  id?: string
   /** Sprint A18. Versao do agente instalado (opcional para nao quebrar helpers de teste). */
   agentVersion?: string | null
   /** Sprint A18. AssetRecord.valor — valor patrimonial cadastrado. */
@@ -113,6 +115,7 @@ export type DeviceReportSummary = {
   /** Sprint 13. Discos criticos de TODAS as maquinas, achatados com hostname
    * — cada linha e um disco de DeviceReportRow.criticalDisks. */
   criticalDisks: Array<{
+    deviceId?: string
     hostname: string
     unidade: string | null
     capacidadeGb: number | null
@@ -233,6 +236,7 @@ export async function getDeviceReportRows(
       }))
 
     return {
+      id: device.id,
       hostname: device.hostname,
       status: effectiveStatus,
       ip: device.networks[0]?.ip ?? null,
@@ -401,7 +405,7 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[], now: Date = ne
   const firewall = computeBooleanCompliance(rows.map((row) => row.firewallAtivo))
 
   const criticalDisks = rows.flatMap((row) =>
-    row.criticalDisks.map((disk) => ({ hostname: row.hostname, ...disk }))
+    row.criticalDisks.map((disk) => ({ deviceId: row.id, hostname: row.hostname, ...disk }))
   )
 
   return {

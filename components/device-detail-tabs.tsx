@@ -13,6 +13,7 @@ import { DeviceCommandPanel } from '@/components/device-command-panel'
 import { COMMAND_TYPE_LABELS } from '@/lib/agent-commands'
 import { formatAnydeskId } from '@/components/anydesk-badge'
 import { cn } from '@/lib/utils'
+import { deduplicateDeviceSoftware } from '@/lib/software-catalog'
 import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
 
 export type DeviceDisk = {
@@ -276,7 +277,10 @@ function DiskBar({ disk }: { disk: DeviceDisk }) {
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
         <div
-          className={cn('h-full rounded-full', critical ? 'bg-destructive' : 'bg-primary')}
+          className={cn(
+            'h-full rounded-full',
+            usage >= 90 ? 'bg-destructive/75' : usage >= 75 ? 'bg-warning/70' : 'bg-info/60'
+          )}
           style={{ width: `${usage}%` }}
         />
       </div>
@@ -579,7 +583,7 @@ export function DeviceDetailTabs({
   hardware,
   disks,
   networks,
-  software,
+  software: rawSoftware,
   commands,
   canRunCommands,
   security,
@@ -596,6 +600,8 @@ export function DeviceDetailTabs({
   canManageAssetRecord,
 }: Props) {
   const [query, setQuery] = useState('')
+  const [activeTab, setActiveTab] = useState('overview')
+  const software = useMemo(() => deduplicateDeviceSoftware(rawSoftware), [rawSoftware])
 
   const filteredSoftware = useMemo(() => {
     const term = query.trim().toLowerCase()
@@ -609,7 +615,7 @@ export function DeviceDetailTabs({
   }, [query, software])
 
   return (
-    <Tabs defaultValue="overview" className="space-y-6">
+    <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
       <TabsList className="h-auto flex-wrap justify-start">
         <TabsTrigger value="overview" className="gap-1.5">
           <LayoutGrid className="h-3.5 w-3.5" /> Visão geral
@@ -651,6 +657,7 @@ export function DeviceDetailTabs({
             label="Memória RAM"
             value={hardware?.ramTotalGb != null ? `${hardware.ramTotalGb} GB` : '—'}
             subtitle={hardware?.tipoArmazenamento ?? 'Capacidade instalada'}
+            onClick={() => setActiveTab('metrics')}
           />
           <KpiCard
             icon={<HardDrive />}
@@ -661,14 +668,22 @@ export function DeviceDetailTabs({
                 ? `${disks.reduce((sum, d) => sum + (d.espacoLivreGb ?? 0), 0)} GB livres (${disks.length} disco${disks.length !== 1 ? 's' : ''})`
                 : 'Sem discos'
             }
+            onClick={() => setActiveTab('hardware')}
           />
-          <KpiCard icon={<Package />} label="Programas instalados" value={software.length} subtitle="Inventário de software" />
+          <KpiCard
+            icon={<Package />}
+            label="Programas instalados"
+            value={software.length}
+            subtitle="Inventário de software"
+            onClick={() => setActiveTab('software')}
+          />
           <KpiCard
             icon={<Monitor />}
             label="Acesso remoto"
             value={device.anydeskId ? formatAnydeskId(device.anydeskId) : 'Sem AnyDesk'}
             subtitle={device.usuario ? `Sessão: ${device.usuario}` : 'Usuário não detectado'}
             tone={device.anydeskId ? 'success' : 'neutral'}
+            onClick={() => setActiveTab('network')}
           />
         </div>
 

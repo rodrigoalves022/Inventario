@@ -12,6 +12,7 @@ import {
 } from '@/lib/table-styles'
 import { Network, Radar, Router, Wifi } from 'lucide-react'
 import { KpiCard } from '@/components/ui/kpi-card'
+import { getTenantPath } from '@/lib/tenant-links'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { DiscoveredDevicesTable, type DiscoveredDeviceRow } from '@/components/discovered-devices-table'
 import { DISCOVERED_DEVICE_TYPES, type DiscoveredDeviceType } from '@/lib/schemas/agent-discovery'
@@ -41,6 +42,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
+  const networkPath = getTenantPath(tenantSlug, 'network')
 
   // Overhaul visual — Fase 3: `?page=`/`?limit=` do rodape da tabela de
   // dispositivos descobertos. A tabela de SEGMENTOS acima dela nao pagina —
@@ -154,6 +156,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle="Sub-redes identificadas pelas interfaces"
           icon={<Network className="h-4 w-4" />}
           tone="primary"
+          href={networkPath}
         />
         <KpiCard
           label="Hosts Mapeados"
@@ -161,6 +164,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle={`${networks.length} interface${networks.length !== 1 ? 's' : ''} reportada${networks.length !== 1 ? 's' : ''}`}
           icon={<Router className="h-4 w-4" />}
           tone="neutral"
+          href={networkPath}
         />
         <KpiCard
           label="Hosts Online"
@@ -168,6 +172,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle="Dispositivos ativos nos segmentos"
           icon={<Wifi className="h-4 w-4" />}
           tone={activeHosts > 0 ? 'success' : 'neutral'}
+          href={networkPath}
         />
         <KpiCard
           label="Descobertos s/ Agente"
@@ -175,6 +180,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle={discoveryEnabled ? 'Varredura automática ativa' : 'Varredura de rede desabilitada'}
           icon={<Radar className="h-4 w-4" />}
           tone={discoveredCount > 0 ? 'info' : 'neutral'}
+          href={networkPath}
         />
       </div>
 
@@ -221,7 +227,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
                       <td className={TABLE_CELL_CLASS}>
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-20 rounded-full bg-secondary">
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${utilization}%` }} />
+                            <div className="h-full rounded-full bg-info/60" style={{ width: `${utilization}%` }} />
                           </div>
                           <span className="text-xs text-muted-foreground">{utilization.toFixed(0)}%</span>
                         </div>

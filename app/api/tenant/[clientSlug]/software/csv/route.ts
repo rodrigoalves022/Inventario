@@ -3,6 +3,8 @@ import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { canAccessTenant, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
+import { getTenantDeviceWhere } from '@/lib/tenant-scope'
+import { buildSoftwareCatalog } from '@/lib/software-catalog'
 
 const CSV_HEADERS = ['Software', 'Versao', 'Fabricante', 'Conformidade', 'Qtd Maquinas', 'Maquinas']
 
@@ -21,8 +23,6 @@ function escapeCsvSafe(value: string | number | null | undefined): string {
   return text
 }
 
-const norm = (value: string | null | undefined) => (value ?? '').trim().toLowerCase()
-
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ clientSlug: string }> }) {
   const { clientSlug } = await params
   const session = await auth()
@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
 
   const [devices, rules] = await Promise.all([
     prisma.device.findMany({
-      where: { clientId: tenant.id },
+      where: getTenantDeviceWhere(tenant.slug),
       select: {
         id: true,
         hostname: true,
@@ -54,29 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
 
   const patterns = rules.map((rule) => (rule.pattern ?? '').trim().toLowerCase()).filter(Boolean)
 
-  const catalog = new Map<
-    string,
-    { nome: string; versao: string | null; editor: string | null; machines: Map<string, string>; restricted: boolean }
-  >()
-  for (const device of devices) {
-    for (const entry of device.software) {
-      const key = `${norm(entry.nome)}|${norm(entry.versao)}|${norm(entry.editor)}`
-      let item = catalog.get(key)
-      if (!item) {
-        item = {
-          nome: entry.nome,
-          versao: entry.versao ?? null,
-          editor: entry.editor ?? null,
-          machines: new Map(),
-          restricted: patterns.some((pattern) => entry.nome.toLowerCase().includes(pattern)),
-        }
-        catalog.set(key, item)
-      }
-      item.machines.set(device.id, device.hostname)
-    }
-  }
-
-  const rows = Array.from(catalog.values()).sort((a, b) => a.nome.localeCompare(b.nome))
+  const rows = buildSoftwareCatalog(devices, patterns)
   const lines = [
     CSV_HEADERS.join(';'),
     ...rows.map((item) =>
@@ -84,9 +62,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
         item.nome,
         item.versao,
         item.editor,
-        item.restricted ? 'Restrito' : 'Permitido',
-        item.machines.size,
-        Array.from(item.machines.values()).join(', '),
+        item.isBlacklisted ? 'Restrito' : 'Permitido',
+        item.installationsCount,
+        item.machines.map((machine) => machine.hostname).join(', '),
       ]
         .map(escapeCsvSafe)
         .join(';')

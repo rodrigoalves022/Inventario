@@ -42,9 +42,24 @@ const CATEGORY_TONE: Record<TenantPeripheralRow['category'], StatusPillTone> = {
   usb: 'warning',
 }
 
-export function TenantPeripheralsTable({ rows, tenantSlug }: { rows: TenantPeripheralRow[]; tenantSlug: string }) {
+export function TenantPeripheralsTable({
+  rows,
+  tenantSlug,
+  initialCategory = 'all',
+  deviceBasePath = `/app/${tenantSlug}/assets`,
+}: {
+  rows: TenantPeripheralRow[]
+  tenantSlug: string
+  initialCategory?: CategoryFilter
+  deviceBasePath?: string
+}) {
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState<CategoryFilter>('all')
+  const [category, setCategory] = useState<CategoryFilter>(initialCategory)
+  const [prevInitialCategory, setPrevInitialCategory] = useState(initialCategory)
+  if (prevInitialCategory !== initialCategory) {
+    setPrevInitialCategory(initialCategory)
+    setCategory(initialCategory)
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -118,7 +133,7 @@ export function TenantPeripheralsTable({ rows, tenantSlug }: { rows: TenantPerip
                     <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>{row.detail}</td>
                     <td className={TABLE_CELL_CLASS}>
                       <Link
-                        href={`/app/${tenantSlug}/assets/${row.deviceId}`}
+                        href={`${deviceBasePath}/${row.deviceId}`}
                         className="text-primary hover:underline focus-visible:underline"
                       >
                         {row.hostname}

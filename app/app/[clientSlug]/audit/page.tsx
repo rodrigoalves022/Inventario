@@ -130,6 +130,7 @@ export default async function TenantAuditPage({
           value={new Set(logs.map((l) => l.actorEmail).filter(Boolean)).size}
           subtitle="contas com atividade"
           icon={<Users />}
+          href={`${basePath}/audit`}
         />
         <KpiCard
           label="Acesso a Chaves"
