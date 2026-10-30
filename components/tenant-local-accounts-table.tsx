@@ -40,10 +40,12 @@ export function TenantLocalAccountsTable({
   rows,
   tenantSlug,
   initialTab = 'all',
+  deviceBasePath = `/app/${tenantSlug}/assets`,
 }: {
   rows: TenantLocalAccountRow[]
   tenantSlug: string
   initialTab?: AccountFilter
+  deviceBasePath?: string
 }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<AccountFilter>(initialTab)
@@ -146,7 +148,7 @@ export function TenantLocalAccountsTable({
                     </td>
                     <td className={TABLE_CELL_CLASS}>
                       <Link
-                        href={`/app/${tenantSlug}/assets/${row.deviceId}`}
+                        href={`${deviceBasePath}/${row.deviceId}`}
                         className="text-primary hover:underline focus-visible:underline"
                       >
                         {row.hostname}

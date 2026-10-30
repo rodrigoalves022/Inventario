@@ -29,7 +29,7 @@ export default async function NewClientPage() {
       {/* Mesma casca do tenant: recuo da Sidebar so a partir de lg (abaixo
           disso ela vira drawer). */}
       <div className="min-w-0 flex-1 lg:pl-64">
-        <Header />
+        <Header user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
         <main className="p-4 lg:p-6">
           <NewClientWizard serverUrl={serverUrl} createClientAction={createClientAction} />
         </main>

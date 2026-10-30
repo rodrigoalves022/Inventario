@@ -31,6 +31,7 @@ export default async function PortalLayout({ children }: { children: React.React
                 { href: '/portal', label: 'Dispositivos' },
                 { href: '/portal/software', label: 'Softwares' },
                 { href: '/portal/peripherals', label: 'Periféricos' },
+                { href: '/portal/local-accounts', label: 'Contas locais' },
                 { href: '/portal/reports', label: 'Relatórios' },
               ].map((item) => (
                 <Link

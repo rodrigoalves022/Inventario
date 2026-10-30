@@ -614,6 +614,29 @@ export function renderDeviceReportPdf(
           summary.osDistribution.map((item) => `${item.name} (${item.value})`).join(', ')
       )
     }
+    if (summary.processorDistribution.length > 0) {
+      doc.text(
+        'Famílias de processadores: ' +
+          summary.processorDistribution.map((item) => `${item.name} (${item.value})`).join(', ')
+      )
+    }
+    doc.moveDown(1)
+
+    const gov = summary.fleetGovernance
+    doc.fillColor('#000').fontSize(12).text('Governança do parque, agentes, acesso remoto e patrimônio (ITAM)')
+    doc.fontSize(10).fillColor('#333')
+    doc.text(`Composição: ${summary.computadores} computador(es) / ${summary.servidores} servidor(es)`)
+    doc.text(
+      `Agentes atualizados: ${gov.agentUpToDateCount} atualizado(s) / ${gov.agentOutdatedCount} desatualizado(s) (${gov.agentCompliancePercent}%)`
+    )
+    doc.text(`Cobertura AnyDesk: ${gov.anydeskCount} de ${summary.totalDevices} (${gov.anydeskPercent}%)`)
+    doc.text(
+      `Cobertura de patrimônio: ${gov.patrimonioRegisteredCount} de ${summary.totalDevices} (${gov.patrimonioPercent}%)`
+    )
+    doc.text(`Valor patrimonial total: R$ ${gov.totalAssetValue.toFixed(2)}`)
+    doc.text(
+      `Garantias: ${gov.warrantyActiveCount} em dia / ${gov.warrantyExpiringSoonCount} vencendo em 30d / ${gov.warrantyExpiredCount} vencida(s)`
+    )
     doc.moveDown(1)
 
     doc.fillColor('#000').fontSize(12).text('Conformidade de Segurança')

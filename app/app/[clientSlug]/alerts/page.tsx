@@ -30,6 +30,11 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
     if (typeof value === 'string' && value) csvParams.set(key, value)
   }
   const csvQuery = csvParams.size > 0 ? `?${csvParams.toString()}` : ''
+  const stateParam = query?.state
+  const severityParam = query?.severity
+  const stateFilter = stateParam === 'open' || stateParam === 'resolved' ? stateParam : null
+  const severityFilter = severityParam === 'warning' || severityParam === 'critical' ? severityParam : null
+  const filterActive = Boolean(stateFilter || severityFilter)
   const tenant = await requireTenantContext(clientSlug)
   const session = await auth()
   const basePath = getTenantPath(tenant.slug, 'alerts')
@@ -60,6 +65,12 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
 
   const openCount = events.filter((e) => !e.resolvedAt).length
   const criticalOpenCount = events.filter((e) => !e.resolvedAt && e.severity === 'critical').length
+  const filteredEvents = events.filter((e) => {
+    if (stateFilter === 'open' && e.resolvedAt) return false
+    if (stateFilter === 'resolved' && !e.resolvedAt) return false
+    if (severityFilter && e.severity !== severityFilter) return false
+    return true
+  })
 
   return (
     <div className="space-y-6">
@@ -70,12 +81,19 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
             Regras sobre a postura de segurança coletada e histórico de disparos.
           </p>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <a href={`/api/tenant/${tenant.slug}/alerts/csv${csvQuery}`}>
-            <Download className="h-4 w-4 mr-2" />
-            Baixar CSV
-          </a>
-        </Button>
+        <div className="flex items-center gap-2">
+          {filterActive && (
+            <Button variant="ghost" size="sm" asChild>
+              <a href={basePath}>Limpar filtro</a>
+            </Button>
+          )}
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenant.slug}/alerts/csv${csvQuery}`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -86,6 +104,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           icon={<BellRing />}
           tone="primary"
           href={basePath}
+          active={!stateFilter && !severityFilter}
         />
         <KpiCard
           label="Disparos em Aberto"
@@ -95,6 +114,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           tone={openCount > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={openCount > 0}
           href={`${basePath}?state=open`}
+          active={stateFilter === 'open' && !severityFilter}
         />
         <KpiCard
           label="Críticos Abertos"
@@ -104,6 +124,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           tone={criticalOpenCount > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={criticalOpenCount > 0}
           href={`${basePath}?severity=critical`}
+          active={severityFilter === 'critical'}
         />
         <KpiCard
           label="Resolvidos (Recentes)"
@@ -112,6 +133,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           icon={<CheckCircle2 />}
           tone="success"
           href={`${basePath}?state=resolved`}
+          active={stateFilter === 'resolved'}
         />
       </div>
 
@@ -162,9 +184,11 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
               Nenhum alerta disparado ainda. Alertas aparecem aqui quando uma regra ativa encontra a
               condição na próxima coleta do agente.
             </p>
+          ) : filteredEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum disparo corresponde ao filtro selecionado.</p>
           ) : (
             <div className="divide-y divide-surface-line">
-              {events.map((event) => {
+              {filteredEvents.map((event) => {
                 // Sprint 13: exibicao destacada do metadataJson gravado pelo
                 // check-in (Sprint 12) — hoje so 'software_blacklisted' carrega
                 // metadata estruturado; as outras 4 metricas tem metadataJson

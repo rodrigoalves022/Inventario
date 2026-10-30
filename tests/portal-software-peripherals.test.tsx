@@ -22,7 +22,22 @@ vi.mock('@/components/tenant-peripherals-table', () => ({
   ),
 }))
 
+vi.mock('@/components/tenant-local-accounts-table', () => ({
+  TenantLocalAccountsTable: ({
+    rows,
+    tenantSlug,
+    deviceBasePath,
+  }: {
+    rows: unknown[]
+    tenantSlug: string
+    deviceBasePath?: string
+  }) => (
+    <div data-testid="la-table">{rows.length}:{tenantSlug}:{deviceBasePath}</div>
+  ),
+}))
+
 import PortalLayout from '@/app/portal/layout'
+import PortalLocalAccountsPage from '@/app/portal/local-accounts/page'
 import PortalSoftwarePage from '@/app/portal/software/page'
 import PortalPeripheralsPage from '@/app/portal/peripherals/page'
 
@@ -39,6 +54,7 @@ describe('PortalLayout', () => {
       ['Dispositivos', '/portal'],
       ['Softwares', '/portal/software'],
       ['Periféricos', '/portal/peripherals'],
+      ['Contas locais', '/portal/local-accounts'],
       ['Relatórios', '/portal/reports'],
     ]) {
       expect(screen.getByRole('link', { name: label }).getAttribute('href')).toBe(href)
@@ -61,6 +77,27 @@ describe('PortalSoftwarePage', () => {
     expect(screen.getByText('Softwares restritos')).toBeTruthy()
     expect(screen.getByText('Instalações totais')).toBeTruthy()
     expect(screen.getByRole('link', { name: /Baixar CSV/ }).getAttribute('href')).toBe('/api/tenant/acme/software/csv')
+  })
+})
+
+describe('PortalLocalAccountsPage', () => {
+  it('agrega KPIs, tabela e CSV do tenant', async () => {
+    findDevices.mockResolvedValue([
+      {
+        id: 'd1',
+        hostname: 'pc1',
+        localAccounts: [
+          { id: 'a1', usuario: 'admin', isAdmin: true, habilitada: true, senhaNuncaExpira: true },
+          { id: 'a2', usuario: 'user', isAdmin: false, habilitada: true, senhaNuncaExpira: false },
+        ],
+      },
+    ])
+    render(await PortalLocalAccountsPage({ searchParams: Promise.resolve({}) }))
+    expect(findDevices.mock.calls[0][0].where).toEqual({ clientId: 'c1', agentAuth: { is: { isActive: true } } })
+    expect(screen.getByText('Contas Locais e Privilégios')).toBeTruthy()
+    expect(screen.getByText('Total de contas locais')).toBeTruthy()
+    expect(screen.getByTestId('la-table').textContent).toBe('2:acme:/portal/devices')
+    expect(screen.getByRole('link', { name: /Baixar CSV/ }).getAttribute('href')).toBe('/api/tenant/acme/local-accounts/csv')
   })
 })
 

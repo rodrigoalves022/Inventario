@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { LATEST_AGENT_VERSION } from '@/lib/agent-binary'
-import { buildDeviceReportSummary, type DeviceReportRow } from '@/lib/reports/device-report'
+import { buildDeviceReportSummary, renderDeviceReportPdf, type DeviceReportRow } from '@/lib/reports/device-report'
 
 const NOW = new Date('2026-06-15T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -121,6 +121,20 @@ describe('buildDeviceReportSummary — Sprint A18 analytics', () => {
     expect(summary.fleetGovernance.agentCompliancePercent).toBe('0.0')
     expect(summary.fleetGovernance.totalAssetValue).toBe(0)
     expect(summary.processorDistribution).toEqual([])
+  })
+})
+
+describe('Sprint A38 — renderDeviceReportPdf governance', () => {
+  it('returns a valid non-empty PDF with fleetGovernance and processorDistribution', async () => {
+    const rows = [
+      makeRow({ anydeskId: '123', agentVersion: LATEST_AGENT_VERSION, etiquetaPatrimonio: 'PAT-1', valorPatrimonio: 1200 }),
+      makeRow({ processador: 'AMD Ryzen 5', garantiaAte: new Date(NOW.getTime() + 10 * DAY) }),
+    ]
+    const summary = buildDeviceReportSummary(rows, NOW)
+    expect(summary.processorDistribution.length).toBeGreaterThan(0)
+    const buffer = await renderDeviceReportPdf(rows, summary, { title: 'T', subtitle: 'S', generatedAt: NOW })
+    expect(buffer.length).toBeGreaterThan(0)
+    expect(buffer.subarray(0, 5).toString()).toBe('%PDF-')
   })
 })
 

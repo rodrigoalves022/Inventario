@@ -22,7 +22,7 @@ export default async function AccountPage() {
     <div className="flex min-h-screen">
       <Sidebar user={user} />
       <div className="min-w-0 flex-1 lg:pl-64">
-        <Header />
+        <Header user={user} />
         <main className="p-4 lg:p-6">
           <div className="space-y-6">
             <div>

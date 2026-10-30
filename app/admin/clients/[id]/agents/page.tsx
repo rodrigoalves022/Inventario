@@ -42,7 +42,7 @@ export default async function ClientAgentsPage({ params }: { params: Promise<{ i
       {/* Mesma casca de /admin/clients (page.tsx): recuo so a partir de lg e
           `min-w-0` para o overflow-x-auto da tabela funcionar. */}
       <div className="min-w-0 flex-1 lg:pl-64">
-        <Header />
+        <Header user={{ name: session?.user?.name, email: session?.user?.email, role: user.role }} />
         <main className="p-4 lg:p-6">
           <div className="space-y-6">
             <div className="space-y-2">

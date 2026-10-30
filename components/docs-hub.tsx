@@ -153,6 +153,7 @@ const REMOTE_COMMANDS = [
   ['restart_computer', 'Reinicia a máquina.'],
   ['uninstall_agent', 'Desinstala o agente remotamente e revoga a credencial (Sprint A16).'],
   ['run_script (diagnóstico)', 'gpupdate_force, network_diag e system_health_summary; a saída aparece em console expansível na aba Comandos (A17). Relatórios analíticos, catálogos de software/periféricos/contas locais e exportações CSV (incl. Armazenamento e Processadores) chegaram nas Sprints A18–A26.'],
+  ['Sprints A33–A38', 'A33: usuário RDP resolvido via `query user`. A34: busca Ctrl+K por usuário, serial, etiqueta e responsável. A35: exportação CSV de alertas com filtro por KPI. A36–A37: visão de Contas Locais no Portal. A38: PDF analítico com governança do parque (agentes, AnyDesk, patrimônio/garantias) e famílias de processadores.'],
 ] as const
 
 export function DocsHub() {

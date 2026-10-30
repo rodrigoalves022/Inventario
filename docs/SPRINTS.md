@@ -4235,3 +4235,12 @@ Entrega os Backlog Items 21 e 14.
 - **A29–A31:** KPI cards e sub-cards analíticos 100% clicáveis em todo o app (`href`/`active` em `KpiCard`).
 - **Painel de Controle:** filtro de software por `appwiz.cpl` e escopo de dispositivos ativos via `getTenantDeviceWhere`.
 - **A32:** `/portal` com KPI cards clicáveis (`?status=online|offline|warning`) que filtram a lista de máquinas; `searchParams` opcional. `/admin/clients/[id]/agents` não possui KPI cards na página (o painel é `client-agents-panel.tsx`, fora do escopo), então não houve alteração.
+
+## Sprints A33–A38 — RDP, busca global, alertas CSV, Portal e PDF analítico
+
+- **A33:** resolução do usuário RDP ativo via `query user`.
+- **A34:** busca `Ctrl+K` expandida por usuário, serial, etiqueta de patrimônio e responsável; cabeçalho unificado.
+- **A35:** exportação CSV de alertas e filtragem por KPI.
+- **A36–A37:** visão de Contas Locais no Portal.
+- **A38:** `renderDeviceReportPdf` ganhou a seção "Governança do parque, agentes, acesso remoto e patrimônio (ITAM)" (composição, agentes atualizados, cobertura AnyDesk/patrimônio, valor total, garantias) e "Famílias de processadores", espelhando o relatório web.
+- **Testes:** `tests/device-report-analytics-v32.test.tsx`.
