@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"inventario-agent/internal/collectors/anydesk"
 	"inventario-agent/internal/domain/inventory"
 
 	"github.com/yusufpapurcu/wmi"
@@ -182,6 +183,7 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 	}
 
 	payload.Usuario = os.Getenv("USERNAME")
+	payload.AnydeskID = anydesk.CollectID()
 	payload.Software = collectSoftwareFromRegistry()
 	payload.Seguranca = collectSecurity()
 	payload.Monitores = collectMonitors()

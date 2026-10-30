@@ -9,6 +9,7 @@ type Payload struct {
 	Modelo            string         `json:"modelo,omitempty"`
 	Dominio           string         `json:"dominio,omitempty"`
 	Usuario           string         `json:"usuario,omitempty"`
+	AnydeskID         string         `json:"anydeskId,omitempty"`
 	Sistema           string         `json:"sistema,omitempty"`
 	VersaoSO          string         `json:"versaoSO,omitempty"`
 	Processador       string         `json:"processador,omitempty"`

@@ -105,6 +105,7 @@ model Device {
   modelo      String?
   dominio     String?
   usuario     String?
+  anydeskId   String?
   status      String    @default("online")
   /// Sprint 11, item B. Preenchido a partir de body.agentVersion no check-in
   /// (lib/schemas/agent-checkin.ts) — o mesmo campo que ja alimentava so a

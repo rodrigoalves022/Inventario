@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft, Monitor } from 'lucide-react'
+import { AnydeskBadge } from '@/components/anydesk-badge'
 import { Button } from '@/components/ui/button'
 import { Panel, PanelBody } from '@/components/ui/panel'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
@@ -116,6 +117,7 @@ export default async function PortalDeviceDetailPage({
                     </span>
                   </span>
                 </p>
+                <AnydeskBadge anydeskId={device.anydeskId} />
               </div>
             </div>
           </PanelBody>
@@ -132,6 +134,7 @@ export default async function PortalDeviceDetailPage({
           modelo: device.modelo,
           dominio: device.dominio,
           usuario: device.usuario,
+          anydeskId: device.anydeskId,
           status: device.status,
           lastCollectedAt: latestLog?.coletadoEm?.toISOString() ?? null,
         }}

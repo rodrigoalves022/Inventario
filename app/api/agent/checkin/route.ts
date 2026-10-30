@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
         modelo: body.modelo,
         dominio: body.dominio,
         usuario: body.usuario,
+        anydeskId: body.anydeskId ?? null,
         status: nextStatus,
         // Sprint 11 (B): mesmo campo que ja alimentava a mensagem do
         // CollectionLog abaixo e a decisao de updateAvailable — agora tambem
@@ -113,6 +114,8 @@ export async function POST(req: NextRequest) {
         modelo: body.modelo,
         dominio: body.dominio,
         usuario: body.usuario,
+        // Check-in parcial (sem AnyDesk) nao apaga um ID ja conhecido.
+        ...(body.anydeskId ? { anydeskId: body.anydeskId } : {}),
         status: nextStatus,
         agentVersion: body.agentVersion ?? null,
         updatedAt: new Date(),

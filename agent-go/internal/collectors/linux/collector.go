@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"inventario-agent/internal/collectors/anydesk"
 	"inventario-agent/internal/domain/inventory"
 )
 
@@ -113,6 +114,7 @@ func (c *Collector) Collect() (*inventory.Payload, error) {
 	payload.PlacaMae = readFileTrim("/sys/class/dmi/id/board_name")
 	payload.Processador = readCpuModelName()
 	payload.Usuario = os.Getenv("USER")
+	payload.AnydeskID = anydesk.CollectID()
 
 	meminfo := readMeminfo()
 	if total, ok := meminfo["MemTotal"]; ok {

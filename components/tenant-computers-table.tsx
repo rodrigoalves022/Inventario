@@ -29,6 +29,7 @@ import {
 } from '@/lib/table-styles'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
+import { AnydeskBadge } from '@/components/anydesk-badge'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
   DEFAULT_PAGE_SIZE,
@@ -452,6 +453,9 @@ export function TenantComputersTable({
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                         {device.ip ?? '0.0.0.0'}
                       </code>
+                      <div className="mt-1">
+                        <AnydeskBadge anydeskId={device.anydeskId} compact />
+                      </div>
                     </td>
                     <td className={TABLE_CELL_CLASS}>
                       <div className="flex items-center gap-3 text-xs font-medium">
@@ -523,6 +527,7 @@ export function TenantComputersTable({
                     <code className="bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                       {device.ip ?? '0.0.0.0'}
                     </code>
+                    <AnydeskBadge anydeskId={device.anydeskId} compact />
                     <span className={cn(
                       'flex items-center gap-1',
                       device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'

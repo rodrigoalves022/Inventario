@@ -90,6 +90,12 @@ export const agentCheckinSchema = z.object({
   modelo: z.string().max(255).optional().nullable(),
   dominio: z.string().max(255).optional().nullable(),
   usuario: z.string().max(255).optional().nullable(),
+  anydeskId: z
+    .preprocess(
+      (val) => (typeof val === 'string' ? val.replace(/\s+/g, '').trim() : val),
+      z.string().regex(/^\d{9,10}$/).optional().nullable()
+    )
+    .catch(null),
 
   sistema: z.string().max(255).optional().nullable(),
   versaoSO: z.string().max(255).optional().nullable(),

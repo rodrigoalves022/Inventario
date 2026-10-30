@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Monitor } from 'lucide-react'
+import { AnydeskBadge } from '@/components/anydesk-badge'
 import { auth } from '@/auth'
 import { DeleteAssetButton } from '@/components/delete-asset-button'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs-lazy'
@@ -167,6 +168,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
                     </span>
                   </span>
                 </p>
+                <AnydeskBadge anydeskId={asset.anydeskId} />
               </div>
             </div>
 
@@ -189,6 +191,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
           modelo: asset.modelo,
           dominio: asset.dominio,
           usuario: asset.usuario,
+          anydeskId: asset.anydeskId,
           status: asset.status,
           lastCollectedAt: latestLog?.coletadoEm?.toISOString() ?? null,
         }}

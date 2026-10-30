@@ -15,6 +15,7 @@ import { getTenantPath } from '@/lib/tenant-links'
 export type TenantDeviceForRow = {
   id: string
   hostname: string
+  anydeskId?: string | null
   status: string
   updatedAt: Date
   hardware: { sistema: string | null; processador: string | null; ramTotalGb: number | null } | null
@@ -27,6 +28,7 @@ export type TenantDeviceRow = {
   id: string
   hostname: string
   ip: string | null
+  anydeskId?: string | null
   sistema: string | null
   processador: string | null
   ramTotalGb: number | null
@@ -78,6 +80,7 @@ export function buildTenantDeviceRow(
     id: device.id,
     hostname: device.hostname,
     ip: device.networks[0]?.ip ?? null,
+    anydeskId: device.anydeskId ?? null,
     sistema: device.hardware?.sistema ?? null,
     processador: device.hardware?.processador ?? null,
     ramTotalGb: device.hardware?.ramTotalGb ?? null,

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { AssetRecordForm, type AssetRecordValues } from '@/components/asset-record-form'
 import { DeviceCommandPanel } from '@/components/device-command-panel'
 import { COMMAND_TYPE_LABELS } from '@/lib/agent-commands'
+import { formatAnydeskId } from '@/components/anydesk-badge'
 import { cn } from '@/lib/utils'
 import { STATIC_ROW_HOVER_CLASS } from '@/lib/table-styles'
 
@@ -143,6 +144,7 @@ type Props = {
     modelo: string | null
     dominio: string | null
     usuario: string | null
+    anydeskId?: string | null
     status: string
     lastCollectedAt: string | null
   }
@@ -636,6 +638,7 @@ export function DeviceDetailTabs({
               <Field label="Número de série" value={device.serial} />
               <Field label="Domínio" value={device.dominio} />
               <Field label="Usuário" value={device.usuario} />
+              <Field label="AnyDesk" value={device.anydeskId ? formatAnydeskId(device.anydeskId) : null} />
               <Field label="Sistema" value={hardware?.sistema} />
             </div>
           </Panel>
