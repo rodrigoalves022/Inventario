@@ -113,6 +113,8 @@ var allowedScripts = map[string]bool{
 	"gpupdate_force":        true,
 	"network_diag":          true,
 	"system_health_summary": true,
+	"defender_quick_scan":   true,
+	"windows_update_check":  true,
 }
 
 func isAllowedService(name string) bool { return allowedServices[name] }

@@ -14,6 +14,7 @@ vi.mock('@/auth', () => ({ auth: mocks.auth }))
 vi.mock('@/lib/permissions', () => ({
   getSessionPermissionUser: mocks.getSessionPermissionUser,
   canAccessTenant: mocks.canAccessTenant,
+  canReadTenantData: (...args: unknown[]) => (mocks.canAccessTenant as (...a: unknown[]) => unknown)(...args),
 }))
 vi.mock('@/lib/tenant-context', () => ({ getTenantContext: mocks.getTenantContext }))
 vi.mock('@/lib/prisma', () => ({ default: { device: { findMany: mocks.findMany } } }))

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
-import { canAccessTenant, getSessionPermissionUser } from '@/lib/permissions'
+import { canReadTenantData, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 
@@ -28,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
 
   const user = getSessionPermissionUser(session)
   const tenant = await getTenantContext(clientSlug)
-  if (!tenant || !canAccessTenant(user, tenant)) {
+  if (!tenant || !canReadTenantData(user, tenant)) {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
   }
 

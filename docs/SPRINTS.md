@@ -4244,3 +4244,11 @@ Entrega os Backlog Items 21 e 14.
 - **A36–A37:** visão de Contas Locais no Portal.
 - **A38:** `renderDeviceReportPdf` ganhou a seção "Governança do parque, agentes, acesso remoto e patrimônio (ITAM)" (composição, agentes atualizados, cobertura AnyDesk/patrimônio, valor total, garantias) e "Famílias de processadores", espelhando o relatório web.
 - **Testes:** `tests/device-report-analytics-v32.test.tsx`.
+
+## Sprints A39–A44 — Exportações completas, cabeçalho unificado e Central de Documentação
+
+- **A39–A40:** CSV de Computadores (`/computers/csv`) e Servidores (`/servers/csv`); cabeçalho superior unificado e rodapé calmo da sidebar.
+- **A41:** ficha completa individual por máquina (`/api/tenant/[slug]/devices/[id]/export`).
+- **A42–A43:** consolidação das exportações: relatórios (`/reports/csv`, `/reports/pdf`), armazenamento, processadores, dispositivos descobertos (`/network/discovered/csv`), softwares (`/software/csv`), periféricos (`/peripherals/csv`), contas locais (`/local-accounts/csv`), alertas (`/alerts/csv`) e auditoria (`/audit/csv`, `/api/admin/audit/csv`).
+- **A44:** `/docs` (`components/docs-hub.tsx`) documenta todas as exportações CSV/PDF acima.
+- **Testes:** `tests/docs-page.test.tsx`.

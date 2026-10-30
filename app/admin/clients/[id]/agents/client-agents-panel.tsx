@@ -121,6 +121,7 @@ export function ClientAgentsPanel({
   // durante a animacao de fechamento (mesmo padrao de clients-panel.tsx).
   const [revokeTarget, setRevokeTarget] = useState<ClientAgentRow | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'outdated' | 'revoked'>('all')
   // useActionState exige uma action; sem ela (prop opcional) vira no-op.
   const [updateState, updateAction, updatePending] = useActionState(
     requestAgentUpdateAction ?? (async () => initialRequestAgentUpdateState),
@@ -142,7 +143,17 @@ export function ClientAgentsPanel({
   const resultRef = useRef<HTMLDivElement | null>(null)
 
   const activeCount = agents.filter((agent) => agent.isActive).length
-  const isLastActive = Boolean(revokeTarget?.isActive) && activeCount === 1
+  const isOutdated = (agent: ClientAgentRow) =>
+    agent.isActive && Boolean(agent.agentVersion) && agent.agentVersion !== latestAgentVersion
+  const outdatedCount = latestAgentVersion ? agents.filter(isOutdated).length : 0
+  const revokedCount = agents.filter((agent) => !agent.isActive).length
+  const visibleAgents = agents.filter((agent) => {
+    if (statusFilter === 'active') return agent.isActive
+    if (statusFilter === 'outdated') return latestAgentVersion ? isOutdated(agent) : false
+    if (statusFilter === 'revoked') return !agent.isActive
+    return true
+  })
+  const isLastActive =Boolean(revokeTarget?.isActive) && activeCount === 1
 
   function confirmRevoke() {
     if (!revokeTarget) return
@@ -248,29 +259,39 @@ export function ClientAgentsPanel({
         <>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
-            label="Total de Agentes"
+            label="Total de credenciais"
             value={agents.length}
             subtitle="credenciais emitidas"
             icon={<Bot />}
+            active={statusFilter === 'all'}
+            onClick={() => setStatusFilter('all')}
           />
           <KpiCard
-            label="Agentes Ativos"
+            label="Agentes ativos"
             value={activeCount}
             subtitle="autorizados a enviar coleta"
             icon={<CheckCircle2 />}
             tone="success"
+            active={statusFilter === 'active'}
+            onClick={() => setStatusFilter((f) => (f === 'active' ? 'all' : 'active'))}
           />
           <KpiCard
-            label="Com Máquina Vinculada"
-            value={agents.filter((a) => a.isActive && a.hasDevice).length}
-            subtitle="já realizaram check-in"
+            label="Agentes desatualizados"
+            value={outdatedCount}
+            subtitle="versão diferente da mais recente"
             icon={<Monitor />}
+            tone="warning"
+            active={statusFilter === 'outdated'}
+            onClick={() => setStatusFilter((f) => (f === 'outdated' ? 'all' : 'outdated'))}
           />
           <KpiCard
             label="Revogados"
-            value={agents.filter((a) => !a.isActive).length}
+            value={revokedCount}
             subtitle="bloqueados permanentemente"
             icon={<ShieldOff />}
+            tone="neutral"
+            active={statusFilter === 'revoked'}
+            onClick={() => setStatusFilter((f) => (f === 'revoked' ? 'all' : 'revoked'))}
           />
         </div>
         <Panel>
@@ -308,7 +329,7 @@ export function ClientAgentsPanel({
               </tr>
             </thead>
             <tbody>
-              {agents.map((agent) => {
+              {visibleAgents.map((agent) => {
                 const state = getAgentAuthState({
                   isActive: agent.isActive,
                   hasDevice: agent.hasDevice,

@@ -154,6 +154,7 @@ const REMOTE_COMMANDS = [
   ['uninstall_agent', 'Desinstala o agente remotamente e revoga a credencial (Sprint A16).'],
   ['run_script (diagnóstico)', 'gpupdate_force, network_diag e system_health_summary; a saída aparece em console expansível na aba Comandos (A17). Relatórios analíticos, catálogos de software/periféricos/contas locais e exportações CSV (incl. Armazenamento e Processadores) chegaram nas Sprints A18–A26.'],
   ['Sprints A33–A38', 'A33: usuário RDP resolvido via `query user`. A34: busca Ctrl+K por usuário, serial, etiqueta e responsável. A35: exportação CSV de alertas com filtro por KPI. A36–A37: visão de Contas Locais no Portal. A38: PDF analítico com governança do parque (agentes, AnyDesk, patrimônio/garantias) e famílias de processadores.'],
+  ['Exportações CSV/PDF (A39–A44)', 'Relatórios analíticos: `/api/tenant/[slug]/reports/csv` e `/reports/pdf`. Computadores: `/computers/csv`; Servidores: `/servers/csv`. Armazenamento: `/storage/csv`; Processadores: `/processors/csv`. Dispositivos descobertos na rede: `/network/discovered/csv`. Softwares (estilo Painel de Controle, appwiz.cpl): `/software/csv`. Periféricos e USB: `/peripherals/csv`. Contas Locais e Privilégios: `/local-accounts/csv`. Alertas: `/alerts/csv`. Auditoria: `/api/tenant/[slug]/audit/csv` e `/api/admin/audit/csv`. Ficha completa individual por máquina: `/api/tenant/[slug]/devices/[id]/export`.'],
 ] as const
 
 export function DocsHub() {

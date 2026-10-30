@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -77,9 +79,17 @@ export default async function TenantAssetsPage({ params, searchParams }: PagePro
             tenant atual — computadores e servidores.
           </p>
         </div>
-        <Link href={getTenantPath(tenantSlug, '')} className="text-sm text-primary hover:underline">
-          Voltar ao dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenantSlug}/reports/csv`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV
+            </a>
+          </Button>
+          <Link href={getTenantPath(tenantSlug, '')} className="text-sm text-primary hover:underline">
+            Voltar ao dashboard
+          </Link>
+        </div>
       </div>
 
       <TenantComputersTable

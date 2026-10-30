@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   getSessionPermissionUser: vi.fn(),
-  canAccessTenant: vi.fn(),
+  canReadTenantData: vi.fn(),
   getTenantContext: vi.fn(),
   findFirst: vi.fn(),
 }))
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/auth', () => ({ auth: mocks.auth }))
 vi.mock('@/lib/permissions', () => ({
   getSessionPermissionUser: mocks.getSessionPermissionUser,
-  canAccessTenant: mocks.canAccessTenant,
+  canReadTenantData: mocks.canReadTenantData,
 }))
 vi.mock('@/lib/tenant-context', () => ({ getTenantContext: mocks.getTenantContext }))
 vi.mock('@/lib/prisma', () => ({ default: { device: { findFirst: mocks.findFirst } } }))
@@ -52,7 +52,7 @@ describe('GET /api/tenant/[clientSlug]/devices/[id]/export', () => {
     vi.clearAllMocks()
     mocks.auth.mockResolvedValue({ user: { id: 'u1' } })
     mocks.getTenantContext.mockResolvedValue(tenant)
-    mocks.canAccessTenant.mockReturnValue(true)
+    mocks.canReadTenantData.mockReturnValue(true)
     mocks.findFirst.mockResolvedValue(device)
   })
 
@@ -62,7 +62,7 @@ describe('GET /api/tenant/[clientSlug]/devices/[id]/export', () => {
   })
 
   it('returns 403 when tenant is missing or access is denied', async () => {
-    mocks.canAccessTenant.mockReturnValue(false)
+    mocks.canReadTenantData.mockReturnValue(false)
     expect((await GET(req, params)).status).toBe(403)
     mocks.getTenantContext.mockResolvedValue(null)
     expect((await GET(req, params)).status).toBe(403)
@@ -94,5 +94,18 @@ describe('GET /api/tenant/[clientSlug]/devices/[id]/export', () => {
     for (const section of ['Hardware', 'Seguranca', 'Discos', 'Rede', 'Contas Locais', 'Perifericos']) {
       expect(text).toContain(`\r\n${section};`)
     }
+  })
+})
+
+describe('canReadTenantData', () => {
+  const t = { id: 'client-1', slug: 'acme', organizationId: 'org-1' }
+
+  it('allows CLIENT_VIEWER only for their own clientId', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/permissions')>('@/lib/permissions')
+    const viewer = { id: 'u', email: null, role: 'CLIENT_VIEWER', organizationId: 'org-1', clientId: 'client-1', clientSlug: 'acme' } as never
+    const other = { id: 'u', email: null, role: 'CLIENT_VIEWER', organizationId: 'org-1', clientId: 'client-2', clientSlug: 'beta' } as never
+    expect(actual.canReadTenantData(viewer, t as never)).toBe(true)
+    expect(actual.canReadTenantData(other, t as never)).toBe(false)
+    expect(actual.canAccessTenant(viewer, t as never)).toBe(false)
   })
 })

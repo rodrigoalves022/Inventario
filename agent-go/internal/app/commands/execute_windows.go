@@ -62,6 +62,10 @@ func executeRunScript(scriptID string) httpapi.CommandResult {
 		return runCommand("cmd", "/C", "ipconfig /all & route print -4 & netstat -ano | findstr LISTENING")
 	case "system_health_summary":
 		return runCommand("powershell", "-NoProfile", "-Command", "Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 15 Name,Id,@{N='RAM_MB';E={[math]::Round($_.WorkingSet64/1MB,1)}},CPU | Format-Table -AutoSize | Out-String -Width 120")
+	case "defender_quick_scan":
+		return runCommand("powershell", "-NoProfile", "-Command", "Update-MpSignature -ErrorAction SilentlyContinue; Start-MpScan -ScanType QuickScan -ErrorAction SilentlyContinue; Get-MpComputerStatus | Select-Object AntivirusEnabled, RealTimeProtectionEnabled, AntivirusSignatureVersion, QuickScanEndTime | Format-List")
+	case "windows_update_check":
+		return runCommand("powershell", "-NoProfile", "-Command", "$s = New-Object -ComObject Microsoft.Update.Session; $u = $s.CreateUpdateSearcher().Search('IsInstalled=0'); Write-Output ('Pendentes: ' + $u.Updates.Count); $u.Updates | Select-Object -First 15 Title, MsrcSeverity | Format-Table -AutoSize")
 	default:
 		return httpapi.CommandResult{Status: "failed", ErrorMessage: "script desconhecido: " + scriptID}
 	}

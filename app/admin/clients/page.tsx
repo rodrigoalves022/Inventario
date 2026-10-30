@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Plus } from 'lucide-react'
+import { Building2, CheckCircle2, Download, PauseCircle, Plus, Server } from 'lucide-react'
 import { Sidebar, Header } from '@/components/sidebar'
 import { Button } from '@/components/ui/button'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { auth } from '@/auth'
 import { getSessionPermissionUser, isOrgAdmin, isPlatformAdmin } from '@/lib/permissions'
 import { getCurrentServerUrl } from '@/lib/server-url'
@@ -49,12 +50,42 @@ export default async function ClientsPage() {
                   Cadastre empresas, gere instaladores e gerencie os agentes de cada cliente.
                 </p>
               </div>
-              <Button asChild size="sm" className="gap-2">
-                <Link href="/admin/clients/novo">
-                  <Plus className="h-4 w-4" />
-                  Novo cliente
-                </Link>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/api/admin/clients/csv">
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar CSV
+                  </a>
+                </Button>
+                <Button asChild size="sm" className="gap-2">
+                  <Link href="/admin/clients/novo">
+                    <Plus className="h-4 w-4" />
+                    Novo cliente
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard icon={<Building2 />} label="Clientes" value={clients.length} href="/admin/clients" />
+              <KpiCard
+                icon={<CheckCircle2 />}
+                label="Ativos"
+                value={clients.filter((client) => client.isActive).length}
+                href="/admin/clients"
+              />
+              <KpiCard
+                icon={<PauseCircle />}
+                label="Inativos"
+                value={clients.filter((client) => !client.isActive).length}
+                href="/admin/clients"
+              />
+              <KpiCard
+                icon={<Server />}
+                label="Agentes ativos"
+                value={clients.reduce((sum, client) => sum + client.activeAgentCount, 0)}
+                href="/admin/clients"
+              />
             </div>
 
             <ClientsPanel

@@ -107,6 +107,15 @@ export function canAccessTenant(user: PermissionUser | null | undefined, tenant:
   return false
 }
 
+/**
+ * Leitura de dados/exportacoes CSV do tenant: permite tambem CLIENT_VIEWER
+ * exclusivamente para o seu proprio clientId.
+ */
+export function canReadTenantData(user: PermissionUser | null | undefined, tenant: TenantRef) {
+  if (canAccessTenant(user, tenant)) return true
+  return isClientViewer(user) && !!user?.clientId && user.clientId === tenant.id
+}
+
 /** Administrar o tenant: credenciais, exclusoes, alertas, usuarios. */
 export function canManageTenant(user: PermissionUser | null | undefined, tenant: TenantRef) {
   if (isPlatformAdmin(user)) return true

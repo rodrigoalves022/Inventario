@@ -10,7 +10,8 @@ import {
   TABLE_HEAD_CLASS,
   TABLE_HEAD_ROW_CLASS,
 } from '@/lib/table-styles'
-import { Network, Radar, Router, Wifi } from 'lucide-react'
+import { Download, Network, Radar, Router, Wifi } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { getTenantPath } from '@/lib/tenant-links'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
@@ -147,6 +148,12 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
             {segments.length} segmento{segments.length !== 1 ? 's' : ''} identificado{segments.length !== 1 ? 's' : ''} a partir das interfaces do tenant atual.
           </p>
         </div>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/api/tenant/${tenantSlug}/network/ips/csv`}>
+            <Download className="h-4 w-4 mr-2" />
+            Baixar CSV (IPs)
+          </a>
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
