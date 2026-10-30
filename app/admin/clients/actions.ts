@@ -11,8 +11,13 @@ import { resolveOrganizationIdForActor } from '@/lib/organizations'
 import { buildProvisioningArtifacts } from '@/lib/provisioning'
 import { getPublishedAgentHashes } from '@/lib/agent-binary'
 import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
+import { AGENT_COMMAND_TTL_MS } from '@/lib/agent-commands'
 import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
-import { type ProvisioningActionState } from './types'
+import { type ProvisioningActionState, type RequestAgentUpdateState } from './types'
+
+// Arquivo 'use server': so funcoes async em runtime. O valor inicial
+// (initialRequestAgentUpdateState) mora em ./types.ts.
+export type { RequestAgentUpdateState }
 
 // Mensagens em pt-BR em todos os campos: as padrao do Zod 3 sao em ingles
 // ("Invalid url", "Expected string, received null"...) e chegam ao usuario
@@ -493,5 +498,135 @@ export async function revokeAgentAuthAction(
       error: 'Erro interno ao revogar a credencial de agente.',
       message: null,
     }
+  }
+}
+
+export async function requestClientAgentUpdateAction(
+  _previousState: RequestAgentUpdateState,
+  formData: FormData
+): Promise<RequestAgentUpdateState> {
+  try {
+    const session = await auth()
+    const user = getSessionPermissionUser(session)
+
+    if (!session?.user) {
+      return { error: 'Sessão expirada. Faça login novamente.', message: null }
+    }
+
+    const agentAuthId = formData.get('agentAuthId')
+    const clientId = formData.get('clientId')
+    const actor = getSessionAuditActor(user)
+
+    if (typeof agentAuthId === 'string' && agentAuthId) {
+      const agentAuth = await prisma.agentAuth.findUnique({
+        where: { id: agentAuthId },
+        select: {
+          id: true,
+          name: true,
+          isActive: true,
+          device: { select: { id: true, hostname: true } },
+          client: { select: { id: true, slug: true, organizationId: true } },
+        },
+      })
+
+      if (!agentAuth || !agentAuth.client || !canManageTenant(user, agentAuth.client)) {
+        return { error: 'Credencial de agente não encontrada.', message: null }
+      }
+      if (!agentAuth.isActive) {
+        return { error: 'Credencial de agente revogada não pode receber atualização.', message: null }
+      }
+      if (!agentAuth.device) {
+        return { error: 'Este agente ainda não possui máquina vinculada.', message: null }
+      }
+
+      const device = agentAuth.device
+      const expiresAt = new Date(Date.now() + AGENT_COMMAND_TTL_MS)
+      const client = agentAuth.client
+      await prisma.$transaction(async (tx: TransactionLike) => {
+        await tx.agentCommand.create({
+          data: {
+            agentAuthId: agentAuth.id,
+            clientId: client.id,
+            type: 'update_agent',
+            paramsJson: null,
+            status: 'pending',
+            requestedByUserId: actor.userId ?? null,
+            expiresAt,
+          },
+        })
+        await recordAuditLog(
+          {
+            action: 'command.enqueue',
+            targetType: 'device',
+            targetId: device.id,
+            clientId: client.id,
+            actor,
+            metadata: { commandType: 'update_agent', hostname: device.hostname, agentAuthId: agentAuth.id },
+          },
+          tx
+        )
+      })
+
+      revalidatePath(clientAgentsPath(client.id))
+      return { error: null, message: `Comando de atualização enviado para ${device.hostname}.` }
+    }
+
+    if (typeof clientId === 'string' && clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { id: true, slug: true, organizationId: true },
+      })
+
+      if (!client || !canManageTenant(user, client)) {
+        return { error: 'Cliente não encontrado.', message: null }
+      }
+
+      const rows = await prisma.agentAuth.findMany({
+        where: { clientId: client.id, isActive: true, device: { isNot: null } },
+        select: { id: true, device: { select: { id: true, hostname: true } } },
+      })
+      const targets = rows.flatMap((row) => (row.device ? [{ agentAuthId: row.id, device: row.device }] : []))
+      const devices = targets.map((target) => target.device)
+      const expiresAt = new Date(Date.now() + AGENT_COMMAND_TTL_MS)
+
+      if (devices.length === 0) {
+        return { error: 'Nenhum agente ativo com máquina vinculada para atualizar.', message: null }
+      }
+
+      await prisma.$transaction(async (tx: TransactionLike) => {
+        for (const target of targets) {
+          await tx.agentCommand.create({
+            data: {
+              agentAuthId: target.agentAuthId,
+              clientId: client.id,
+              type: 'update_agent',
+              paramsJson: null,
+              status: 'pending',
+              requestedByUserId: actor.userId ?? null,
+              expiresAt,
+            },
+          })
+        }
+        await recordAuditLog(
+          {
+            action: 'command.bulk_enqueue',
+            targetType: 'client',
+            targetId: client.id,
+            clientId: client.id,
+            actor,
+            metadata: { commandType: 'update_agent', count: devices.length },
+          },
+          tx
+        )
+      })
+
+      revalidatePath(clientAgentsPath(client.id))
+      return { error: null, message: `Comando de atualização enviado para ${devices.length} agente(s).` }
+    }
+
+    return { error: 'Nenhum agente ou cliente informado.', message: null }
+  } catch (error) {
+    console.error('[clients/request-agent-update] Erro:', error)
+    return { error: 'Erro interno ao solicitar a atualização do agente.', message: null }
   }
 }

@@ -5,7 +5,8 @@ import { Sidebar, Header } from '@/components/sidebar'
 import { auth } from '@/auth'
 import { canManageTenant, getSessionPermissionUser } from '@/lib/permissions'
 import prisma from '@/lib/prisma'
-import { revokeAgentAuthAction } from '../../actions'
+import { LATEST_AGENT_VERSION } from '@/lib/agent-binary'
+import { requestClientAgentUpdateAction, revokeAgentAuthAction } from '../../actions'
 import { getClientAgents } from '../../queries'
 import { ClientAgentsPanel } from './client-agents-panel'
 
@@ -65,6 +66,8 @@ export default async function ClientAgentsPage({ params }: { params: Promise<{ i
               client={{ id: client.id, name: client.name, isActive: client.isActive }}
               agents={agents}
               revokeAgentAuthAction={revokeAgentAuthAction}
+              requestAgentUpdateAction={requestClientAgentUpdateAction}
+              latestAgentVersion={LATEST_AGENT_VERSION}
             />
           </div>
         </main>

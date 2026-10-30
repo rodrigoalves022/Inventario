@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
-import { Bot, CheckCircle2, Monitor, ShieldOff, X } from 'lucide-react'
+import { Bot, CheckCircle2, Monitor, RefreshCw, ShieldOff, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
@@ -29,11 +29,14 @@ import { cn } from '@/lib/utils'
 import { getAgentAuthState } from '../../agent-state'
 import type { ClientAgentRow } from '../../queries'
 import type { RevokeAgentAuthState } from '../../actions'
+import { initialRequestAgentUpdateState, type RequestAgentUpdateState } from '../../types'
 
 type ClientAgentsPanelProps = {
   client: { id: string; name: string; isActive: boolean }
   agents: ClientAgentRow[]
   revokeAgentAuthAction: (state: RevokeAgentAuthState, payload: FormData) => Promise<RevokeAgentAuthState>
+  requestAgentUpdateAction?: (state: RequestAgentUpdateState, payload: FormData) => Promise<RequestAgentUpdateState>
+  latestAgentVersion?: string
 }
 
 const initialRevokeState: RevokeAgentAuthState = { error: null, message: null }
@@ -106,12 +109,25 @@ function RevokeConfirmDialog({
   )
 }
 
-export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: ClientAgentsPanelProps) {
+export function ClientAgentsPanel({
+  client,
+  agents,
+  revokeAgentAuthAction,
+  requestAgentUpdateAction,
+  latestAgentVersion,
+}: ClientAgentsPanelProps) {
   const [revokeState, revokeAction, revokePending] = useActionState(revokeAgentAuthAction, initialRevokeState)
   // Alvo do dialogo, separado de `dialogOpen` para o conteudo nao sumir
   // durante a animacao de fechamento (mesmo padrao de clients-panel.tsx).
   const [revokeTarget, setRevokeTarget] = useState<ClientAgentRow | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  // useActionState exige uma action; sem ela (prop opcional) vira no-op.
+  const [updateState, updateAction, updatePending] = useActionState(
+    requestAgentUpdateAction ?? (async () => initialRequestAgentUpdateState),
+    initialRequestAgentUpdateState
+  )
+  // Qual feedback e o mais recente: a regiao role="status" e unica.
+  const [lastFeedback, setLastFeedback] = useState<'revoke' | 'update'>('revoke')
   // Nome do agente da ultima revogacao confirmada, para o anuncio do resultado
   // (depois do revalidatePath a linha muda de estado).
   const [confirmedName, setConfirmedName] = useState<string | null>(null)
@@ -133,9 +149,17 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
     const formData = new FormData()
     formData.set('agentAuthId', revokeTarget.id)
     confirmedRef.current = true
+    setLastFeedback('revoke')
     setConfirmedName(revokeTarget.name)
     setDialogOpen(false)
     startTransition(() => revokeAction(formData))
+  }
+
+  function dispatchUpdate(field: 'agentAuthId' | 'clientId', value: string) {
+    const formData = new FormData()
+    formData.set(field, value)
+    setLastFeedback('update')
+    startTransition(() => updateAction(formData))
   }
 
   function handleCloseAutoFocus(event: Event) {
@@ -150,11 +174,17 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
     if (revokeState.message || revokeState.error) resultRef.current?.focus()
   }, [revokeState])
 
-  const announcement = result.error
+  const updateAnnouncement = updateState.error ?? updateState.message ?? ''
+  const revokeAnnouncement = result.error
     ? `Falha ao revogar ${confirmedName ?? 'o agente'}: ${result.error}`
     : result.message
       ? `${confirmedName ?? 'Agente'}: ${result.message}`
       : ''
+  const announcement =
+    lastFeedback === 'update' && updateAnnouncement ? updateAnnouncement : revokeAnnouncement || updateAnnouncement
+
+  const canUpdateAll =
+    Boolean(requestAgentUpdateAction) && agents.some((agent) => agent.isActive && agent.hasDevice)
 
   return (
     <div className="space-y-6">
@@ -243,6 +273,26 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
             icon={<ShieldOff />}
           />
         </div>
+        <Panel>
+          <PanelHeader
+            icon={<Bot className="h-4 w-4" />}
+            title="Credenciais e instalações de agente"
+            description={`${activeCount} ativo(s) de ${agents.length} registrado(s)`}
+            action={
+              canUpdateAll ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={updatePending}
+                  onClick={() => dispatchUpdate('clientId', client.id)}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Atualizar todos os agentes
+                </Button>
+              ) : undefined
+            }
+          />
         <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
           <table className="w-full text-sm">
             <thead>
@@ -274,7 +324,21 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
                       </div>
                     </td>
                     <td className={TABLE_DATA_CELL_CLASS}>{agent.hostname ?? '—'}</td>
-                    <td className={TABLE_DATA_CELL_CLASS}>{agent.agentVersion ?? '—'}</td>
+                    <td className={TABLE_DATA_CELL_CLASS}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{agent.agentVersion ?? '—'}</span>
+                        {agent.agentVersion && latestAgentVersion && (
+                          <StatusPill
+                            tone={agent.agentVersion === latestAgentVersion ? 'success' : 'warning'}
+                            label={
+                              agent.agentVersion === latestAgentVersion
+                                ? 'Atualizado'
+                                : `v${latestAgentVersion} disponível`
+                            }
+                          />
+                        )}
+                      </div>
+                    </td>
                     <td className={cn(TABLE_CELL_CLASS, 'whitespace-nowrap text-muted-foreground')}>
                       {formatDateTime(agent.createdAt)}
                     </td>
@@ -292,20 +356,34 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
                     </td>
                     <td className={TABLE_CELL_CLASS}>
                       {agent.isActive ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={revokePending}
-                          aria-label={`Revogar ${agent.name}`}
-                          onClick={(event) => {
-                            triggerRef.current = event.currentTarget
-                            setRevokeTarget(agent)
-                            setDialogOpen(true)
-                          }}
-                        >
-                          {revokePending && revokeTarget?.id === agent.id ? 'Revogando...' : 'Revogar'}
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {agent.hasDevice && requestAgentUpdateAction && (
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="outline"
+                              disabled={updatePending}
+                              aria-label={`Atualizar ${agent.name}`}
+                              onClick={() => dispatchUpdate('agentAuthId', agent.id)}
+                            >
+                              Atualizar
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={revokePending}
+                            aria-label={`Revogar ${agent.name}`}
+                            onClick={(event) => {
+                              triggerRef.current = event.currentTarget
+                              setRevokeTarget(agent)
+                              setDialogOpen(true)
+                            }}
+                          >
+                            {revokePending && revokeTarget?.id === agent.id ? 'Revogando...' : 'Revogar'}
+                          </Button>
+                        </div>
                       ) : null}
                     </td>
                   </tr>
@@ -314,6 +392,7 @@ export function ClientAgentsPanel({ client, agents, revokeAgentAuthAction }: Cli
             </tbody>
           </table>
         </div>
+        </Panel>
         </>
       )}
     </div>

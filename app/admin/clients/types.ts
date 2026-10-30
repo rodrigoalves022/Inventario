@@ -27,6 +27,15 @@ export const initialProvisioningState: ProvisioningActionState = {
   package: null,
 }
 
+export type RequestAgentUpdateState = {
+  error: string | null
+  message: string | null
+}
+
+export const initialRequestAgentUpdateState: RequestAgentUpdateState = {
+  error: null,
+  message: null,
+}
 
 export type ProvisioningCredentialsResponse =
   | {

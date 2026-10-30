@@ -25,6 +25,9 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   'webhook.toggle': 'Webhook ativado/desativado',
   'tenant.discovery_enabled': 'Varredura de rede ativada',
   'tenant.discovery_disabled': 'Varredura de rede desativada',
+  'account.email_update': 'Alteração de e-mail da conta',
+  'account.name_update': 'Alteração de nome da conta',
+  'account.password_change': 'Alteração de senha da conta',
 }
 
 export function formatAuditActionLabel(action: string): string {
