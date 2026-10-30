@@ -16,7 +16,8 @@ import {
   Trash2, 
   Filter,
   Calendar as CalendarIcon,
-  XCircle
+  XCircle,
+  Download
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -78,7 +79,13 @@ export default async function ClientsAuditPage({
 
   const credentialViews = logs.filter((log) => log.action === 'credentials.view').length
   const deviceDeletes = logs.filter((log) => log.action === 'device.delete').length
-  const tenantsInScope = new Set(logs.map((l) => l.clientId).filter(Boolean)).size
+  const csvParams = new URLSearchParams()
+  for (const key of ['action', 'clientId', 'actorEmail', 'from', 'to'] as const) {
+    const value = filters[key]
+    if (value && !((key === 'action' || key === 'clientId') && value === 'all')) csvParams.set(key, value)
+  }
+  const csvQuery = csvParams.size > 0 ? `?${csvParams.toString()}` : ''
+  const tenantsInScope =new Set(logs.map((l) => l.clientId).filter(Boolean)).size
 
   return (
     <div className="flex min-h-screen">
@@ -95,6 +102,12 @@ export default async function ClientsAuditPage({
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/api/admin/audit/csv${csvQuery}`}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar CSV
+                  </a>
+                </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a href="/admin/clients/audit">
                     <XCircle className="h-4 w-4 mr-2" />

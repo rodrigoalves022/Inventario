@@ -4,8 +4,15 @@ import PDFDocument from 'pdfkit'
 import { DEFAULT_ALERT_SETTINGS, deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { parseSoftwareBlacklistMetadata } from '@/lib/alert-rules'
+import { LATEST_AGENT_VERSION } from '@/lib/agent-binary'
 
 export type DeviceReportRow = {
+  /** Sprint A18. Versao do agente instalado (opcional para nao quebrar helpers de teste). */
+  agentVersion?: string | null
+  /** Sprint A18. AssetRecord.valor — valor patrimonial cadastrado. */
+  valorPatrimonio?: number | null
+  /** Sprint A18. AssetRecord.garantiaAte — fim da garantia. */
+  garantiaAte?: Date | null
   hostname: string
   status: string
   ip: string | null
@@ -54,6 +61,24 @@ export type DeviceReportSummary = {
   warning: number
   availabilityPercent: string
   osDistribution: Array<{ name: string; value: number }>
+  /** Sprint A18. Maquinas agrupadas por `processador` (mais comuns primeiro). */
+  processorDistribution: Array<{ name: string; value: number }>
+  /** Sprint A18. Governanca do parque: AnyDesk, agentes e patrimonio (ITAM). */
+  fleetGovernance: {
+    anydeskCount: number
+    anydeskPercent: string
+    agentUpToDateCount: number
+    agentOutdatedCount: number
+    agentKnownCount: number
+    agentCompliancePercent: string
+    patrimonioRegisteredCount: number
+    patrimonioPercent: string
+    totalAssetValue: number
+    warrantyExpiredCount: number
+    /** Garantia que vence nos proximos 30 dias. */
+    warrantyExpiringSoonCount: number
+    warrantyActiveCount: number
+  }
   /** Buckets por maquina, nao um blend: uma "% usado" unica misturando
    * discos de tamanhos bem diferentes nao representa nenhuma maquina real. */
   ramDistribution: UsageBucket[]
@@ -76,6 +101,8 @@ export type DeviceReportSummary = {
    * de calculo explicita para quem le o relatorio.
    */
   securityCompliance: {
+    antivirusActivePercent: string
+    antivirusActiveKnownCount: number
     bitlockerActivePercent: string
     bitlockerKnownCount: number
     antivirusUpdatedPercent: string
@@ -184,7 +211,7 @@ export async function getDeviceReportRows(
       disks: { select: { unidade: true, capacidadeGb: true, espacoLivreGb: true, criptografia: true } },
       networks: { where: { isPrimary: true }, select: { ip: true }, take: 1 },
       security: { select: { antivirusAtivo: true, firewallAtivo: true, antivirusAtualizado: true } },
-      assetRecord: { select: { etiqueta: true, localizacao: true, responsavel: true } },
+      assetRecord: { select: { etiqueta: true, localizacao: true, responsavel: true, valor: true, garantiaAte: true } },
       logs: { orderBy: { coletadoEm: 'desc' }, take: 1, select: { coletadoEm: true } },
     },
   })
@@ -210,6 +237,9 @@ export async function getDeviceReportRows(
       status: effectiveStatus,
       ip: device.networks[0]?.ip ?? null,
       anydeskId: device.anydeskId ?? null,
+      agentVersion: device.agentVersion ?? null,
+      valorPatrimonio: device.assetRecord?.valor ?? null,
+      garantiaAte: device.assetRecord?.garantiaAte ?? null,
       sistema: device.hardware?.sistema ?? null,
       processador: device.hardware?.processador ?? null,
       ramTotalGb: device.hardware?.ramTotalGb ?? null,
@@ -279,7 +309,9 @@ export async function getBlacklistedSoftwareHistory(
   return rows
 }
 
-export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportSummary {
+const WARRANTY_SOON_DAYS = 30
+
+export function buildDeviceReportSummary(rows: DeviceReportRow[], now: Date = new Date()): DeviceReportSummary {
   const totalDevices = rows.length
   const online = rows.filter((row) => row.status === 'online').length
   const offline = rows.filter((row) => row.status === 'offline').length
@@ -295,6 +327,50 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportS
   const osDistribution = Array.from(osMap.entries())
     .map(([name, value]) => ({ name, value }))
     .sort((left, right) => right.value - left.value)
+
+  const processorMap = new Map<string, number>()
+  for (const row of rows) {
+    const name = row.processador?.trim()
+    if (!name) continue
+    processorMap.set(name, (processorMap.get(name) ?? 0) + 1)
+  }
+  const processorDistribution = Array.from(processorMap.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((left, right) => right.value - left.value || left.name.localeCompare(right.name))
+    .slice(0, 8)
+
+  const percentOf = (part: number, whole: number) => (whole > 0 ? ((part / whole) * 100).toFixed(1) : '0.0')
+
+  const anydeskCount = rows.filter((row) => !!row.anydeskId).length
+  const agentKnown = rows.filter((row) => !!row.agentVersion)
+  const agentUpToDateCount = agentKnown.filter((row) => row.agentVersion === LATEST_AGENT_VERSION).length
+  const patrimonioRegisteredCount = rows.filter((row) => !!row.etiquetaPatrimonio || !!row.responsavel).length
+  const totalAssetValue = rows.reduce((sum, row) => sum + (row.valorPatrimonio ?? 0), 0)
+  const soonLimit = now.getTime() + WARRANTY_SOON_DAYS * 24 * 60 * 60 * 1000
+  let warrantyExpiredCount = 0
+  let warrantyExpiringSoonCount = 0
+  let warrantyActiveCount = 0
+  for (const row of rows) {
+    if (!row.garantiaAte) continue
+    const end = row.garantiaAte.getTime()
+    if (end < now.getTime()) warrantyExpiredCount += 1
+    else if (end <= soonLimit) warrantyExpiringSoonCount += 1
+    else warrantyActiveCount += 1
+  }
+  const fleetGovernance = {
+    anydeskCount,
+    anydeskPercent: percentOf(anydeskCount, totalDevices),
+    agentUpToDateCount,
+    agentOutdatedCount: agentKnown.length - agentUpToDateCount,
+    agentKnownCount: agentKnown.length,
+    agentCompliancePercent: percentOf(agentUpToDateCount, agentKnown.length),
+    patrimonioRegisteredCount,
+    patrimonioPercent: percentOf(patrimonioRegisteredCount, totalDevices),
+    totalAssetValue,
+    warrantyExpiredCount,
+    warrantyExpiringSoonCount,
+    warrantyActiveCount,
+  }
 
   const ramDistribution = bucketRamByExactValue(rows)
 
@@ -319,6 +395,7 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportS
   const computadores = rows.filter((row) => row.deviceType === 'computador').length
   const servidores = rows.filter((row) => row.deviceType === 'servidor').length
 
+  const antivirusActive = computeBooleanCompliance(rows.map((row) => row.antivirusAtivo))
   const bitlocker = computeBooleanCompliance(rows.map((row) => row.bitlockerAtivo))
   const antivirusUpdated = computeBooleanCompliance(rows.map((row) => row.antivirusAtualizado))
   const firewall = computeBooleanCompliance(rows.map((row) => row.firewallAtivo))
@@ -334,6 +411,8 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportS
     warning,
     availabilityPercent,
     osDistribution,
+    processorDistribution,
+    fleetGovernance,
     ramDistribution,
     diskUsageDistribution,
     storageCapacityGb,
@@ -342,6 +421,8 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[]): DeviceReportS
     computadores,
     servidores,
     securityCompliance: {
+      antivirusActivePercent: antivirusActive.percent,
+      antivirusActiveKnownCount: antivirusActive.knownCount,
       bitlockerActivePercent: bitlocker.percent,
       bitlockerKnownCount: bitlocker.knownCount,
       antivirusUpdatedPercent: antivirusUpdated.percent,

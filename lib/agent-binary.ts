@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
-/** Versao mais recente do agente publicada em public/ (comparada no check-in). */
-export const LATEST_AGENT_VERSION = '1.1.0'
+// Constante client-safe vive em `lib/agent-version.ts` (este modulo importa
+// `node:fs`); re-exportada aqui para os imports de servidor existentes.
+export { LATEST_AGENT_VERSION } from '@/lib/agent-version'
 
 export type AgentPlatform = 'windows' | 'linux'
 

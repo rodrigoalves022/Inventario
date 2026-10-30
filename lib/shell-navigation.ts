@@ -11,9 +11,11 @@ import {
   LayoutDashboard,
   Monitor,
   Network,
+  Package,
   Server,
   Settings,
   Shield,
+  Usb,
   Users,
 } from 'lucide-react'
 import { isOrgAdmin, isOrgOperator, isPlatformAdmin, type PermissionUser } from '@/lib/permissions'
@@ -88,6 +90,8 @@ const TENANT_ROUTES: readonly TenantRouteDef[] = [
   { segment: 'storage', name: 'Armazenamento', icon: HardDrive, section: 'Inventário', access: 'tenant' },
   { segment: 'processors', name: 'Processadores', icon: Cpu, section: 'Inventário', access: 'tenant' },
   { segment: 'network', name: 'Rede', icon: Network, section: 'Inventário', access: 'tenant' },
+  { segment: 'software', name: 'Softwares', icon: Package, section: 'Inventário', access: 'tenant' },
+  { segment: 'peripherals', name: 'Periféricos', icon: Usb, section: 'Inventário', access: 'tenant' },
   {
     // Listagem unificada: nao entra no menu (o dashboard ja e a porta de
     // entrada dela), mas e o pai de `/assets/<id>` na trilha.

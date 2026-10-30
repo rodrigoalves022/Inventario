@@ -16,7 +16,8 @@ import {
   Filter,
   Users,
   Calendar as CalendarIcon,
-  XCircle
+  XCircle,
+  Download
 } from 'lucide-react'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { AUDIT_ACTION_LABEL } from '@/lib/audit-action-labels'
@@ -80,6 +81,12 @@ export default async function TenantAuditPage({
   const deviceDeletes = logs.filter((log) => log.action === 'device.delete').length
 
   const basePath = getTenantBasePath(tenant.slug)
+  const csvParams = new URLSearchParams()
+  for (const key of ['action', 'actorEmail', 'from', 'to'] as const) {
+    const value = filters[key]
+    if (value && !(key === 'action' && value === 'all')) csvParams.set(key, value)
+  }
+  const csvQuery = csvParams.size > 0 ? `?${csvParams.toString()}` : ''
 
   return (
     <div className="space-y-6">
@@ -90,12 +97,20 @@ export default async function TenantAuditPage({
             Eventos sensíveis registrados para <span className="font-semibold text-foreground underline underline-offset-4 decoration-primary/30">{tenant.name}</span>.
           </p>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <a href={`${basePath}/audit`}>
-            <XCircle className="h-4 w-4 mr-2" />
-            Limpar Filtros
-          </a>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenant.slug}/audit/csv${csvQuery}`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`${basePath}/audit`}>
+              <XCircle className="h-4 w-4 mr-2" />
+              Limpar Filtros
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* Summary Grid — cada card filtra a tabela abaixo (mesmo padrao dos

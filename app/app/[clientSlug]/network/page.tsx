@@ -250,6 +250,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
             discoveryEnabled={discoveryEnabled}
             initialPage={initialPage}
             initialPageSize={initialPageSize}
+            tenantSlug={tenantSlug}
           />
         </PanelBody>
       </Panel>

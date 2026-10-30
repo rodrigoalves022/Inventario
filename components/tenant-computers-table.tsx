@@ -27,6 +27,7 @@ import {
   TABLE_HEAD_ROW_CLASS,
   TABLE_SHELL_CLASS,
 } from '@/lib/table-styles'
+import { LATEST_AGENT_VERSION } from '@/lib/agent-version'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
 import { AnydeskBadge } from '@/components/anydesk-badge'
@@ -119,6 +120,21 @@ function IssueBadges({ deviceId, issues }: { deviceId: string; issues: TenantCom
 
 type CriticalFilter = 'all' | 'low_disk' | 'low_ram' | 'stale_collection'
 
+function isOutdatedAgent(agentVersion: string | null | undefined) {
+  return Boolean(agentVersion && agentVersion !== LATEST_AGENT_VERSION)
+}
+
+/** Tag de versao do agente; destaca em warning quando ha versao mais nova. */
+function AgentVersionTag({ agentVersion }: { agentVersion: string }) {
+  const outdated = isOutdatedAgent(agentVersion)
+  return (
+    <span className={cn('data-mono text-[11px]', outdated ? 'text-warning font-medium' : 'text-muted-foreground')}>
+      Agente v{agentVersion}
+      {outdated ? ` · v${LATEST_AGENT_VERSION} disponível` : ''}
+    </span>
+  )
+}
+
 export function TenantComputersTable({
   devices,
   initialSearch = '',
@@ -152,6 +168,7 @@ export function TenantComputersTable({
   const [search, setSearch] = useState(initialSearch)
   const [statusFilter, setStatusFilter] = useState<'all' | TenantComputerRow['effectiveStatus']>(initialStatusFilter)
   const [criticalFilter, setCriticalFilter] = useState<CriticalFilter>(initialCriticalFilter)
+  const [onlyOutdatedAgents, setOnlyOutdatedAgents] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(() => parsePageNumber(initialPage))
   const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
@@ -172,6 +189,7 @@ export function TenantComputersTable({
     lowRam: devices.filter((device) => device.issues.some((issue) => issue.code === 'low_ram')).length,
     stale: devices.filter((device) => device.issues.some((issue) => issue.code === 'stale_collection')).length,
     warning: devices.filter((device) => device.effectiveStatus === 'warning').length,
+    outdatedAgentsCount: devices.filter((d) => isOutdatedAgent(d.agentVersion)).length,
   }), [devices])
 
   const filteredDevices = useMemo(() => {
@@ -194,9 +212,11 @@ export function TenantComputersTable({
       const matchesCritical =
         criticalFilter === 'all' || device.issues.some((issue) => issue.code === criticalFilter)
 
-      return matchesSearch && matchesStatus && matchesCritical
+      const matchesOutdated = !onlyOutdatedAgents || isOutdatedAgent(device.agentVersion)
+
+      return matchesSearch && matchesStatus && matchesCritical && matchesOutdated
     })
-  }, [criticalFilter, devices, search, statusFilter])
+  }, [criticalFilter, devices, onlyOutdatedAgents, search, statusFilter])
 
   /**
    * Recorte da pagina. Ordem obrigatoria: filtrar -> contar -> paginar.
@@ -350,6 +370,25 @@ export function TenantComputersTable({
             <TabsTrigger value="offline" className="text-xs">Offline</TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {(summary.outdatedAgentsCount > 0 || onlyOutdatedAgents) && (
+          <button
+            type="button"
+            aria-pressed={onlyOutdatedAgents}
+            onClick={() => {
+              setOnlyOutdatedAgents((current) => !current)
+              setPage(1)
+            }}
+            className={cn(
+              'h-10 shrink-0 rounded-md border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              onlyOutdatedAgents
+                ? 'border-warning/40 bg-warning/10 text-warning'
+                : 'border-input bg-card text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Agentes desatualizados ({summary.outdatedAgentsCount})
+          </button>
+        )}
       </div>
 
       {/* UMA casca para as duas formas do mesmo dado (tabela em md+, lista de
@@ -459,11 +498,7 @@ export function TenantComputersTable({
                       <div className="mt-1">
                         <AnydeskBadge anydeskId={device.anydeskId} compact />
                       </div>
-                      {device.agentVersion ? (
-                        <span className="data-mono text-[11px] text-muted-foreground">
-                          Agente v{device.agentVersion}
-                        </span>
-                      ) : null}
+                      {device.agentVersion ? <AgentVersionTag agentVersion={device.agentVersion} /> : null}
                     </td>
                     <td className={TABLE_CELL_CLASS}>
                       <div className="flex items-center gap-3 text-xs font-medium">
@@ -536,11 +571,7 @@ export function TenantComputersTable({
                       {device.ip ?? '0.0.0.0'}
                     </code>
                     <AnydeskBadge anydeskId={device.anydeskId} compact />
-                    {device.agentVersion ? (
-                      <span className="data-mono text-[11px] text-muted-foreground">
-                        Agente v{device.agentVersion}
-                      </span>
-                    ) : null}
+                    {device.agentVersion ? <AgentVersionTag agentVersion={device.agentVersion} /> : null}
                     <span className={cn(
                       'flex items-center gap-1',
                       device.issues.some((issue) => issue.code === 'low_ram') ? 'text-warning' : 'text-muted-foreground'

@@ -166,6 +166,14 @@ describe('buildShellNavigation — o menu é filtrado pelo papel', () => {
     expect(hrefs).not.toContain(`${BASE}/reports`)
   })
 
+  it('Softwares e Periféricos aparecem no menu e na trilha', () => {
+    const items = buildShellNavigation(TENANT, userWithRole('CLIENT_VIEWER')).flatMap((s) => s.items)
+    expect(items).toContainEqual(expect.objectContaining({ href: `${BASE}/software`, name: 'Softwares' }))
+    expect(items).toContainEqual(expect.objectContaining({ href: `${BASE}/peripherals`, name: 'Periféricos' }))
+    expect(getBreadcrumbTrail(`${BASE}/software`, TENANT).at(-1)?.label).toBe('Softwares')
+    expect(getBreadcrumbTrail(`${BASE}/peripherals`, TENANT).at(-1)?.label).toBe('Periféricos')
+  })
+
   it('a listagem unificada /assets fica fora do menu, mesmo tendo rótulo na trilha', () => {
     expect(hrefsFor('PLATFORM_ADMIN')).not.toContain(`${BASE}/assets`)
     expect(getShellPageTitle(`${BASE}/assets`, TENANT)).toBe('Todos os dispositivos')

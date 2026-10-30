@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Printer, Router, HardDrive, Search, HelpCircle, Radar } from 'lucide-react'
+import { Printer, Router, HardDrive, Search, HelpCircle, Radar, Download } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
@@ -103,6 +104,7 @@ export function DiscoveredDevicesTable({
   discoveryEnabled,
   initialPage = 1,
   initialPageSize = DEFAULT_PAGE_SIZE,
+  tenantSlug,
 }: {
   devices: DiscoveredDeviceRow[]
   /** Muda apenas o texto de estado vazio: sem a varredura habilitada, "nenhum
@@ -113,6 +115,8 @@ export function DiscoveredDevicesTable({
    * parametro proprio na URL, e criar um agora seria escopo novo. */
   initialPage?: number
   initialPageSize?: number
+  /** Habilita o botao "Baixar CSV" (exportacao escopada ao tenant no servidor). */
+  tenantSlug?: string
 }) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -187,15 +191,25 @@ export function DiscoveredDevicesTable({
           </TabsList>
         </Tabs>
 
-        <div className="relative w-full sm:w-72">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="Buscar por IP, hostname ou MAC"
-            placeholder="Buscar por IP, hostname ou MAC..."
-            value={search}
-            onChange={(event) => changeSearch(event.target.value)}
-            className="h-9 pl-8"
-          />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              aria-label="Buscar por IP, hostname ou MAC"
+              placeholder="Buscar por IP, hostname ou MAC..."
+              value={search}
+              onChange={(event) => changeSearch(event.target.value)}
+              className="h-9 pl-8"
+            />
+          </div>
+          {tenantSlug && devices.length > 0 ? (
+            <Button asChild variant="outline" size="sm" className="gap-2">
+              <a href={`/api/tenant/${tenantSlug}/network/discovered/csv`}>
+                <Download className="h-4 w-4" />
+                Baixar CSV
+              </a>
+            </Button>
+          ) : null}
         </div>
       </div>
 

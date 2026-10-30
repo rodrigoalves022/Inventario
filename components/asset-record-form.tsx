@@ -6,6 +6,7 @@ import { Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { StatusPill } from '@/components/ui/status-pill'
 import { Textarea } from '@/components/ui/textarea'
 import {
   saveAssetRecordAction,
@@ -32,6 +33,32 @@ function toDateInputValue(value: string | null) {
   return value.slice(0, 10)
 }
 
+export type WarrantyStatus = 'none' | 'active' | 'expiring_soon' | 'expired'
+
+export function evaluateWarrantyStatus(
+  garantiaAteIso: string | null,
+  now: Date = new Date()
+): { status: WarrantyStatus; daysRemaining: number | null; label: string } {
+  if (!garantiaAteIso) {
+    return { status: 'none', daysRemaining: null, label: 'Sem data de garantia informada' }
+  }
+  const target = new Date(garantiaAteIso)
+  const daysRemaining = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  if (daysRemaining < 0) {
+    return { status: 'expired', daysRemaining, label: `Garantia vencida há ${Math.abs(daysRemaining)} dia(s)` }
+  }
+  if (daysRemaining <= 30) {
+    return { status: 'expiring_soon', daysRemaining, label: `Garantia vence em ${daysRemaining} dia(s)` }
+  }
+  return { status: 'active', daysRemaining, label: `Garantia ativa (${daysRemaining} dia(s) restantes)` }
+}
+
+const WARRANTY_TONE = {
+  active: 'success',
+  expiring_soon: 'warning',
+  expired: 'destructive',
+} as const
+
 function SubmitButton() {
   const { pending } = useFormStatus()
   return (
@@ -52,9 +79,13 @@ export function AssetRecordForm({
   values: AssetRecordValues
 }) {
   const [state, formAction] = useActionState(saveAssetRecordAction, initialState)
+  const warranty = evaluateWarrantyStatus(values.garantiaAte)
 
   return (
     <form action={formAction} className="space-y-6">
+      {values.garantiaAte && warranty.status !== 'none' && (
+        <StatusPill tone={WARRANTY_TONE[warranty.status]} label={warranty.label} />
+      )}
       <input type="hidden" name="tenantSlug" value={tenantSlug} />
       <input type="hidden" name="deviceId" value={deviceId} />
 
