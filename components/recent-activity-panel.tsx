@@ -54,36 +54,7 @@ const DISCOVERED_TYPE_LABEL: Record<DiscoveredDeviceType, string> = {
   UNKNOWN: 'Não identificado',
 }
 
-/**
- * Rotulo das acoes auditadas. Espelha o catalogo real de `recordAuditLog` na
- * base; qualquer acao fora dele cai no proprio identificador, que continua
- * legivel ("webhook.update") em vez de sumir. Fica aqui, e nao em
- * `components/audit-log-table.tsx`, porque aquele arquivo esta fora do escopo
- * desta fase.
- */
-const AUDIT_ACTION_LABEL: Record<string, string> = {
-  login: 'Login',
-  'credentials.view': 'Visualização de credenciais',
-  'credentials.rotate': 'Rotação de chave de inscrição',
-  'device.delete': 'Exclusão de máquina',
-  'client.create': 'Criação de cliente',
-  'agent_auth.revoke': 'Revogação de agente',
-  'agent_auth.register': 'Registro de agente',
-  'alert_rule.create': 'Criação de regra de alerta',
-  'alert_rule.delete': 'Exclusão de regra de alerta',
-  'command.enqueue': 'Comando remoto enfileirado',
-  'command.bulk_enqueue': 'Comandos remotos em lote',
-  'command.result': 'Resultado de comando remoto',
-  'webhook.create': 'Criação de webhook',
-  'webhook.update': 'Atualização de webhook',
-  'webhook.toggle': 'Webhook ativado/desativado',
-  'tenant.discovery_enabled': 'Varredura de rede ativada',
-  'tenant.discovery_disabled': 'Varredura de rede desativada',
-}
-
-export function formatAuditActionLabel(action: string): string {
-  return AUDIT_ACTION_LABEL[action] ?? action
-}
+export { formatAuditActionLabel } from '@/lib/audit-action-labels'
 
 /**
  * `DiscoveredDevice.deviceType` e' `String` livre no banco (RNF012 — nenhum

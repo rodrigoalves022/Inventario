@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { signOut } from 'next-auth/react'
 import { useTheme } from 'next-themes'
 import { ROLE_LABELS, type AppRole } from '@/lib/permissions'
@@ -31,12 +31,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -57,7 +52,6 @@ import {
   Sun,
   Moon,
   Laptop,
-  SunMoon,
 } from 'lucide-react'
 
 type TenantShellInfo = ShellTenant
@@ -173,7 +167,7 @@ export type SidebarUser = {
   role?: AppRole | null
 }
 
-function getInitials(user: SidebarUser) {
+export function getInitials(user: SidebarUser) {
   const source = user.name?.trim() || user.email?.trim() || ''
   if (!source) return '??'
   const parts = source.split(/[\s@.]+/).filter(Boolean)
@@ -532,7 +526,7 @@ export function Sidebar({
                     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent side="right" align="end" className="w-60">
+                <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-56">
                   <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
                     {user?.email ?? 'Não identificado'}
                   </DropdownMenuLabel>
@@ -618,7 +612,6 @@ function AccountMenuItems({
           </Link>
         </DropdownMenuItem>
       )}
-      <ThemeMenuItems />
       <DropdownMenuSeparator />
       <DropdownMenuItem
         className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
@@ -632,38 +625,16 @@ function AccountMenuItems({
 }
 
 /**
- * Sprint V22: seletor de tema. A escolha persiste em localStorage via
+ * Sprint V22: vocabulario do tema. A escolha persiste em localStorage via
  * next-themes, e o script que ele injeta no <head> aplica a classe antes da
- * primeira pintura — sem flash. O conteudo do submenu so monta com o menu
- * aberto (client), entao `theme` ja esta resolvido aqui.
+ * primeira pintura — sem flash. Desde a V26 o controle saiu do menu da conta
+ * e vive em `AppearanceControls` (aba Preferencias de /account).
  */
 export const THEME_OPTIONS = [
   { value: 'light', label: 'Tema claro', icon: Sun },
   { value: 'dark', label: 'Tema escuro', icon: Moon },
   { value: 'system', label: 'Usar do sistema', icon: Laptop },
 ] as const
-
-function ThemeMenuItems() {
-  const { theme, setTheme } = useTheme()
-  return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger className="cursor-pointer">
-        <SunMoon className="mr-2 h-4 w-4" />
-        Aparência
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="w-48">
-        <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-          {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-            <DropdownMenuRadioItem key={value} value={value} className="cursor-pointer">
-              <Icon className="mr-2 h-4 w-4" />
-              {label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
-  )
-}
 
 /**
  * Sprint V23: cor de destaque. O valor vive em `data-accent` no <html> (que
@@ -673,13 +644,14 @@ function ThemeMenuItems() {
 export const ACCENT_STORAGE_KEY = 'inventario-accent'
 export const DEFAULT_ACCENT = 'orange'
 
+/** `label` e o nome acessivel do swatch; `name`, o texto visivel na pilula. */
 export const ACCENT_OPTIONS = [
-  { value: 'orange', label: 'Cor Laranja' },
-  { value: 'blue', label: 'Cor Azul' },
-  { value: 'emerald', label: 'Cor Esmeralda' },
-  { value: 'pink', label: 'Cor Rosa' },
-  { value: 'violet', label: 'Cor Violeta' },
-  { value: 'mono', label: 'Cor Prata' },
+  { value: 'orange', label: 'Cor Laranja', name: 'Laranja' },
+  { value: 'blue', label: 'Cor Azul', name: 'Azul' },
+  { value: 'emerald', label: 'Cor Esmeralda', name: 'Esmeralda' },
+  { value: 'pink', label: 'Cor Rosa', name: 'Rosa' },
+  { value: 'violet', label: 'Cor Violeta', name: 'Violeta' },
+  { value: 'mono', label: 'Cor Prata', name: 'Prata' },
 ] as const
 
 export type AccentValue = (typeof ACCENT_OPTIONS)[number]['value']
@@ -740,41 +712,63 @@ export function AppearanceControls() {
   // para nao divergir do HTML do servidor.
   const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false)
   const isDark = !mounted || resolvedTheme !== 'light'
+  const accentLabelId = useId()
 
+  // `@container`: o mesmo controle vive num Panel de meia largura em /account
+  // e no modal de conta — as colunas da grade seguem a largura do bloco, nao
+  // a da janela.
   return (
-    <div className="space-y-2.5 px-1">
-      <div role="radiogroup" aria-label="Cor de destaque" className="flex items-center justify-between">
-        {ACCENT_OPTIONS.map(({ value, label }) => {
-          const selected = accent === value
-          return (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              aria-label={label}
-              title={label}
-              data-accent-swatch={value}
-              onClick={() => applyAccent(value)}
-              className={cn(
-                'h-5 w-5 rounded-full transition-transform hover:scale-110',
-                'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar focus-visible:outline-none',
-                SWATCH_ACCENT_CLASS[value],
-                selected && 'ring-2 ring-foreground ring-offset-2 ring-offset-sidebar'
-              )}
-            />
-          )
-        })}
+    <div className="@container grid gap-5">
+      <div className="grid gap-3">
+        <div className="space-y-0.5">
+          <p id={accentLabelId} className="text-sm font-medium text-foreground">
+            Cor de destaque
+          </p>
+          <p className="text-xs text-muted-foreground">Botões, foco, rota ativa e série principal dos gráficos.</p>
+        </div>
+        <div role="radiogroup" aria-labelledby={accentLabelId} className="grid grid-cols-2 gap-2 @sm:grid-cols-3">
+          {ACCENT_OPTIONS.map(({ value, label, name }) => {
+            const selected = accent === value
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                aria-label={label}
+                data-accent-swatch={value}
+                onClick={() => applyAccent(value)}
+                className={cn(
+                  'flex h-10 min-w-0 items-center gap-2.5 rounded-full border border-surface-line bg-secondary/30 pr-3 pl-1.5 text-sm font-medium text-muted-foreground transition-colors',
+                  'hover:border-surface-line-strong hover:bg-accent/60 hover:text-foreground',
+                  'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                  selected && 'border-transparent bg-secondary/60 text-foreground ring-2 ring-foreground'
+                )}
+              >
+                <span aria-hidden className={cn('h-7 w-7 shrink-0 rounded-full', SWATCH_ACCENT_CLASS[value])} />
+                <span className="truncate">{name}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
-      <button
-        type="button"
-        data-theme-toggle
-        onClick={() => setTheme(isDark ? 'light' : 'dark')}
-        className="flex h-8 w-full items-center gap-2 rounded-lg border border-surface-line px-3 text-xs font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
-      >
-        {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-        {isDark ? 'Tema claro' : 'Tema escuro'}
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-line pt-4">
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-sm font-medium text-foreground">Tema da interface</p>
+          <p className="text-xs text-muted-foreground">
+            Em uso: tema {isDark ? 'escuro' : 'claro'}. Vale só para este navegador.
+          </p>
+        </div>
+        <button
+          type="button"
+          data-theme-toggle
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-surface-line bg-secondary/40 px-3.5 text-sm font-medium text-foreground transition-colors hover:border-surface-line-strong hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {isDark ? 'Tema claro' : 'Tema escuro'}
+        </button>
+      </div>
     </div>
   )
 }

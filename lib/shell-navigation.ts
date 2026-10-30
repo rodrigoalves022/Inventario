@@ -221,6 +221,7 @@ export function getBreadcrumbTrail(
     if (pathname.startsWith('/admin/clients')) return [{ label: 'Clientes' }]
     if (pathname.startsWith('/users')) return [{ label: 'Usuários' }]
     if (pathname.startsWith('/security')) return [{ label: 'Segurança' }]
+    if (pathname.startsWith('/account')) return [{ label: 'Minha conta' }]
     return [{ label: 'Painel' }]
   }
 
