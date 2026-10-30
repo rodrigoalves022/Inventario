@@ -95,6 +95,7 @@ describe('getBreadcrumbTrail — telas sem tenant', () => {
     ['/users', ['Usuários']],
     ['/security', ['Segurança']],
     ['/account', ['Minha conta']],
+    ['/docs', ['Documentação']],
   ])('%s -> %s', (pathname, labels) => {
     expect(getBreadcrumbTrail(pathname, undefined).map((crumb) => crumb.label)).toEqual(labels)
   })

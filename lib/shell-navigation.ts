@@ -2,6 +2,7 @@ import type * as React from 'react'
 import {
   BarChart3,
   BellRing,
+  BookOpen,
   Boxes,
   Building2,
   ClipboardList,
@@ -117,6 +118,7 @@ const ACCOUNT_ROUTES: readonly AccountRouteDef[] = [
   { href: '/admin/clients/audit', name: 'Auditoria global', icon: ClipboardList, access: 'platform' },
   { href: '/users', name: 'Usuários', icon: Users, access: 'platform' },
   { href: '/security', name: 'Segurança', icon: Shield, access: 'platform' },
+  { href: '/docs', name: 'Documentação', icon: BookOpen, access: 'account' },
 ]
 
 /**
@@ -222,6 +224,7 @@ export function getBreadcrumbTrail(
     if (pathname.startsWith('/users')) return [{ label: 'Usuários' }]
     if (pathname.startsWith('/security')) return [{ label: 'Segurança' }]
     if (pathname.startsWith('/account')) return [{ label: 'Minha conta' }]
+    if (pathname.startsWith('/docs')) return [{ label: 'Documentação' }]
     return [{ label: 'Painel' }]
   }
 

@@ -52,6 +52,7 @@ import {
   Sun,
   Moon,
   Laptop,
+  BookOpen,
 } from 'lucide-react'
 
 type TenantShellInfo = ShellTenant
@@ -612,6 +613,12 @@ function AccountMenuItems({
           </Link>
         </DropdownMenuItem>
       )}
+      <DropdownMenuItem asChild className="cursor-pointer">
+        <Link href="/docs">
+          <BookOpen className="mr-2 h-4 w-4" />
+          Documentação e comandos
+        </Link>
+      </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem
         className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
