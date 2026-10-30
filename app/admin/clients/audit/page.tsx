@@ -6,6 +6,7 @@ import prisma from '@/lib/prisma'
 import { AuditLogTable } from '@/components/audit-log-table'
 import { listAuditLogs } from '@/lib/audit-log'
 import { AUDIT_ACTION_LABEL } from '@/lib/audit-action-labels'
+import { parsePageNumber, parsePageSize } from '@/lib/table-pagination'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { 
@@ -35,6 +36,10 @@ type AuditPageSearchParams = {
   clientId?: string
   from?: string
   to?: string
+  /** Sprint A53: rodape de paginacao — recorta no cliente os ate 200
+   * registros ja carregados; a query de `listAuditLogs` nao muda. */
+  page?: string
+  limit?: string
 }
 
 function parseDate(value: string | undefined, endOfDay = false) {
@@ -85,6 +90,10 @@ export default async function ClientsAuditPage({
     if (value && !((key === 'action' || key === 'clientId') && value === 'all')) csvParams.set(key, value)
   }
   const csvQuery = csvParams.size > 0 ? `?${csvParams.toString()}` : ''
+  // Sprint A53: badges/operadores/tenants da tabela e os KPIs navegam por
+  // <Link>; a chave do recorte remonta a tabela para voltar a pagina 1.
+  const tableKey = csvParams.toString()
+  const isAllActions = !filters.action || filters.action === 'all'
   const tenantsInScope =new Set(logs.map((l) => l.clientId).filter(Boolean)).size
 
   return (
@@ -124,13 +133,14 @@ export default async function ClientsAuditPage({
                 subtitle="no recorte atual (máx. 200)"
                 icon={<History />}
                 href="/admin/clients/audit"
+                active={isAllActions}
               />
               <KpiCard
                 label="Tenants no Recorte"
                 value={tenantsInScope}
                 subtitle="clientes com atividade"
                 icon={<Building2 />}
-                href="/admin/clients/audit"
+                href="/admin/clients/audit#clientId"
               />
               <KpiCard
                 label="Acesso a Chaves"
@@ -139,6 +149,7 @@ export default async function ClientsAuditPage({
                 icon={<KeyRound />}
                 tone="info"
                 href="/admin/clients/audit?action=credentials.view"
+                active={filters.action === 'credentials.view'}
               />
               <KpiCard
                 label="Exclusões"
@@ -148,6 +159,7 @@ export default async function ClientsAuditPage({
                 tone={deviceDeletes > 0 ? 'destructive' : 'neutral'}
                 emphasizeValue={deviceDeletes > 0}
                 href="/admin/clients/audit?action=device.delete"
+                active={filters.action === 'device.delete'}
               />
             </div>
 
@@ -179,9 +191,9 @@ export default async function ClientsAuditPage({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Tenant</label>
+                  <label htmlFor="clientId" className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Tenant</label>
                   <Select name="clientId" defaultValue={filters.clientId || "all"}>
-                    <SelectTrigger className="h-9 bg-muted/40">
+                    <SelectTrigger id="clientId" className="h-9 bg-muted/40">
                       <SelectValue placeholder="Todos os tenants" />
                     </SelectTrigger>
                     <SelectContent>
@@ -244,9 +256,13 @@ export default async function ClientsAuditPage({
               />
               <PanelBody flush>
                 <AuditLogTable
+                  key={tableKey}
                   logs={logs}
                   emptyMessage="Nenhum evento registrado nos critérios selecionados."
                   showTenant
+                  paginated
+                  initialPage={parsePageNumber(filters.page)}
+                  initialPageSize={parsePageSize(filters.limit)}
                 />
               </PanelBody>
             </Panel>

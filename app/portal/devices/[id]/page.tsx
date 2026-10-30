@@ -6,6 +6,7 @@ import { Panel, PanelBody } from '@/components/ui/panel'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs-lazy'
 import prisma from '@/lib/prisma'
+import { LATEST_AGENT_VERSION } from '@/lib/agent-version'
 import { getPortalDeviceMetrics, requirePortalContext, requirePortalDevice } from '@/lib/portal-context'
 import { getTenantAlertSettingsByClientId } from '@/lib/tenant-alert-settings'
 import { deriveInventoryIssues, getEffectiveDeviceStatus } from '@/lib/inventory-alerts'
@@ -85,7 +86,7 @@ export default async function PortalDeviceDetailPage({
             <div className="flex min-w-0 items-center gap-3.5">
               <span
                 aria-hidden="true"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-surface-line bg-surface-raise text-foreground/80"
               >
                 <Monitor className="h-5 w-5" />
               </span>
@@ -99,7 +100,14 @@ export default async function PortalDeviceDetailPage({
                     label={formatStatus(deviceHealth.effectiveStatus)}
                   />
                   {device.agentVersion ? (
-                    <StatusPill tone="info" label={`Agente v${device.agentVersion}`} />
+                    <StatusPill
+                      tone={device.agentVersion === LATEST_AGENT_VERSION ? 'info' : 'warning'}
+                      label={
+                        device.agentVersion === LATEST_AGENT_VERSION
+                          ? `Agente v${device.agentVersion}`
+                          : `Agente v${device.agentVersion} · v${LATEST_AGENT_VERSION} disponível`
+                      }
+                    />
                   ) : null}
                 </div>
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

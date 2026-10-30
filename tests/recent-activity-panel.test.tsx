@@ -121,6 +121,31 @@ describe('Atividade de auditoria — visibilidade por papel', () => {
   })
 })
 
+describe('Linhas clicaveis (Sprint A51)', () => {
+  it('cada descoberta leva a /network e cada evento de auditoria leva a /audit', () => {
+    render(
+      <RecentActivityPanel
+        discovery={{ enabled: true, items: DISCOVERED, href: DISCOVERY_HREF }}
+        audit={{
+          items: [
+            {
+              id: 'a-1',
+              actionLabel: 'Login',
+              actorLabel: 'admin@core-ti-expert.local',
+              targetLabel: null,
+              whenLabel: 'há 12 min',
+            },
+          ],
+          href: AUDIT_HREF,
+        }}
+      />
+    )
+
+    expect(screen.getByText('192.168.1.10').closest('a')?.getAttribute('href')).toBe(DISCOVERY_HREF)
+    expect(screen.getByText('Login').closest('a')?.getAttribute('href')).toBe(AUDIT_HREF)
+  })
+})
+
 describe('Traducoes defensivas do painel', () => {
   it('acao de auditoria desconhecida cai no proprio identificador, nao some da tela', () => {
     expect(formatAuditActionLabel('login')).toBe('Login')

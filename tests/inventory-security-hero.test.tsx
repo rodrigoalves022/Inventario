@@ -187,6 +187,22 @@ describe('Hero de conformidade — a base de calculo aparece ao lado do numero',
   })
 })
 
+describe('Hero de conformidade — cada indicador navega para o relatorio (Sprint A51)', () => {
+  it('os tres blocos sao links para reportsHref', () => {
+    const { indicators } = indicatorsOf(INVENTORY)
+
+    const { container } = render(
+      <InventorySecurityHero indicators={indicators} totalDevices={5} reportsHref="/app/cliente-a/reports" />
+    )
+
+    for (const label of ['BitLocker habilitado', 'Antivírus ativo', 'Firewall ativo']) {
+      expect(screen.getByText(label).closest('a')?.getAttribute('href')).toBe('/app/cliente-a/reports')
+    }
+    // 3 blocos + o "Relatório completo" do cabecalho.
+    expect(container.querySelectorAll('a[href="/app/cliente-a/reports"]')).toHaveLength(4)
+  })
+})
+
 describe('Tom do medidor de conformidade', () => {
   it('sem dado e neutro — nunca vermelho, que leria como "parque reprovado"', () => {
     expect(getComplianceTone(null)).toBe('neutral')

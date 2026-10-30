@@ -16,7 +16,16 @@ interface OsChartProps {
   data: ChartData[]
 }
 
-const COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+/** Sprint A51: `--chart-1` (laranja chapado) vai para o fim — num parque de um
+ * SO so, a fatia unica deixava o donut inteiro na cor mais gritante da tela. */
+const COLORS = [
+  'var(--chart-2)',
+  'var(--info)',
+  'var(--chart-3)',
+  'var(--chart-5)',
+  'var(--chart-4)',
+  'var(--chart-1)',
+]
 
 /** Tooltip tematizado (dark) do donut — mesmos tokens
  * de var(--popover)/var(--border) ja usados no Tooltip do BarChart abaixo. */
@@ -208,6 +217,9 @@ interface RamChartProps {
   data: { name: string; value: number }[]
   title?: string
   description?: string
+  /** Listagem para onde um clique na barra leva (Sprint A51). Sem ela o
+   * grafico fica so informativo, como o `computersPath` do donut. */
+  targetHref?: string
 }
 
 /**
@@ -220,7 +232,10 @@ export function RamDistributionChart({
   data,
   title = 'Distribuição de Memória',
   description = 'Quantidade de RAM por máquina',
+  targetHref,
 }: RamChartProps) {
+  const router = useRouter()
+
   return (
     <Panel>
       <PanelHeader title={title} description={description} />
@@ -249,11 +264,14 @@ export function RamDistributionChart({
                 labelStyle={{ color: 'var(--card-foreground)' }}
                 formatter={(value: number) => [`${value} máquina${value === 1 ? '' : 's'}`, 'Quantidade']}
               />
-              <Bar 
-                dataKey="value" 
-                fill="var(--chart-1)" 
+              <Bar
+                dataKey="value"
+                fill="var(--info)"
+                fillOpacity={0.75}
                 radius={[0, 4, 4, 0]}
                 maxBarSize={24}
+                cursor={targetHref ? 'pointer' : 'default'}
+                onClick={() => targetHref && router.push(targetHref)}
               />
             </BarChart>
           </ResponsiveContainer>

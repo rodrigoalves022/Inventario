@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { formatAuditActionLabel } from '@/lib/audit-action-labels'
 import type { AuditLogListItem } from '@/lib/audit-log'
 import { getTenantPath } from '@/lib/tenant-links'
 import { cn } from '@/lib/utils'
@@ -30,10 +31,9 @@ type AuditLogTableProps = {
   showTenant?: boolean
   tenantBasePath?: string | null
   /**
-   * Overhaul visual — Fase 3. Paginacao OPT-IN: `/app/[clientSlug]/audit` liga,
-   * `/admin/clients/audit` (fora do escopo desta fase) continua exatamente como
-   * estava, sem rodape e sem recorte. Por isso o default e' `false` em vez de
-   * paginar sempre.
+   * Overhaul visual — Fase 3. Paginacao OPT-IN: `/app/[clientSlug]/audit` e
+   * (Sprint A53) `/admin/clients/audit` ligam. O default continua `false` para
+   * que nenhum outro consumidor passe a recortar a lista sem pedir.
    *
    * Nao ha nada de server-side aqui: a query de `listAuditLogs` (LIMIT 200)
    * fica INTACTA e o rodape recorta os ate-200 registros ja carregados.
@@ -51,10 +51,10 @@ function formatDate(value: string) {
   }).format(new Date(value))
 }
 
+/** Sprint A53: o catalogo completo vive em `lib/audit-action-labels`; acao
+ * fora dele cai no proprio identificador. */
 function formatAction(action: string) {
-  if (action === 'credentials.view') return 'Visualização de credenciais'
-  if (action === 'device.delete') return 'Exclusão de máquina'
-  return action
+  return formatAuditActionLabel(action)
 }
 
 function formatTargetType(targetType: string) {
@@ -63,11 +63,25 @@ function formatTargetType(targetType: string) {
   return targetType
 }
 
+/** Sprint A53: tons calmos. Acesso a chaves e' informativo (azul `info`, nao o
+ * laranja de marca); so o que remove maquina/agente usa `destructive`. */
 function getActionTone(action: string) {
-  if (action === 'device.delete') return 'border-destructive/40 text-destructive'
-  if (action === 'credentials.view') return 'border-primary/40 text-primary'
-  return 'border-border text-foreground'
+  if (action === 'device.delete' || action === 'agent_auth.revoke' || action === 'agent_auth.remote_uninstall') {
+    return 'border-destructive/40 bg-destructive/10 text-destructive'
+  }
+  if (action === 'credentials.view' || action === 'credentials.rotate') return 'border-info/40 bg-info/10 text-info'
+  if (action === 'command.enqueue' || action === 'command.bulk_enqueue') {
+    return 'border-warning/40 bg-warning/10 text-warning'
+  }
+  return 'border-surface-line bg-surface-raise text-foreground/85'
 }
+
+/** Links relativos (`?action=`, `?actorEmail=`, `?clientId=`): ficam na mesma
+ * rota e trocam o recorte inteiro pelo valor clicado — mesmo efeito de
+ * escolher esse filtro sozinho no formulario. */
+const FILTER_LINK_CLASS = 'font-medium text-foreground hover:text-primary hover:underline'
+const FILTER_LINK_FOCUS_CLASS =
+  'rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 // Mesma paleta categorica dos graficos do dashboard (dashboard-charts.tsx):
 // var(--chart-1..5). Aqui vira so um ponto de re-identificacao visual, nao
@@ -178,13 +192,35 @@ export function AuditLogTable({
                       {formatDate(log.createdAt)}
                     </td>
                     <td className={TABLE_CELL_CLASS}>
-                      <Badge variant="outline" className={getActionTone(log.action)}>
-                        {formatAction(log.action)}
+                      <Badge
+                        asChild
+                        variant="outline"
+                        className={cn(
+                          getActionTone(log.action),
+                          'transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                        )}
+                      >
+                        <Link
+                          href={`?action=${encodeURIComponent(log.action)}`}
+                          title={`Filtrar por ação: ${formatAction(log.action)}`}
+                        >
+                          {formatAction(log.action)}
+                        </Link>
                       </Badge>
                     </td>
                     <td className={TABLE_CELL_CLASS}>
                       <div>
-                        <p className="font-medium text-foreground">{log.actorEmail ?? 'Sistema'}</p>
+                        {log.actorEmail ? (
+                          <Link
+                            href={`?actorEmail=${encodeURIComponent(log.actorEmail)}`}
+                            title={`Filtrar por operador: ${log.actorEmail}`}
+                            className={cn(FILTER_LINK_CLASS, FILTER_LINK_FOCUS_CLASS)}
+                          >
+                            {log.actorEmail}
+                          </Link>
+                        ) : (
+                          <p className="font-medium text-foreground">Sistema</p>
+                        )}
                         <p className="text-xs text-muted-foreground">{log.actorRole ?? 'sem role'}</p>
                       </div>
                     </td>
@@ -198,7 +234,17 @@ export function AuditLogTable({
                               aria-hidden="true"
                             />
                             <div>
-                              <p className="font-medium text-foreground">{log.clientName ?? log.clientSlug}</p>
+                              {log.clientId ? (
+                                <Link
+                                  href={`?clientId=${encodeURIComponent(log.clientId)}`}
+                                  title={`Filtrar por tenant: ${log.clientName ?? log.clientSlug}`}
+                                  className={cn(FILTER_LINK_CLASS, FILTER_LINK_FOCUS_CLASS)}
+                                >
+                                  {log.clientName ?? log.clientSlug}
+                                </Link>
+                              ) : (
+                                <p className="font-medium text-foreground">{log.clientName ?? log.clientSlug}</p>
+                              )}
                               <p className="text-xs text-muted-foreground">{log.clientSlug}</p>
                             </div>
                           </div>

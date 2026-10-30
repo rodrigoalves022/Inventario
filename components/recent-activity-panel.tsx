@@ -108,6 +108,11 @@ function BlockHeader({
   )
 }
 
+/** Linha clicavel das duas listas (Sprint A51). O foco visivel fica por dentro
+ * da linha (`ring-inset`) para nao vazar sobre o divisor da vizinha. */
+const ROW_LINK_CLASS =
+  'flex items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-surface-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
+
 function EmptyBlock({
   icon,
   children,
@@ -177,16 +182,19 @@ export function RecentActivityPanel({
             discoveryGrows && 'flex-1'
           )}
         >
+          {/* Sprint A51: cada linha leva a /network — o mesmo destino do "Ver rede". */}
           {discovery.items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-4 px-5 py-3">
-              <div className="min-w-0">
-                <p className="data-mono truncate text-sm font-medium text-foreground">{item.ip}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {DISCOVERED_TYPE_LABEL[item.deviceType]}
-                  {item.label ? ` · ${item.label}` : ''}
-                </p>
-              </div>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{item.lastSeenLabel}</span>
+            <li key={item.id}>
+              <Link href={discovery.href} className={ROW_LINK_CLASS}>
+                <div className="min-w-0">
+                  <p className="data-mono truncate text-sm font-medium text-foreground">{item.ip}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {DISCOVERED_TYPE_LABEL[item.deviceType]}
+                    {item.label ? ` · ${item.label}` : ''}
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{item.lastSeenLabel}</span>
+              </Link>
             </li>
           ))}
         </ul>
@@ -210,15 +218,17 @@ export function RecentActivityPanel({
           ) : (
             <ul className="flex-1 divide-y divide-surface-line border-t border-surface-line">
               {audit.items.map((item) => (
-                <li key={item.id} className="flex items-center justify-between gap-4 px-5 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{item.actionLabel}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {item.actorLabel}
-                      {item.targetLabel ? ` · ${item.targetLabel}` : ''}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{item.whenLabel}</span>
+                <li key={item.id}>
+                  <Link href={audit.href} className={ROW_LINK_CLASS}>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{item.actionLabel}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {item.actorLabel}
+                        {item.targetLabel ? ` · ${item.targetLabel}` : ''}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{item.whenLabel}</span>
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -177,7 +177,8 @@ describe('Paineis lado a lado — mesma casca, sem borda dentro de borda', () =>
     }
 
     const criticalRow = within(lists[0]).getByRole('link')
-    const discoveryRow = lists[1].querySelector('li')
+    // Sprint A51: o respiro da linha de descoberta mora no link, como no painel critico.
+    const discoveryRow = within(lists[1]).getByRole('link')
     expect(criticalRow.className).toContain('py-3')
     expect(criticalRow.className).not.toContain('py-3.5')
     expect(discoveryRow?.className).toContain('py-3')

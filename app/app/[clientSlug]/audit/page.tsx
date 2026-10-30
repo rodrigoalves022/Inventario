@@ -87,6 +87,12 @@ export default async function TenantAuditPage({
     if (value && !(key === 'action' && value === 'all')) csvParams.set(key, value)
   }
   const csvQuery = csvParams.size > 0 ? `?${csvParams.toString()}` : ''
+  // Sprint A53: badges/operadores da tabela e os KPIs navegam por <Link>
+  // (navegacao suave). A chave do recorte remonta a tabela para a pagina 1
+  // voltar a valer quando o filtro muda — sem ela o `useState` da pagina
+  // anterior sobreviveria ao novo recorte.
+  const tableKey = csvParams.toString()
+  const isAllActions = !filters.action || filters.action === 'all'
 
   return (
     <div className="space-y-6">
@@ -124,13 +130,14 @@ export default async function TenantAuditPage({
           icon={<History />}
           tone="primary"
           href={`${basePath}/audit`}
+          active={isAllActions}
         />
         <KpiCard
           label="Operadores no Recorte"
           value={new Set(logs.map((l) => l.actorEmail).filter(Boolean)).size}
           subtitle="contas com atividade"
           icon={<Users />}
-          href={`${basePath}/audit`}
+          href={`${basePath}/audit#actorEmail`}
         />
         <KpiCard
           label="Acesso a Chaves"
@@ -140,6 +147,7 @@ export default async function TenantAuditPage({
           tone="info"
           emphasizeValue={credentialViews > 0}
           href={`${basePath}/audit?action=credentials.view`}
+          active={filters.action === 'credentials.view'}
         />
         <KpiCard
           label="Exclusões"
@@ -149,6 +157,7 @@ export default async function TenantAuditPage({
           tone={deviceDeletes > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={deviceDeletes > 0}
           href={`${basePath}/audit?action=device.delete`}
+          active={filters.action === 'device.delete'}
         />
       </div>
 
@@ -182,10 +191,11 @@ export default async function TenantAuditPage({
           </div>
 
           <div className="space-y-2">
-            <label className="section-label flex items-center gap-1.5">
+            <label htmlFor="actorEmail" className="section-label flex items-center gap-1.5">
               <Search className="h-3 w-3" /> Usuário
             </label>
             <Input 
+              id="actorEmail"
               name="actorEmail" 
               type="search" 
               defaultValue={filters.actorEmail ?? ''} 
@@ -232,6 +242,7 @@ export default async function TenantAuditPage({
         />
         <PanelBody flush>
           <AuditLogTable
+            key={tableKey}
             logs={logs}
             emptyMessage="Nenhum evento registrado nos critérios selecionados para este tenant."
             tenantBasePath={basePath}

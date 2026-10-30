@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
-import { HardDrive, Monitor, TriangleAlert, Wifi, WifiOff } from 'lucide-react'
+import { Download, FileText, HardDrive, Monitor, TriangleAlert, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
+import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { OsDistributionChart, RamDistributionChart } from '@/components/dashboard-charts-lazy'
 import { TenantEmptyState } from '@/components/tenant-empty-state'
@@ -199,6 +200,21 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
             Monitoramento em tempo real dos ativos de TI da empresa <span className="font-medium text-foreground">{tenant.name}</span>.
           </p>
         </div>
+        {/* Sprint A51: atalho para os mesmos exports da tela de Relatorios. */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenantSlug}/reports/csv`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenantSlug}/reports/pdf`}>
+              <FileText className="h-4 w-4 mr-2" />
+              Baixar PDF
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/*
@@ -298,12 +314,13 @@ export default async function TenantDashboardPage({ params }: PageProps<'/app/[c
             ficar orfao ao lado de um vazio. */}
         <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
           <OsDistributionChart data={osData} computersPath={getTenantPath(tenantSlug, 'computers')} />
-          <RamDistributionChart data={ramData} />
+          <RamDistributionChart data={ramData} targetHref={getTenantPath(tenantSlug, 'computers')} />
           <div className="lg:col-span-2 xl:col-span-1">
             <RamDistributionChart
               data={diskData}
               title="Uso de disco por máquina"
               description="Quantidade de máquinas por faixa de uso — não soma capacidade"
+              targetHref={getTenantPath(tenantSlug, 'storage')}
             />
           </div>
         </div>

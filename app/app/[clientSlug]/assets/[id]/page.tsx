@@ -140,7 +140,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
             <div className="flex min-w-0 items-center gap-3.5">
               <span
                 aria-hidden="true"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-surface-line bg-surface-raise text-foreground/80"
               >
                 <Monitor className="h-5 w-5" />
               </span>

@@ -181,10 +181,12 @@ const TONE_VALUE_CLASS: Record<ComplianceTone, string> = {
   neutral: 'text-muted-foreground',
 }
 
+// Sprint A51: tons translucidos — o medidor continua semantico, mas deixa de
+// competir com o numero em text-4xl logo acima.
 const TONE_METER_CLASS: Record<ComplianceTone, string> = {
-  success: 'bg-success',
-  warning: 'bg-warning',
-  destructive: 'bg-destructive',
+  success: 'bg-success/70',
+  warning: 'bg-warning/70',
+  destructive: 'bg-destructive/75',
   neutral: 'bg-transparent',
 }
 
@@ -197,7 +199,7 @@ const INDICATOR_ICON: Record<SecurityIndicatorKey, React.ComponentType<{ classNa
 /**
  * Medidor de conformidade.
  *
- * Preenchimento CHAPADO no tom, como a barra de disco de /storage
+ * Preenchimento no tom (translucido desde a A51), como a barra de disco de /storage
  * (DISK_USAGE_TIER_BAR_CLASS) — mas com semantica invertida: aqui 100% e' o
  * alvo, entao o tom vem de `getComplianceTone`, nao do tier de disco.
  *
@@ -234,12 +236,17 @@ function ComplianceMeter({
   )
 }
 
-function IndicatorBlock({ indicator }: { indicator: SecurityIndicator }) {
+/** Sprint A51: o bloco inteiro e' um link para o relatorio analitico — o mesmo
+ * destino do "Relatório completo" do cabecalho, agora alcancavel pelo numero. */
+function IndicatorBlock({ indicator, href }: { indicator: SecurityIndicator; href: string }) {
   const tone = getComplianceTone(indicator.percent)
   const Icon = INDICATOR_ICON[indicator.key]
 
   return (
-    <div className="px-5 py-5">
+    <Link
+      href={href}
+      className="block px-5 py-5 transition-colors hover:bg-surface-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+    >
       <div className="flex items-center gap-3">
         <span className={cn('rounded-lg p-2', TONE_ICON_CLASS[tone])}>
           <Icon className="h-4 w-4" />
@@ -276,7 +283,7 @@ function IndicatorBlock({ indicator }: { indicator: SecurityIndicator }) {
         </p>
         {indicator.note ? <p className="text-xs text-muted-foreground/80">{indicator.note}</p> : null}
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -290,10 +297,11 @@ export function InventorySecurityHero({
   reportsHref: string
 }) {
   return (
-    // Sprint V23: brilho radial da cor de destaque no canto superior esquerdo.
+    // Sprint V23: brilho radial no canto superior esquerdo. A51: suavizado de
+    // --primary 12% para --info 7%.
     <Panel
       aria-labelledby="inventory-security-hero-title"
-      className="bg-[image:radial-gradient(ellipse_at_top_left,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_65%)]"
+      className="bg-[image:radial-gradient(ellipse_at_top_left,color-mix(in_oklch,var(--info)_7%,transparent),transparent_65%)]"
     >
       {/* Recuo de 20px, nao 24px. O hero ficava imediatamente acima dos dois
           paineis do bloco duplo, na mesma largura, e comecava o texto 4px mais
@@ -322,7 +330,7 @@ export function InventorySecurityHero({
 
       <div className="grid grid-cols-1 divide-y divide-surface-line border-t border-surface-line md:grid-cols-3 md:divide-x md:divide-y-0">
         {indicators.map((indicator) => (
-          <IndicatorBlock key={indicator.key} indicator={indicator} />
+          <IndicatorBlock key={indicator.key} indicator={indicator} href={reportsHref} />
         ))}
       </div>
     </Panel>
