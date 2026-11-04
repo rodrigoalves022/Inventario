@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, within, fireEvent, screen } from '@testing-library/react'
+import { render, within, fireEvent, screen, waitFor } from '@testing-library/react'
 import { TenantComputersTable, type TenantComputerRow } from '@/components/tenant-computers-table'
 
 const pushMock = vi.fn()
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('sonner', () => ({ toast: toastMock }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
@@ -204,5 +207,84 @@ describe('TenantComputersTable — seleção múltipla e barra de comando em lot
 
     fireEvent.click(rowCheckbox)
     expect(screen.queryByText('1 dispositivo selecionado')).toBeNull()
+  })
+})
+
+/**
+ * Sprint A64 — copiar hostname/IP direto da linha. O botao fica DENTRO de uma
+ * linha que navega no clique e no Enter/Espaco, entao o contrato e': copia,
+ * avisa (toast + icone) e NAO navega — nem por clique, nem por teclado.
+ */
+describe('TenantComputersTable — copiar hostname/IP sem navegar (Sprint A64)', () => {
+  const writeText = vi.fn()
+
+  beforeEach(() => {
+    pushMock.mockClear()
+    toastMock.success.mockClear()
+    toastMock.error.mockClear()
+    writeText.mockReset().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  })
+
+  it('clicar em "Copiar IP" copia o IP, mostra toast e NÃO navega', async () => {
+    const { container } = render(<TenantComputersTable devices={devices} />)
+    const table = within(container.querySelector('table') as HTMLElement)
+
+    fireEvent.click(table.getByRole('button', { name: 'Copiar IP 10.0.0.5' }))
+
+    await waitFor(() => expect(table.getByRole('button', { name: 'IP copiado' })).toBeTruthy())
+    expect(writeText).toHaveBeenCalledWith('10.0.0.5')
+    expect(toastMock.success).toHaveBeenCalledWith('IP copiado: 10.0.0.5')
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('clicar em "Copiar Hostname" copia o hostname e NÃO navega', async () => {
+    const { container } = render(<TenantComputersTable devices={devices} />)
+    const table = within(container.querySelector('table') as HTMLElement)
+
+    fireEvent.click(table.getByRole('button', { name: 'Copiar Hostname PC-01' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('PC-01'))
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('Enter com foco no botão de copiar não sobe até a linha (não navega)', () => {
+    const { container } = render(<TenantComputersTable devices={devices} />)
+    const table = within(container.querySelector('table') as HTMLElement)
+
+    fireEvent.keyDown(table.getByRole('button', { name: 'Copiar IP 10.0.0.5' }), { key: 'Enter' })
+
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('sem IP real, não há botão de copiar IP (o 0.0.0.0 é só placeholder)', () => {
+    const { container } = render(<TenantComputersTable devices={[{ ...devices[0], ip: null }]} />)
+    const table = within(container.querySelector('table') as HTMLElement)
+
+    expect(table.getByText('0.0.0.0')).toBeTruthy()
+    expect(table.queryByRole('button', { name: /^Copiar IP/ })).toBeNull()
+  })
+
+  it('falha do clipboard vira toast de erro e continua sem navegar', async () => {
+    writeText.mockRejectedValue(new Error('denied'))
+    const { container } = render(<TenantComputersTable devices={devices} />)
+    const table = within(container.querySelector('table') as HTMLElement)
+
+    fireEvent.click(table.getByRole('button', { name: 'Copiar IP 10.0.0.5' }))
+
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalled())
+    expect(toastMock.success).not.toHaveBeenCalled()
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('copiar não interfere na seleção em lote: a checkbox da linha segue funcionando', async () => {
+    render(<TenantComputersTable devices={devices} tenantSlug="cliente-a" canOperate />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar Hostname PC-01' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('PC-01'))
+    fireEvent.click(screen.getByLabelText('Selecionar PC-01'))
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(screen.getByText('1 dispositivo selecionado')).toBeTruthy()
   })
 })

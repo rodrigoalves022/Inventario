@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TenantServersTable, type TenantServerRow } from '@/components/tenant-servers-table'
 
 const pushMock = vi.fn()
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('sonner', () => ({ toast: toastMock }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
@@ -134,5 +137,64 @@ describe('TenantServersTable — busca (Sprint V31)', () => {
 
     expect(screen.queryByText('SRV-01')).toBeNull()
     expect(screen.getByText('DB-02')).toBeTruthy()
+  })
+})
+
+/** Sprint A64 — mesmo contrato de copia de tenant-computers-table.tsx. */
+describe('TenantServersTable — copiar hostname/IP sem navegar (Sprint A64)', () => {
+  const writeText = vi.fn()
+
+  beforeEach(() => {
+    pushMock.mockClear()
+    toastMock.success.mockClear()
+    toastMock.error.mockClear()
+    writeText.mockReset().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  })
+
+  it('clicar em "Copiar IP" copia o IP, mostra toast e NÃO navega', async () => {
+    render(<TenantServersTable servers={servers} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar IP 10.0.0.1' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'IP copiado' })).toBeTruthy())
+    expect(writeText).toHaveBeenCalledWith('10.0.0.1')
+    expect(toastMock.success).toHaveBeenCalledWith('IP copiado: 10.0.0.1')
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('clicar em "Copiar Hostname" copia o hostname e NÃO navega', async () => {
+    render(<TenantServersTable servers={servers} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar Hostname SRV-01' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('SRV-01'))
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('Enter com foco no botão de copiar não sobe até a linha (não navega)', () => {
+    render(<TenantServersTable servers={servers} />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Copiar Hostname SRV-01' }), { key: 'Enter' })
+
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('sem IP, mostra "-" e não há botão de copiar IP', () => {
+    render(<TenantServersTable servers={[{ ...servers[0], ip: null }]} />)
+
+    expect(screen.getByText('-', { selector: 'span' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Copiar IP/ })).toBeNull()
+  })
+
+  it('copiar não interfere na seleção em lote: a checkbox da linha segue funcionando', async () => {
+    render(<TenantServersTable servers={servers} tenantSlug="cliente-a" canOperate />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar IP 10.0.0.1' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('10.0.0.1'))
+    fireEvent.click(screen.getByLabelText('Selecionar SRV-01'))
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(screen.getByText('1 dispositivo selecionado')).toBeTruthy()
   })
 })

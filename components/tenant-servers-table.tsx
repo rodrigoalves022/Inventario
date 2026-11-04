@@ -12,6 +12,7 @@ import { Panel, PanelHeader } from '@/components/ui/panel'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { BulkCommandBar } from '@/components/bulk-command-bar'
 import { AnydeskBadge } from '@/components/anydesk-badge'
+import { CopyInlineButton } from '@/components/copy-inline-button'
 import { cn } from '@/lib/utils'
 import {
   CLICKABLE_ROW_CLASS,
@@ -276,7 +277,7 @@ export function TenantServersTable({
                     router.push(server.detailsPath)
                   }
                 }}
-                className={cn('border-b last:border-0', CLICKABLE_ROW_CLASS)}
+                className={cn('group border-b last:border-0', CLICKABLE_ROW_CLASS)}
               >
                 {canBulkOperate && (
                   <td className={TABLE_CELL_CLASS} onClick={(event) => event.stopPropagation()}>
@@ -288,20 +289,27 @@ export function TenantServersTable({
                   </td>
                 )}
                 <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>
-                  <Link
-                    href={server.detailsPath}
-                    onClick={(event) => event.stopPropagation()}
-                    className="text-foreground transition-colors hover:text-primary"
-                  >
-                    {server.hostname}
-                  </Link>
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={server.detailsPath}
+                      onClick={(event) => event.stopPropagation()}
+                      className="text-foreground transition-colors hover:text-primary"
+                    >
+                      {server.hostname}
+                    </Link>
+                    <CopyInlineButton value={server.hostname} label="Hostname" />
+                  </div>
                   {server.agentVersion ? (
                     <span className="data-mono mt-1 block text-[11px] text-muted-foreground">
                       Agente v{server.agentVersion}
                     </span>
                   ) : null}
                 </td>
-                <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>{server.ip ?? '-'}
+                <td className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>
+                  <div className="flex items-center gap-1">
+                    <span>{server.ip ?? '-'}</span>
+                    {server.ip ? <CopyInlineButton value={server.ip} label="IP" /> : null}
+                  </div>
                   <AnydeskBadge anydeskId={server.anydeskId} compact />
                 </td>
                 <td className={TABLE_CELL_CLASS}>{server.sistema ?? '-'}</td>

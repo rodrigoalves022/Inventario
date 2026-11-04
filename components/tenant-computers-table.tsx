@@ -31,6 +31,7 @@ import { LATEST_AGENT_VERSION } from '@/lib/agent-version'
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import type { TenantDeviceRow } from '@/lib/tenant-device-rows'
 import { AnydeskBadge } from '@/components/anydesk-badge'
+import { CopyInlineButton } from '@/components/copy-inline-button'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
   DEFAULT_PAGE_SIZE,
@@ -475,13 +476,16 @@ export function TenantComputersTable({
                       </td>
                     )}
                     <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>
-                      <Link
-                        href={device.detailsPath}
-                        onClick={(event) => event.stopPropagation()}
-                        className="text-foreground hover:text-primary transition-colors"
-                      >
-                        {device.hostname}
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        <Link
+                          href={device.detailsPath}
+                          onClick={(event) => event.stopPropagation()}
+                          className="text-foreground hover:text-primary transition-colors"
+                        >
+                          {device.hostname}
+                        </Link>
+                        <CopyInlineButton value={device.hostname} label="Hostname" />
+                      </div>
                       <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wide mt-1">
                         {device.sistema ?? 'N/A'}
                       </p>
@@ -492,9 +496,13 @@ export function TenantComputersTable({
                       </td>
                     )}
                     <td className={TABLE_CELL_CLASS}>
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                        {device.ip ?? '0.0.0.0'}
-                      </code>
+                      <div className="flex items-center gap-1">
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                          {device.ip ?? '0.0.0.0'}
+                        </code>
+                        {/* Sem IP real o '0.0.0.0' e' so placeholder — nada a copiar. */}
+                        {device.ip ? <CopyInlineButton value={device.ip} label="IP" /> : null}
+                      </div>
                       <div className="mt-1">
                         <AnydeskBadge anydeskId={device.anydeskId} compact />
                       </div>
