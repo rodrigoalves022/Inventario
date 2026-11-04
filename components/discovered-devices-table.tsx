@@ -63,6 +63,13 @@ const TYPE_FILTERS: Record<'all' | 'printers' | 'network' | 'nas', readonly Disc
 
 type TypeFilter = keyof typeof TYPE_FILTERS
 
+/** `?type=`/`?tipo=` chega cru da URL: so uma das 4 abas e' aceita, o resto
+ * cai em "Todos". `Object.hasOwn` (e nao `in`) para `?type=toString` nao
+ * passar como aba valida pelo prototipo do objeto. */
+function parseTypeFilter(value: string | undefined): TypeFilter {
+  return value && Object.hasOwn(TYPE_FILTERS, value) ? (value as TypeFilter) : 'all'
+}
+
 const TYPE_LABEL: Record<DiscoveredDeviceType, string> = {
   PRINTER: 'Impressora',
   SWITCH: 'Switch',
@@ -104,6 +111,7 @@ export function DiscoveredDevicesTable({
   discoveryEnabled,
   initialPage = 1,
   initialPageSize = DEFAULT_PAGE_SIZE,
+  initialTypeFilter,
   tenantSlug,
 }: {
   devices: DiscoveredDeviceRow[]
@@ -111,15 +119,17 @@ export function DiscoveredDevicesTable({
    * dispositivo" nao e' um dado sobre a rede, e' a feature desligada. */
   discoveryEnabled: boolean
   /** `?page=`/`?limit=` (Overhaul visual — Fase 3), revalidados aqui tambem.
-   * A aba de tipo e a busca continuam so em estado local: nunca tiveram
-   * parametro proprio na URL, e criar um agora seria escopo novo. */
+   * A busca continua so em estado local. */
   initialPage?: number
   initialPageSize?: number
+  /** Sprint A57: `?type=` (ou `?tipo=`) cru da URL, validado por
+   * `parseTypeFilter` — valor desconhecido abre em "Todos". */
+  initialTypeFilter?: string
   /** Habilita o botao "Baixar CSV" (exportacao escopada ao tenant no servidor). */
   tenantSlug?: string
 }) {
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(() => parseTypeFilter(initialTypeFilter))
   const [page, setPage] = useState(() => parsePageNumber(initialPage))
   const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
 
@@ -166,11 +176,20 @@ export function DiscoveredDevicesTable({
   }
 
   /** Trocar aba ou busca volta para a pagina 1 — caso contrario o usuario na
-   * pagina 3 de "Todos" cai numa pagina vazia ao filtrar "Impressoras". */
+   * pagina 3 de "Todos" cai numa pagina vazia ao filtrar "Impressoras".
+   *
+   * A aba vai para `?type=` ("Todos" some da URL, como os defaults de
+   * paginacao). `tipo` e' removido no mesmo sync: a page.tsx aceita os dois, e
+   * deixar um `?tipo=` antigo ao lado do `?type=` novo faria a proxima recarga
+   * depender de qual dos dois ela le primeiro. */
   function changeTypeFilter(nextTypeFilter: TypeFilter) {
     setTypeFilter(nextTypeFilter)
     setPage(1)
-    syncUrl(1, pageSize)
+    replaceListQueryParams({
+      type: nextTypeFilter !== 'all' ? nextTypeFilter : null,
+      tipo: null,
+      ...paginationQueryUpdates(1, pageSize),
+    })
   }
 
   function changeSearch(nextSearch: string) {

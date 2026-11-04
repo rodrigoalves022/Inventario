@@ -176,6 +176,14 @@ const SCRIPT_COMMANDS = [
   ],
 ] as const
 
+// Sprint A58: atalhos de 1 clique do `DeviceCommandPanel`. Cada um enfileira
+// `run_script` com o `scriptId` fixo, pela mesma action do seletor de scripts.
+const QUICK_DIAGNOSTICS = [
+  ['defender_quick_scan', 'Atualiza as assinaturas e roda a varredura rápida do Windows Defender.'],
+  ['windows_update_check', 'Lista as atualizações pendentes do Windows Update, com a severidade MSRC.'],
+  ['network_diag', 'Coleta IPs, rotas e portas em escuta da máquina.'],
+] as const
+
 const TENANT_EXPORTS = [
   ['Relatórios analíticos', '/api/tenant/[slug]/reports/csv', 'Uma linha por máquina: status, IP, AnyDesk ID, SO, hardware, antivírus/firewall e patrimônio (delimitador vírgula). É também o "Baixar CSV" de Todos os dispositivos (/assets).'],
   ['Relatório executivo PDF', '/api/tenant/[slug]/reports/pdf', 'PDF analítico com governança do parque, agentes, AnyDesk, patrimônio/garantias e famílias de processadores.'],
@@ -188,7 +196,7 @@ const TENANT_EXPORTS = [
   ['Armazenamento', '/api/tenant/[slug]/storage/csv', 'Unidades por máquina: tipo, modelo, capacidade, uso e BitLocker.'],
   ['Processadores', '/api/tenant/[slug]/processors/csv', 'Processadores por modelo e fabricante, com quantidade e lista de máquinas.'],
   ['Endereços IP', '/api/tenant/[slug]/network/ips/csv', 'Uma linha por interface: IP, MAC, gateway, DNS, DHCP/estático, primária e status da máquina.'],
-  ['Dispositivos descobertos', '/api/tenant/[slug]/network/discovered/csv', 'Ativos encontrados pela descoberta de rede: IP, MAC, fabricante, tipo, portas abertas e descrição SNMP (delimitador vírgula).'],
+  ['Dispositivos descobertos', '/api/tenant/[slug]/network/discovered/csv', 'Ativos sem agente encontrados pela descoberta de rede: IP, MAC, hostname, fabricante, tipo, portas abertas, descrição SNMP e primeira/última detecção, ordenados por tipo e IP (delimitador vírgula). É o "Baixar CSV (Descobertos)" de /network, ao lado de "Baixar CSV (IPs)"; exporta todos os tipos, independente da aba ativa.'],
   ['Alertas', '/api/tenant/[slug]/alerts/csv', 'Disparos de alerta do tenant.'],
   ['Auditoria do tenant', '/api/tenant/[slug]/audit/csv', 'Trilha de auditoria do tenant.'],
 ] as const
@@ -207,6 +215,7 @@ const KPI_FILTERS = [
   ['Visão Geral do tenant', 'Cards de status levam a /assets?status=online, offline ou warning. Os 3 blocos do Hero de Segurança (BitLocker, Antivírus, Firewall) abrem o relatório analítico; as linhas de Descoberta de Rede levam a /network e as de Auditoria Recente, à auditoria; as barras de RAM e Disco abrem Computadores e Armazenamento. "Baixar CSV" e "Baixar PDF" usam /reports/csv e /reports/pdf.'],
   ['Computadores, Servidores, Armazenamento, Processadores', 'Os cards filtram a tabela na própria página; Servidores inclui "Agente desatualizado" (versão diferente de LATEST_AGENT_VERSION). Clicar de novo no card ativo limpa o filtro.'],
   ['Alertas', 'Regras ativas, Disparos em aberto (?state=open), Críticos abertos (?severity=critical) e Resolvidos (?state=resolved).'],
+  ['Rede', 'Em /network, as abas da tabela de dispositivos descobertos (Todos, Impressoras, Roteadores/Switches e NAS) gravam ?type= na URL (?tipo= também é aceito), então o recorte sobrevive a recarregar e compartilhar o link; Access Points entram em Roteadores/Switches e os não identificados só aparecem em Todos. Trocar de aba volta para a página 1. Os cards Segmentos e Hosts Mapeados levam à tabela de segmentos, Hosts Online abre /assets?status=online e Descobertos s/ Agente leva à tabela de descobertos.'],
   ['Portal', '/portal?status=online, warning ou offline filtra a lista de máquinas do cliente e se combina com a busca ?q=. A contagem de programas segue a deduplicação do Painel de Controle (appwiz.cpl); "Baixar CSV" e "Baixar PDF" usam /api/portal/reports/csv e /pdf.'],
   ['Auditoria do tenant e global', 'Em /app/[clientSlug]/audit e /admin/clients/audit, o badge da ação (?action=), o e-mail do operador (?actorEmail=) e, na auditoria global, o cliente (?clientId=) filtram direto da tabela. As 21 ações do catálogo têm rótulo em português.'],
   ['Admin: clientes', 'Total de clientes, Clientes ativos, Agentes ativos (clientes com agente) e Sem agentes filtram a lista de clientes.'],
@@ -525,6 +534,28 @@ export function DocsHub() {
                 </dl>
               </PanelBody>
             </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Terminal className="h-4 w-4" />}
+                title="Diagnósticos Rápidos (1 clique)"
+                description="Atalhos do painel Comandos remotos da máquina (DeviceCommandPanel), sem escolher o script no seletor."
+              />
+              <PanelBody className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Cada atalho enfileira <Code>run_script</Code> com o <Code>scriptId</Code> já definido, pela mesma action do
+                  seletor de scripts. O agente executa no próximo ciclo (~90s) e a saída aparece no console expansível da aba{' '}
+                  <strong className="text-foreground">Comandos</strong>.
+                </p>
+                <dl className="divide-y divide-surface-line">
+                  {QUICK_DIAGNOSTICS.map(([name, text]) => (
+                    <Row key={name} term={<Code>{name}</Code>}>
+                      {text}
+                    </Row>
+                  ))}
+                </dl>
+              </PanelBody>
+            </Panel>
           </TabsContent>
 
           <TabsContent value="anydesk" className="space-y-6">
@@ -637,6 +668,35 @@ export function DocsHub() {
                       {text}
                     </Row>
                   ))}
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<ShieldCheck className="h-4 w-4" />}
+                title="Governança dos Diagnósticos Rápidos"
+                description="Os atalhos de 1 clique seguem as mesmas regras de qualquer comando remoto."
+              />
+              <PanelBody>
+                <dl className="divide-y divide-surface-line">
+                  <Row term="Atalhos">
+                    <Code>defender_quick_scan</Code>, <Code>windows_update_check</Code> e <Code>network_diag</Code>, no painel
+                    Comandos remotos da máquina (<Code>DeviceCommandPanel</Code>).
+                  </Row>
+                  <Row term="Quem pode disparar">
+                    <Code>canOperateTenant</Code>: PLATFORM_ADMIN, ou ORG_ADMIN e ORG_OPERATOR da organização do cliente.{' '}
+                    <Code>CLIENT_VIEWER</Code> não enfileira comandos.
+                  </Row>
+                  <Row term="Allowlist">
+                    O <Code>scriptId</Code> é validado contra o catálogo fechado no servidor e no agente Go; nenhum texto de
+                    script trafega pela rede.
+                  </Row>
+                  <Row term="Trilha de auditoria">
+                    Cada disparo grava <Code>command.enqueue</Code> na auditoria do tenant, exportável por{' '}
+                    <Code>/api/tenant/[slug]/audit/csv</Code>.
+                  </Row>
+                  <Row term="Validade">TTL de 15 minutos: se o agente não buscar o comando nesse prazo, ele expira.</Row>
                 </dl>
               </PanelBody>
             </Panel>

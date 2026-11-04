@@ -43,7 +43,6 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
   const { clientSlug } = await params
   const tenant = await requireTenantContext(clientSlug)
   const tenantSlug = tenant.slug
-  const networkPath = getTenantPath(tenantSlug, 'network')
 
   // Overhaul visual — Fase 3: `?page=`/`?limit=` do rodape da tabela de
   // dispositivos descobertos. A tabela de SEGMENTOS acima dela nao pagina —
@@ -52,6 +51,12 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
   const resolvedSearchParams = (await searchParams) ?? {}
   const initialPage = parsePageNumber(resolvedSearchParams.page)
   const initialPageSize = parsePageSize(resolvedSearchParams.limit)
+
+  // Sprint A57: aba de tipo da tabela de descobertos. `?type=` e' o que a
+  // tabela escreve; `?tipo=` e' aceito tambem, como em /storage. O valor segue
+  // cru — quem o valida contra as 4 abas e' a tabela (o catalogo mora la).
+  const typeParam = resolvedSearchParams.type ?? resolvedSearchParams.tipo
+  const initialTypeFilter = typeof typeParam === 'string' ? typeParam : typeParam?.[0]
 
   const [networks, discoveredRows, tenantSettings] = await Promise.all([
     prisma.network.findMany({
@@ -148,12 +153,20 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
             {segments.length} segmento{segments.length !== 1 ? 's' : ''} identificado{segments.length !== 1 ? 's' : ''} a partir das interfaces do tenant atual.
           </p>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <a href={`/api/tenant/${tenantSlug}/network/ips/csv`}>
-            <Download className="h-4 w-4 mr-2" />
-            Baixar CSV (IPs)
-          </a>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenantSlug}/network/ips/csv`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV (IPs)
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/tenant/${tenantSlug}/network/discovered/csv`}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar CSV (Descobertos)
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -163,7 +176,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle="Sub-redes identificadas pelas interfaces"
           icon={<Network className="h-4 w-4" />}
           tone="primary"
-          href={networkPath}
+          href="#network-segments"
         />
         <KpiCard
           label="Hosts Mapeados"
@@ -171,7 +184,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle={`${networks.length} interface${networks.length !== 1 ? 's' : ''} reportada${networks.length !== 1 ? 's' : ''}`}
           icon={<Router className="h-4 w-4" />}
           tone="neutral"
-          href={networkPath}
+          href="#network-segments"
         />
         <KpiCard
           label="Hosts Online"
@@ -179,7 +192,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle="Dispositivos ativos nos segmentos"
           icon={<Wifi className="h-4 w-4" />}
           tone={activeHosts > 0 ? 'success' : 'neutral'}
-          href={networkPath}
+          href={getTenantPath(tenantSlug, 'assets?status=online')}
         />
         <KpiCard
           label="Descobertos s/ Agente"
@@ -187,11 +200,11 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
           subtitle={discoveryEnabled ? 'Varredura automática ativa' : 'Varredura de rede desabilitada'}
           icon={<Radar className="h-4 w-4" />}
           tone={discoveredCount > 0 ? 'info' : 'neutral'}
-          href={networkPath}
+          href="#discovered-devices"
         />
       </div>
 
-      <Panel>
+      <Panel id="network-segments" className="scroll-mt-20">
         <PanelHeader
           icon={<Network className="h-4 w-4" />}
           title="Segmentos de rede (/24)"
@@ -251,7 +264,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
       {/* Sprint 14 (RF028) — secao NOVA, adicional a de segmentos acima (que
           continua derivando das interfaces das maquinas COM agente). Esta lista
           e' o oposto: dispositivos SEM agente, achados pela varredura. */}
-      <Panel>
+      <Panel id="discovered-devices" className="scroll-mt-20">
         <PanelHeader
           icon={<Radar className="h-4 w-4" />}
           title="Dispositivos descobertos na rede"
@@ -263,6 +276,7 @@ export default async function TenantNetworkPage({ params, searchParams }: PagePr
             discoveryEnabled={discoveryEnabled}
             initialPage={initialPage}
             initialPageSize={initialPageSize}
+            initialTypeFilter={initialTypeFilter}
             tenantSlug={tenantSlug}
           />
         </PanelBody>

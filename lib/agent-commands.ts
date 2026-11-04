@@ -77,3 +77,47 @@ export const SCRIPT_CATALOG_LABELS: Record<(typeof SCRIPT_CATALOG_IDS)[number], 
   defender_quick_scan: 'Atualizar assinaturas e varredura rápida (Defender)',
   windows_update_check: 'Verificar atualizações pendentes do sistema',
 }
+
+/**
+ * O que cada script faz, para o operador decidir antes de enfileirar.
+ * `command` resume o que o agente roda (agent-go/internal/app/commands/
+ * execute_windows.go) — e' texto de exibicao, nunca vai para a rede.
+ */
+export const SCRIPT_CATALOG_DETAILS: Record<(typeof SCRIPT_CATALOG_IDS)[number], { description: string; command: string }> = {
+  flush_dns: {
+    description: 'Descarta o cache de resolução de nomes da máquina. Use quando um site ou servidor mudou de IP.',
+    command: 'ipconfig /flushdns',
+  },
+  clear_temp_files: {
+    description: 'Apaga os arquivos temporários do serviço do agente (LocalSystem), não os do usuário logado.',
+    command: 'del /Q /F /S "%TEMP%\\*"',
+  },
+  restart_explorer: {
+    description: 'Encerra e reabre o Explorer: a barra de tarefas e as pastas abertas do usuário logado somem por alguns segundos.',
+    command: 'taskkill /IM explorer.exe /F; explorer.exe',
+  },
+  flush_print_spooler: {
+    description: 'Para o spooler, apaga os trabalhos presos na fila de impressão e inicia o serviço de novo.',
+    command: 'Spooler: parar, limpar spool\\PRINTERS, iniciar',
+  },
+  gpupdate_force: {
+    description: 'Reaplica as políticas de grupo do computador e do usuário sem esperar o ciclo do domínio.',
+    command: 'gpupdate /force',
+  },
+  network_diag: {
+    description: 'Devolve adaptadores e IPs, a tabela de rotas IPv4 e as portas TCP em escuta, com o PID de cada uma.',
+    command: 'ipconfig /all; route print -4; netstat -ano | findstr LISTENING',
+  },
+  system_health_summary: {
+    description: 'Lista os 15 processos que mais ocupam memória, com o tempo de CPU de cada um.',
+    command: 'Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 15',
+  },
+  defender_quick_scan: {
+    description: 'Atualiza as assinaturas do Microsoft Defender, roda a varredura rápida e devolve o estado da proteção em tempo real.',
+    command: 'Update-MpSignature; Start-MpScan -ScanType QuickScan',
+  },
+  windows_update_check: {
+    description: 'Consulta o Windows Update e devolve quantas KBs estão pendentes, com título e severidade das 15 primeiras. Não instala nada.',
+    command: "Microsoft.Update.Session: Search('IsInstalled=0')",
+  },
+}

@@ -39,4 +39,23 @@ describe('DocsHub', () => {
     expect(screen.getAllByText('update_agent').length).toBeGreaterThan(0)
     expect(screen.getByText('Atualizar agente agora')).toBeTruthy()
   })
+
+  it('documenta os Diagnósticos Rápidos de 1 clique (Sprint A59)', () => {
+    render(<DocsHub />)
+    openTab(/Auto-Update & Comandos/)
+    expect(screen.getByText('Diagnósticos Rápidos (1 clique)')).toBeTruthy()
+    for (const script of ['defender_quick_scan', 'windows_update_check', 'network_diag']) {
+      expect(screen.getAllByText(script).length).toBeGreaterThan(1)
+    }
+  })
+
+  it('documenta o CSV de descobertos, as abas de /network e a governança dos atalhos (Sprint A59)', () => {
+    render(<DocsHub />)
+    openTab(/Relatórios, Exportações & Governança/)
+    expect(screen.getByText('/api/tenant/[slug]/network/discovered/csv')).toBeTruthy()
+    expect(screen.getByText(/Baixar CSV \(Descobertos\)/)).toBeTruthy()
+    expect(screen.getByText(/gravam \?type= na URL/)).toBeTruthy()
+    expect(screen.getByText('Governança dos Diagnósticos Rápidos')).toBeTruthy()
+    expect(screen.getByText('command.enqueue')).toBeTruthy()
+  })
 })
