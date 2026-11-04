@@ -97,4 +97,21 @@ describe('DocsHub', () => {
     expect(portal.textContent).toContain('CLIENT_VIEWER')
     expect(screen.getByText(/não enfileira comando, não grava auditoria/)).toBeTruthy()
   })
+
+  it('documenta o resumo do parque e a matriz de risco das contas locais no Portal do Cliente (Sprint A69)', () => {
+    render(<DocsHub />)
+    openTab(/Relatórios, Exportações & Governança/)
+    expect(screen.getByText('Portal do Cliente')).toBeTruthy()
+    expect(screen.getByText('Memória RAM total')).toBeTruthy()
+    expect(screen.getByText(/Soma de N de M máquina\(s\) com memória informada/)).toBeTruthy()
+    expect(screen.getByText(/Windows, Linux, outros sistemas e sem sistema informado/)).toBeTruthy()
+    expect(screen.getByText(/mudam a lista de máquinas, não o resumo/)).toBeTruthy()
+    expect(screen.getByText('Matriz das abas de risco')).toBeTruthy()
+    for (const tab of ['all', 'admin_enabled', 'never_expires', 'critical']) {
+      expect(screen.getByText(`?tab=${tab}`)).toBeTruthy()
+    }
+    expect(screen.getByText('Card: Risco crítico (Admin + Sem expiração).')).toBeTruthy()
+    const risk = screen.getByText(/Crítico: conta habilitada, administradora/)
+    expect(risk.textContent).toContain('inclusive toda conta desabilitada')
+  })
 })

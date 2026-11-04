@@ -132,7 +132,7 @@ describe('PortalHomePage (Sprint A66)', () => {
       updatedAt: new Date(Date.now() - 5 * 60_000),
       usuario: 'ana',
       anydeskId: '123456789',
-      hardware: { sistema: 'Windows 11' },
+      hardware: { sistema: 'Windows 11', ramTotalGb: 16, processador: 'Intel i5' },
       networks: [{ ip: '10.0.0.5' }],
       software: [{ nome: 'Chrome', versao: '1', editor: 'Google', installadoEm: null }],
     },
@@ -216,5 +216,53 @@ describe('PortalHomePage (Sprint A66)', () => {
     render(await PortalHomePage({ searchParams: Promise.resolve({ status: 'warning' }) }))
     expect(screen.queryByRole('link', { name: 'PC-01' })).toBeNull()
     expect(screen.getByText('Nenhuma máquina com este status.')).toBeTruthy()
+  })
+})
+
+describe('PortalHomePage resumo do parque (Sprint A67)', () => {
+  const base = { status: 'online', updatedAt: new Date(), usuario: null, anydeskId: null, networks: [], software: [] }
+  const fleet = [
+    { ...base, id: 'd1', hostname: 'PC-01', hardware: { sistema: 'Microsoft Windows 11 Pro', ramTotalGb: 16, processador: 'i5' } },
+    { ...base, id: 'd2', hostname: 'PC-02', hardware: { sistema: 'Windows Server 2022', ramTotalGb: 64, processador: 'Xeon' } },
+    // PRETTY_NAME do os-release, sem a palavra "Linux".
+    { ...base, id: 'd3', hostname: 'SRV-01', hardware: { sistema: 'Ubuntu 22.04.3 LTS', ramTotalGb: 32, processador: 'EPYC' } },
+    { ...base, id: 'd4', hostname: 'MAC-01', hardware: { sistema: 'macOS 14', ramTotalGb: null, processador: null } },
+    { ...base, id: 'd5', hostname: 'PC-05', status: 'offline', hardware: null },
+  ]
+
+  it('seleciona RAM e processador e resume RAM total e sistemas do parque inteiro', async () => {
+    findDevices.mockResolvedValue(fleet)
+    // Filtro ativo nao muda o resumo: ele e do parque, nao da lista.
+    render(await PortalHomePage({ searchParams: Promise.resolve({ status: 'offline' }) }))
+
+    expect(findDevices.mock.calls[0][0].select.hardware).toEqual({
+      select: { sistema: true, ramTotalGb: true, processador: true },
+    })
+
+    const summary = screen.getByRole('list', { name: 'Resumo do parque' })
+    const pills = within(summary).getAllByRole('listitem').map((item) => item.textContent)
+    expect(pills).toEqual([
+      '112 GB de memória RAM total',
+      '2 Windows',
+      '1 Linux',
+      '1 outro sistema',
+      '1 sem sistema informado',
+    ])
+    expect(within(summary).getAllByRole('listitem')[0].getAttribute('title')).toBe(
+      'Soma de 3 de 5 máquina(s) com memória informada',
+    )
+  })
+
+  it('omite sistemas zerados e o resumo quando nao ha maquinas', async () => {
+    findDevices.mockResolvedValue([fleet[0]])
+    render(await PortalHomePage({ searchParams: Promise.resolve({}) }))
+    const items = within(screen.getByRole('list', { name: 'Resumo do parque' })).getAllByRole('listitem')
+    expect(items.map((item) => item.textContent)).toEqual(['16 GB de memória RAM total', '1 Windows'])
+    expect(items[0].getAttribute('title')).toBeNull()
+
+    cleanup()
+    findDevices.mockResolvedValue([])
+    render(await PortalHomePage({ searchParams: Promise.resolve({}) }))
+    expect(screen.queryByRole('list', { name: 'Resumo do parque' })).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertCircle, ChevronRight, Clock, Download, FileText, Monitor, Search, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ChevronRight, Clock, Download, FileText, MemoryStick, Monitor, Search, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { requirePortalContext } from '@/lib/portal-context'
 import { deduplicateDeviceSoftware } from '@/lib/software-catalog'
@@ -27,6 +27,22 @@ function formatRelative(date: Date | null) {
   const days = Math.floor(hrs / 24)
   return `há ${days} dia${days > 1 ? 's' : ''}`
 }
+
+type OsFamily = 'windows' | 'linux' | 'other' | 'unknown'
+
+// O agente Linux manda o PRETTY_NAME do /etc/os-release ("Ubuntu 22.04.3 LTS"),
+// que nem sempre traz a palavra "Linux"; por isso a lista de distros.
+const LINUX_PATTERN = /linux|ubuntu|debian|centos|fedora|red hat|rhel|rocky|alma|suse|mint/i
+
+function osFamily(sistema: string | null | undefined): OsFamily {
+  if (!sistema) return 'unknown'
+  if (/windows/i.test(sistema)) return 'windows'
+  if (LINUX_PATTERN.test(sistema)) return 'linux'
+  return 'other'
+}
+
+const summaryPill =
+  'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-surface-line bg-surface-raise px-2 py-0.5 text-xs text-muted-foreground'
 
 type PortalStatusFilter = 'all' | 'online' | 'offline' | 'warning'
 
@@ -60,7 +76,7 @@ export default async function PortalHomePage(
       updatedAt: true,
       usuario: true,
       anydeskId: true,
-      hardware: { select: { sistema: true } },
+      hardware: { select: { sistema: true, ramTotalGb: true, processador: true } },
       networks: {
         where: { isPrimary: true },
         take: 1,
@@ -76,6 +92,24 @@ export default async function PortalHomePage(
   const online = devices.filter((device) => device.status === 'online').length
   const warning = devices.filter((device) => device.status === 'warning').length
   const offline = total - online - warning
+  // Resumo do parque inteiro, nao da lista filtrada: busca e status nao mudam estes numeros.
+  let totalRamGb = 0
+  let ramReported = 0
+  const osCounts: Record<OsFamily, number> = { windows: 0, linux: 0, other: 0, unknown: 0 }
+  for (const device of devices) {
+    const ram = device.hardware?.ramTotalGb
+    if (ram != null) {
+      totalRamGb += ram
+      ramReported += 1
+    }
+    osCounts[osFamily(device.hardware?.sistema)] += 1
+  }
+  const osSegments = [
+    { key: 'windows', count: osCounts.windows, label: 'Windows' },
+    { key: 'linux', count: osCounts.linux, label: 'Linux' },
+    { key: 'other', count: osCounts.other, label: osCounts.other === 1 ? 'outro sistema' : 'outros sistemas' },
+    { key: 'unknown', count: osCounts.unknown, label: 'sem sistema informado' },
+  ].filter((segment) => segment.count > 0)
   const needle = query.toLowerCase()
   const visibleDevices = devices.filter((device) => {
     if (statusFilter !== 'all') {
@@ -116,38 +150,70 @@ export default async function PortalHomePage(
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Máquinas" value={total} subtitle="equipamentos monitorados" icon={<Monitor />} href={portalHref('all', query)} active={statusFilter === 'all'} />
-        <KpiCard
-          label="Online"
-          value={online}
-          subtitle="reportando normalmente"
-          href={portalHref('online', query)}
-          active={statusFilter === 'online'}
-          icon={<Wifi />}
-          tone="success"
-          emphasizeValue={online > 0}
-        />
-        <KpiCard
-          label="Em atenção"
-          value={warning}
-          subtitle="com alerta operacional"
-          href={portalHref('warning', query)}
-          active={statusFilter === 'warning'}
-          icon={<AlertCircle />}
-          tone={warning > 0 ? 'warning' : 'neutral'}
-          emphasizeValue={warning > 0}
-        />
-        <KpiCard
-          label="Offline"
-          value={offline}
-          subtitle="sem check-in recente"
-          href={portalHref('offline', query)}
-          active={statusFilter === 'offline'}
-          icon={<WifiOff />}
-          tone={offline > 0 ? 'destructive' : 'neutral'}
-          emphasizeValue={offline > 0}
-        />
+      <div className="space-y-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Máquinas" value={total} subtitle="equipamentos monitorados" icon={<Monitor />} href={portalHref('all', query)} active={statusFilter === 'all'} />
+          <KpiCard
+            label="Online"
+            value={online}
+            subtitle="reportando normalmente"
+            href={portalHref('online', query)}
+            active={statusFilter === 'online'}
+            icon={<Wifi />}
+            tone="success"
+            emphasizeValue={online > 0}
+          />
+          <KpiCard
+            label="Em atenção"
+            value={warning}
+            subtitle="com alerta operacional"
+            href={portalHref('warning', query)}
+            active={statusFilter === 'warning'}
+            icon={<AlertCircle />}
+            tone={warning > 0 ? 'warning' : 'neutral'}
+            emphasizeValue={warning > 0}
+          />
+          <KpiCard
+            label="Offline"
+            value={offline}
+            subtitle="sem check-in recente"
+            href={portalHref('offline', query)}
+            active={statusFilter === 'offline'}
+            icon={<WifiOff />}
+            tone={offline > 0 ? 'destructive' : 'neutral'}
+            emphasizeValue={offline > 0}
+          />
+        </div>
+
+        {total > 0 && (
+          <ul aria-label="Resumo do parque" className="flex flex-wrap items-center gap-2">
+            <li
+              className={summaryPill}
+              title={
+                ramReported < total
+                  ? `Soma de ${ramReported} de ${total} máquina(s) com memória informada`
+                  : undefined
+              }
+            >
+              <MemoryStick className="h-3 w-3" aria-hidden="true" />
+              {ramReported > 0 ? (
+                <>
+                  <span className="font-medium tabular-nums text-foreground">
+                    {totalRamGb.toLocaleString('pt-BR')} GB
+                  </span>{' '}
+                  de memória RAM total
+                </>
+              ) : (
+                'Memória RAM não informada'
+              )}
+            </li>
+            {osSegments.map((segment) => (
+              <li key={segment.key} className={summaryPill}>
+                <span className="font-medium tabular-nums text-foreground">{segment.count}</span> {segment.label}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <Panel>

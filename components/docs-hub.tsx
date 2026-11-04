@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Terminal,
+  Users,
 } from 'lucide-react'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
@@ -235,6 +236,24 @@ const COPY_SHORTCUTS = [
   ['Portal do cliente', 'Na lista de /portal, o IP e o AnyDesk de cada máquina têm ícone de copiar fora do link da máquina, então copiar não abre a ficha; máquina sem IP mostra "sem IP", sem botão. Na ficha (/portal/devices/[id]), o CLIENT_VIEWER tem o mesmo badge do AnyDesk da ficha do tenant, com o ícone de copiar e "Conectar".'],
   ['Confirmação', 'Nas listas do tenant e do Portal, o ícone vira um check por 1,5 s e um aviso mostra o valor copiado; no badge do AnyDesk, aparece "Copiado" por 2 s. Fora de contexto seguro (HTTPS ou localhost) o navegador não libera a área de transferência: nas listas, o aviso pede a cópia manual.'],
   ['Governança', 'Copiar acontece só no navegador: não enfileira comando, não grava auditoria e não exige papel além do acesso de leitura à tela.'],
+] as const
+
+// Sprint A67: faixa "Resumo do parque" abaixo dos cards de /portal.
+const PORTAL_FLEET_SUMMARY = [
+  ['Escopo', 'Tudo no Portal é do próprio cliente do CLIENT_VIEWER e só das máquinas com agente ativo (credencial não revogada).'],
+  ['Memória RAM total', 'Soma da RAM de todas as máquinas, em GB. Se só parte delas informou a memória, passar o mouse sobre o valor mostra "Soma de N de M máquina(s) com memória informada"; se nenhuma informou, aparece "Memória RAM não informada".'],
+  ['Sistemas operacionais', 'Uma pílula por família com ao menos uma máquina: Windows, Linux, outros sistemas e sem sistema informado. Linux inclui as distros cujo nome não traz a palavra "Linux", como Ubuntu, Debian, Rocky e Alma.'],
+  ['Sem filtro', 'O resumo conta o parque inteiro: a busca ?q= e os cards ?status= mudam a lista de máquinas, não o resumo. Parque sem máquinas não mostra a faixa.'],
+  ['Detalhe', 'A distribuição por versão de sistema, por processador e por quantidade de RAM fica em /portal/reports.'],
+] as const
+
+// Espelha `FILTERS` de components/tenant-local-accounts-table.tsx e os cards
+// de app/portal/local-accounts/page.tsx (Sprint A68).
+const LOCAL_ACCOUNT_TABS = [
+  ['Todas', 'all', 'Todas as contas reportadas, habilitadas ou não.', 'Total de contas locais'],
+  ['Admins ativos', 'admin_enabled', 'Contas habilitadas com privilégio de administrador.', 'Admins locais ativos'],
+  ['Senha sem expiração', 'never_expires', 'Contas habilitadas cuja senha nunca expira.', 'Senha nunca expira (ativas)'],
+  ['Risco crítico', 'critical', 'Contas habilitadas, administradoras e com senha que nunca expira.', 'Risco crítico (Admin + Sem expiração)'],
 ] as const
 
 export function DocsHub() {
@@ -805,6 +824,65 @@ export function DocsHub() {
                     </Row>
                   ))}
                 </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Users className="h-4 w-4" />}
+                title="Portal do Cliente"
+                description="O que o CLIENT_VIEWER vê do parque em /portal e como audita as contas locais em /portal/local-accounts."
+              />
+              <PanelBody className="space-y-6">
+                <section className="space-y-2">
+                  <h3 className="section-label">Resumo do parque (/portal)</h3>
+                  <dl className="divide-y divide-surface-line">
+                    {PORTAL_FLEET_SUMMARY.map(([name, text]) => (
+                      <Row key={name} term={name}>
+                        {text}
+                      </Row>
+                    ))}
+                  </dl>
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="section-label">Contas locais e privilégios (/portal/local-accounts)</h3>
+                  <dl className="divide-y divide-surface-line">
+                    <Row term="Cards e abas">
+                      Os 4 cards abrem a aba correspondente por <Code>?tab=</Code>, então o recorte sobrevive a recarregar e
+                      compartilhar o link; <Code>?tab=</Code> desconhecido cai em Todas. Trocar de aba direto na tabela não
+                      altera a URL. A busca por conta ou máquina se combina com a aba ativa.
+                    </Row>
+                    <Row term="Risco de compliance">
+                      Crítico: conta habilitada, administradora e com senha que nunca expira. Atenção: habilitada com só um
+                      dos dois. Conforme: o resto, inclusive toda conta desabilitada, mesmo administradora e sem expiração.
+                    </Row>
+                    <Row term="Máquina e exportação">
+                      O hostname de cada conta abre a ficha <Code>/portal/devices/[id]</Code>. &quot;Baixar CSV&quot; usa{' '}
+                      <Code>/api/tenant/[slug]/local-accounts/csv</Code> e exporta todas as contas, com a mesma regra de
+                      risco, sem o recorte da aba.
+                    </Row>
+                  </dl>
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="section-label">Matriz das abas de risco</h3>
+                  <dl className="divide-y divide-surface-line">
+                    {LOCAL_ACCOUNT_TABS.map(([tab, value, rule, card]) => (
+                      <Row
+                        key={value}
+                        term={
+                          <>
+                            {tab} <Code>?tab={value}</Code>
+                          </>
+                        }
+                      >
+                        {rule}
+                        <span className="mt-1 block">Card: {card}.</span>
+                      </Row>
+                    ))}
+                  </dl>
+                </section>
               </PanelBody>
             </Panel>
 
