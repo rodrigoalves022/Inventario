@@ -227,6 +227,16 @@ const KPI_FILTERS = [
   ['Usuários', '/users?filter=active, admins ou operators.'],
 ] as const
 
+// Sprints A64/A66: `CopyInlineButton` nas linhas de Computadores, Servidores e
+// da lista do Portal. Nas fichas, o AnyDesk usa o botão próprio do `AnydeskBadge`.
+const COPY_SHORTCUTS = [
+  ['Computadores e Servidores', 'Em /app/[clientSlug]/computers, /servers e /assets (Todos os dispositivos), o ícone de copiar ao lado do hostname e do IP de cada linha copia o valor sem abrir a máquina: o clique e as teclas Enter/Espaço no botão não chegam à linha clicável. Linha sem IP coletado não mostra o botão do IP. O AnyDesk dessas linhas aparece formatado (123 456 789), sem botão próprio: copie na ficha da máquina. Em tela estreita, Computadores e Todos os dispositivos viram cartões que abrem a máquina inteira, sem botão de copiar.'],
+  ['Ficha da máquina', 'Em /app/[clientSlug]/assets/[id], o badge do AnyDesk tem o ícone de copiar (copia o ID só com dígitos) e "Conectar" (abre anydesk:<id>).'],
+  ['Portal do cliente', 'Na lista de /portal, o IP e o AnyDesk de cada máquina têm ícone de copiar fora do link da máquina, então copiar não abre a ficha; máquina sem IP mostra "sem IP", sem botão. Na ficha (/portal/devices/[id]), o CLIENT_VIEWER tem o mesmo badge do AnyDesk da ficha do tenant, com o ícone de copiar e "Conectar".'],
+  ['Confirmação', 'Nas listas do tenant e do Portal, o ícone vira um check por 1,5 s e um aviso mostra o valor copiado; no badge do AnyDesk, aparece "Copiado" por 2 s. Fora de contexto seguro (HTTPS ou localhost) o navegador não libera a área de transferência: nas listas, o aviso pede a cópia manual.'],
+  ['Governança', 'Copiar acontece só no navegador: não enfileira comando, não grava auditoria e não exige papel além do acesso de leitura à tela.'],
+] as const
+
 export function DocsHub() {
   return (
     <div className="space-y-6">
@@ -412,6 +422,130 @@ export function DocsHub() {
                 <CopyableCodeBlock
                   title="Linux"
                   command={'sudo ./inventario-agent install -server "https://SEU-SERVIDOR" -client "SEU-CLIENTE" -key "SUA-CHAVE" -name "$(hostname)"'}
+                />
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Layers className="h-4 w-4" />}
+                title="4. Implantação em Massa no Windows: Script de Inicialização via GPO"
+                description="Para máquinas em domínio: o script roda como SYSTEM a cada boot e só instala onde o agente ainda não existe."
+              />
+              <PanelBody className="space-y-4">
+                <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+                  <li>
+                    Publique o <Code>inventario-agent.exe</Code> num compartilhamento que as contas de computador leiam, como{' '}
+                    <Code>\\SEU-DOMINIO\NETLOGON</Code>.
+                  </li>
+                  <li>
+                    Em <strong className="text-foreground">Outras formas de instalar</strong> (aba Windows do pacote do
+                    cliente), copie o <strong className="text-foreground">Script de Inicialização / GPO</strong>, que já vem
+                    com servidor, cliente e chave, e ajuste <Code>AGENT_SRC</Code> para o caminho do passo 1. O modelo abaixo
+                    faz o mesmo, com valores de exemplo.
+                  </li>
+                  <li>
+                    Numa GPO vinculada à OU dos computadores, adicione o script em Configuração do Computador &gt; Políticas
+                    &gt; Configurações do Windows &gt; Scripts (Inicialização/Desligamento) &gt;{' '}
+                    <strong className="text-foreground">Inicialização</strong>.
+                  </li>
+                  <li>
+                    Em Modelos Administrativos &gt; Sistema &gt; Logon, ative{' '}
+                    <strong className="text-foreground">Sempre aguardar a rede na inicialização e no logon do computador</strong>{' '}
+                    para o script não rodar antes da rede.
+                  </li>
+                  <li>
+                    Reinicie uma máquina piloto e confira o serviço <Code>InventarioAgent</Code> e a máquina na lista do
+                    cliente antes de ampliar a OU.
+                  </li>
+                </ol>
+                <CopyableCodeBlock
+                  title="Install-InventarioAgent.cmd"
+                  command={[
+                    '@echo off',
+                    'sc query InventarioAgent >nul 2>&1',
+                    'if %errorlevel% equ 0 exit /b 0',
+                    '',
+                    'set "AGENT_SRC=\\\\SEU-DOMINIO\\NETLOGON\\inventario-agent.exe"',
+                    'set "AGENT_DIR=%ProgramFiles%\\InventarioAgent"',
+                    '',
+                    'if not exist "%AGENT_DIR%" mkdir "%AGENT_DIR%"',
+                    'copy /y "%AGENT_SRC%" "%AGENT_DIR%\\inventario-agent.exe" >nul || exit /b 1',
+                    '"%AGENT_DIR%\\inventario-agent.exe" install -server "https://SEU-SERVIDOR" -client "SEU-CLIENTE" -key "SUA-CHAVE" -name "%COMPUTERNAME%"',
+                  ].join('\n')}
+                  description="Onde o serviço já existe, o script sai na terceira linha; senão copia o binário para Program Files e instala de lá."
+                />
+                <dl className="divide-y divide-surface-line">
+                  <Row term="Por que a guarda sc query">
+                    O <Code>install</Code> sempre inscreve a máquina de novo: remove o serviço anterior e cria uma credencial
+                    nova a cada execução. Sem a guarda, cada boot somaria uma credencial ao cliente.
+                  </Row>
+                  <Row term="Falha tenta de novo sozinha">
+                    Se o compartilhamento ou a rede não estiverem prontos, ou o servidor recusar o registro, o serviço não é
+                    criado e a próxima inicialização tenta outra vez.
+                  </Row>
+                  <Row term="Integridade do binário">
+                    O script não confere SHA-256: a integridade depende de só administradores escreverem no
+                    compartilhamento. Sem compartilhamento, a alternativa é um <Code>.ps1</Code> (chamado por{' '}
+                    <Code>powershell.exe -ExecutionPolicy Bypass -File</Code>) com a guarda{' '}
+                    <Code>Get-Service InventarioAgent</Code> seguida do one-liner do item 2, que baixa o binário do servidor e
+                    confere o hash.
+                  </Row>
+                  <Row term="Limite de inscrição">
+                    <Code>/api/agent/register</Code> aceita 15 inscrições por IP de origem a cada 5 minutos. Atrás de um
+                    único IP de saída (NAT), as excedentes de um boot em massa recebem 429 e entram nos boots seguintes.
+                  </Row>
+                  <Row term="Chave legível no NETLOGON">
+                    Qualquer usuário do domínio lê o script. Terminada a implantação, emita um novo pacote em{' '}
+                    <Code>/admin/clients</Code> sem marcar <strong className="text-foreground">Revogar também os agentes
+                    ativos</strong>: as máquinas registradas seguem com a própria credencial. Depois troque a chave no script
+                    ou desvincule a GPO.
+                  </Row>
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Terminal className="h-4 w-4" />}
+                title="5. Gestão do Serviço no Linux (systemd)"
+                description="O install grava a unit, habilita no boot e inicia o serviço; os logs vão para o journal."
+              />
+              <PanelBody className="space-y-4">
+                <dl className="divide-y divide-surface-line">
+                  <Row term="Unit">
+                    <Code>/etc/systemd/system/inventario-agent.service</Code>: <Code>Type=simple</Code> com{' '}
+                    <Code>ExecStart=/usr/local/bin/inventario-agent run</Code>, <Code>Restart=on-failure</Code> (10 s),{' '}
+                    <Code>After=network-online.target</Code> e <Code>WantedBy=multi-user.target</Code>. O{' '}
+                    <Code>install</Code> roda <Code>daemon-reload</Code>, <Code>enable</Code> e <Code>start</Code>.
+                  </Row>
+                  <Row term="Configuração">
+                    <Code>/opt/inventario-agent/config.json</Code>, com o servidor vinculado e a credencial do agente.
+                  </Row>
+                  <Row term="Logs">
+                    No Linux o agente não grava <Code>agent.log</Code>: tudo vai para o journal. Por isso{' '}
+                    <Code>inventario-agent status</Code> mostra &quot;(sem log)&quot; nas últimas linhas; use{' '}
+                    <Code>journalctl</Code>.
+                  </Row>
+                  <Row term="CLI do agente">
+                    <Code>sudo inventario-agent status</Code>, <Code>start</Code>, <Code>stop</Code> e <Code>restart</Code>{' '}
+                    chamam o <Code>systemctl</Code>. <Code>sudo inventario-agent uninstall</Code> para, desabilita e remove a
+                    unit, mantendo o binário.
+                  </Row>
+                  <Row term="Auto-update">
+                    O atualizador para a unit, troca o binário e, se o start falhar, restaura o <Code>.bak</Code> (veja
+                    Auto-Update &amp; Comandos).
+                  </Row>
+                </dl>
+                <CopyableCodeBlock
+                  title="Comandos systemd (como root)"
+                  command={[
+                    'sudo systemctl status inventario-agent',
+                    'sudo systemctl restart inventario-agent',
+                    'sudo systemctl stop inventario-agent',
+                    'sudo journalctl -u inventario-agent -f',
+                  ].join('\n')}
+                  description="Estado, reinício, parada e logs ao vivo do serviço. Status e logs também aparecem em Outras formas de instalar (aba Linux)."
                 />
               </PanelBody>
             </Panel>
@@ -666,6 +800,23 @@ export function DocsHub() {
               <PanelBody>
                 <dl className="divide-y divide-surface-line">
                   {KPI_FILTERS.map(([name, text]) => (
+                    <Row key={name} term={name}>
+                      {text}
+                    </Row>
+                  ))}
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Copy className="h-4 w-4" />}
+                title="Cópia em 1 Clique: IP, Hostname e AnyDesk"
+                description="Copia o dado técnico direto da lista ou da ficha, sem selecionar texto."
+              />
+              <PanelBody>
+                <dl className="divide-y divide-surface-line">
+                  {COPY_SHORTCUTS.map(([name, text]) => (
                     <Row key={name} term={name}>
                       {text}
                     </Row>

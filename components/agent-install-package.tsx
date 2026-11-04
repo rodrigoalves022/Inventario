@@ -5,6 +5,7 @@ import { Download, ShieldAlert, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/copy-field'
 import type { ProvisioningPackage } from '@/app/admin/clients/types'
+import { buildWindowsStartupScript } from '@/lib/provisioning'
 import { cn } from '@/lib/utils'
 
 type Platform = 'windows' | 'linux'
@@ -13,6 +14,25 @@ const PLATFORMS: Array<{ id: Platform; label: string }> = [
   { id: 'windows', label: 'Windows' },
   { id: 'linux', label: 'Linux' },
 ]
+
+// Unidade systemd registrada pelo agente (service_linux.go, ServiceName).
+const LINUX_STATUS_COMMAND = 'systemctl status inventario-agent'
+const LINUX_LOGS_COMMAND = 'journalctl -u inventario-agent -f'
+
+/**
+ * Sprint A63: o pacote nao traz o serverUrl solto, mas o bootstrapUrl e'
+ * `${serverUrl}/api/agent/bootstrap?...` (buildBootstrapUrl). O builder
+ * reaplica a allowlist; fora do formato, a opcao simplesmente nao aparece.
+ */
+function windowsStartupScript(pkg: ProvisioningPackage) {
+  const end = pkg.bootstrapUrl.lastIndexOf('/api/agent/bootstrap?')
+  if (end <= 0) return null
+  try {
+    return buildWindowsStartupScript(pkg.bootstrapUrl.slice(0, end), pkg.clientSlug, pkg.enrollmentKey)
+  } catch {
+    return null
+  }
+}
 
 /**
  * SHA-256 do binario publicado (Sprint A4, ressalva 1). E o hash do arquivo
@@ -80,6 +100,7 @@ export function AgentInstallPackage({
   const platformLabel = isWindows ? 'Windows' : 'Linux'
   const sha256 = isWindows ? pkg.windowsSha256 : pkg.linuxSha256
   const query = `client=${pkg.clientSlug}&key=${pkg.enrollmentKey}`
+  const startupScript = isWindows && showAlternatives ? windowsStartupScript(pkg) : null
 
   return (
     // min-w-0: dentro de um DialogContent (grid) o item herda min-width:auto e
@@ -177,6 +198,21 @@ export function AgentInstallPackage({
                 <>
                   {sha256 ? <CopyField value={pkg.bootstrapCommand} label="PowerShell (uma linha)" /> : null}
                   <CopyField value={pkg.installCommand} label="Instalação manual" />
+                  {startupScript ? (
+                    <div className="space-y-2">
+                      <CopyField value={startupScript} label="Script de Inicialização / GPO (.bat / .cmd)" multiline />
+                      <p className="text-xs text-muted-foreground">
+                        Publique o inventario-agent.exe num compartilhamento que as contas de computador leiam
+                        (ex.: NETLOGON), ajuste AGENT_SRC e vincule o script em Configuração do Computador ›
+                        Políticas › Configurações do Windows › Scripts › Inicialização. Ele roda como SYSTEM a cada
+                        boot e só instala onde o serviço InventarioAgent ainda não existe.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Scripts de GPO ficam legíveis por qualquer conta do domínio e este leva a chave de
+                        instalação: emita um novo pacote quando terminar a implantação.
+                      </p>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -187,6 +223,12 @@ export function AgentInstallPackage({
                     permissão de execução e instala o serviço com sudo. Para executar o arquivo baixado direto
                     (instalação automática), mova-o antes para a pasta definitiva e rode chmod +x e depois sudo
                     com o arquivo, porque o serviço registra o caminho atual dele.
+                  </p>
+                  <CopyField value={LINUX_STATUS_COMMAND} label="Status do serviço (systemd)" />
+                  <CopyField value={LINUX_LOGS_COMMAND} label="Logs em tempo real (journalctl)" />
+                  <p className="text-xs text-muted-foreground">
+                    Depois de instalar, o status deve mostrar active (running). O journalctl acompanha o log do
+                    agente ao vivo (Ctrl+C para sair); sem permissão de leitura do journal, rode-o com sudo.
                   </p>
                 </>
               )}

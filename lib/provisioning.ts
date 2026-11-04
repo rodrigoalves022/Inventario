@@ -170,6 +170,40 @@ export function buildProvisioningArtifacts(
   }
 }
 
+/**
+ * Script de inicializacao (.bat/.cmd) para GPO de computador (Sprint A63). A
+ * GPO roda o script como SYSTEM a cada boot; por isso ele e' idempotente: com o
+ * servico InventarioAgent ja registrado (`sc query` devolve 0), sai sem tocar
+ * em nada. Senao copia o binario do compartilhamento (AGENT_SRC, ajustado pelo
+ * administrador) para Program Files — mesmo destino do bootstrap .ps1, onde
+ * usuario comum nao escreve e de onde o servico passa a rodar — e instala.
+ *
+ * Em .bat o `%` expande e `& | ^ < >` fora de aspas sao operadores: a
+ * allowlist (serverUrl sem `%` nem aspas; slug e chave alfanumericos) e' o
+ * que impede os valores de virarem comando. So o %COMPUTERNAME% expande.
+ */
+export function buildWindowsStartupScript(serverUrl: string, clientSlug: string, enrollmentKey: string) {
+  assertProvisioningInput(serverUrl, clientSlug, enrollmentKey)
+  const normalizedServerUrl = serverUrl.replace(/\/+$/, '')
+
+  return [
+    '@echo off',
+    `rem Inventario Enterprise - script de inicializacao (GPO) do cliente ${clientSlug}.`,
+    'rem Idempotente: com o servico InventarioAgent ja instalado, sai sem alterar nada.',
+    'sc query InventarioAgent >nul 2>&1',
+    'if %errorlevel% equ 0 exit /b 0',
+    '',
+    'rem Ajuste AGENT_SRC para o compartilhamento onde publicou o inventario-agent.exe',
+    'rem (as contas de computador precisam de leitura, como em NETLOGON).',
+    'set "AGENT_SRC=\\\\SEU-DOMINIO\\NETLOGON\\inventario-agent.exe"',
+    'set "AGENT_DIR=%ProgramFiles%\\InventarioAgent"',
+    '',
+    'if not exist "%AGENT_DIR%" mkdir "%AGENT_DIR%"',
+    'copy /y "%AGENT_SRC%" "%AGENT_DIR%\\inventario-agent.exe" >nul || exit /b 1',
+    `"%AGENT_DIR%\\inventario-agent.exe" install -server "${normalizedServerUrl}" -client "${clientSlug}" -key "${enrollmentKey}" -name "%COMPUTERNAME%"`,
+  ].join('\r\n')
+}
+
 export function buildBootstrapScript(
   serverUrl: string,
   clientSlug: string,

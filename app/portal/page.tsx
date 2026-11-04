@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { AlertCircle, ChevronRight, Download, FileText, Monitor, Search, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ChevronRight, Clock, Download, FileText, Monitor, Search, Wifi, WifiOff } from 'lucide-react'
 import prisma from '@/lib/prisma'
 import { requirePortalContext } from '@/lib/portal-context'
 import { deduplicateDeviceSoftware } from '@/lib/software-catalog'
 import { AnydeskBadge } from '@/components/anydesk-badge'
+import { CopyInlineButton } from '@/components/copy-inline-button'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { KpiCard } from '@/components/ui/kpi-card'
@@ -197,40 +198,69 @@ export default async function PortalHomePage(
               {visibleDevices.map((device) => {
                 const meta = statusMeta(device.status)
                 const softwareCount = deduplicateDeviceSoftware(device.software).length
+                const ip = device.networks[0]?.ip ?? null
+                const details = [device.hardware?.sistema, device.usuario].filter(Boolean).join(' · ')
+                // A linha inteira continua clicavel, mas sem ser um <a> em volta de
+                // tudo: botao dentro de link e HTML invalido e o clique nele seguiria o
+                // href (stopPropagation nao cancela a navegacao do <a>). O hostname e o
+                // link, e o `after:absolute after:inset-0` estica a area de clique sobre
+                // a <li>; os botoes de copiar sobem para `z-10`, acima dessa camada.
                 return (
-                  <li key={device.id}>
-                    <Link
-                      href={`/portal/devices/${device.id}`}
-                      className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/40"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-surface-line bg-surface-raise text-foreground/80">
-                          <Monitor className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="data-mono truncate font-medium text-foreground">{device.hostname}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {device.networks[0]?.ip ?? 'sem IP'}
-                            {device.hardware?.sistema ? ` · ${device.hardware.sistema}` : ''}
-                            {device.usuario ? ` · ${device.usuario}` : ''}
-                          </p>
-                          {device.anydeskId && (
-                            <div className="mt-1"><AnydeskBadge anydeskId={device.anydeskId} compact /></div>
+                  <li
+                    key={device.id}
+                    className="group relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/40 has-[a:focus-visible]:bg-muted/40"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-surface-line bg-surface-raise text-foreground/80">
+                        <Monitor className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <Link
+                          href={`/portal/devices/${device.id}`}
+                          className="data-mono block truncate font-medium text-foreground after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+                        >
+                          {device.hostname}
+                        </Link>
+                        <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                          {ip ? (
+                            <>
+                              <span className="data-mono shrink-0">{ip}</span>
+                              <span className="relative z-10 inline-flex">
+                                <CopyInlineButton value={ip} label="IP" />
+                              </span>
+                            </>
+                          ) : (
+                            <span className="shrink-0">sem IP</span>
                           )}
+                          {details && <span className="truncate">· {details}</span>}
                         </div>
+                        {device.anydeskId && (
+                          <div className="mt-1 flex items-center gap-1">
+                            <AnydeskBadge anydeskId={device.anydeskId} compact />
+                            <span className="relative z-10 inline-flex">
+                              <CopyInlineButton value={device.anydeskId} label="AnyDesk" />
+                            </span>
+                          </div>
+                        )}
                       </div>
+                    </div>
 
-                      <div className="flex shrink-0 items-center gap-4">
-                        <span className="hidden text-xs text-muted-foreground sm:inline">
-                          {softwareCount} programas
-                        </span>
-                        <span className="hidden text-xs text-muted-foreground md:inline">
-                          {formatRelative(device.updatedAt)}
-                        </span>
-                        <StatusPill tone={meta.tone} label={meta.label} />
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </Link>
+                    <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+                      <span className="hidden text-xs text-muted-foreground sm:inline">
+                        {softwareCount} programas
+                      </span>
+                      <time
+                        dateTime={device.updatedAt.toISOString()}
+                        title={`Última coleta: ${device.updatedAt.toLocaleString('pt-BR')}`}
+                        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-surface-line bg-surface-raise px-2 py-0.5 text-xs text-muted-foreground"
+                      >
+                        <Clock className="h-3 w-3" aria-hidden="true" />
+                        <span className="sr-only">Última coleta </span>
+                        {formatRelative(device.updatedAt)}
+                      </time>
+                      <StatusPill tone={meta.tone} label={meta.label} />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    </div>
                   </li>
                 )
               })}

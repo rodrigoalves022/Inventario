@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 type CopyStatus = 'idle' | 'copied' | 'failed'
 
@@ -16,7 +17,7 @@ type CopyStatus = 'idle' | 'copied' | 'failed'
  *   localhost) `navigator.clipboard` nao existe, e antes o clique falhava em
  *   silencio.
  */
-export function CopyField({ value, label }: { value: string; label: string }) {
+export function CopyField({ value, label, multiline = false }: { value: string; label: string; multiline?: boolean }) {
   const [status, setStatus] = useState<CopyStatus>('idle')
 
   async function handleCopy() {
@@ -37,7 +38,15 @@ export function CopyField({ value, label }: { value: string; label: string }) {
           `.section-label` (@layer components). */}
       <p className="section-label">{label}</p>
       <div className="flex gap-2">
-        <code className="data-mono flex-1 overflow-x-auto rounded-md border border-surface-line bg-muted/40 px-3 py-2 text-xs leading-relaxed">
+        {/* multiline (scripts): quebras de linha preservadas e linhas longas
+            quebradas na tela, sem rolagem horizontal que o teclado nao alcanca.
+            O valor copiado nao muda. */}
+        <code
+          className={cn(
+            'data-mono flex-1 rounded-md border border-surface-line bg-muted/40 px-3 py-2 text-xs leading-relaxed',
+            multiline ? 'min-w-0 whitespace-pre-wrap break-all' : 'overflow-x-auto'
+          )}
+        >
           {value}
         </code>
         <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={handleCopy}>
