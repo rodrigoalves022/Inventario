@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppearanceControls, getInitials } from '@/components/sidebar'
 import { Input } from '@/components/ui/input'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Label } from '@/components/ui/label'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -849,30 +850,69 @@ export function AccountSettingsContent({
     um — no celular o menu de secoes ia parar debaixo do painel seguinte.
   */
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => setTab(value as AccountDialogTab)}
-      orientation="vertical"
-      className="grid items-start gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]"
-    >
-      <div className="space-y-5 lg:sticky lg:top-22">
-        <OperatorIdentity user={user} details={details} timezone={preferences.timezone} />
-        <Panel>
-          <TabsList
-            aria-label="Seções da conta"
-            className="grid h-auto w-full grid-cols-2 items-stretch gap-1 bg-transparent p-2 lg:grid-cols-1"
-          >
-            {ACCOUNT_TABS.map(({ value, label, icon: Icon }) => (
-              <TabsTrigger key={value} value={value} variant="nav">
-                <Icon />
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Panel>
+    <div className="space-y-6">
+      {/* Sprint A55: resumo da conta; cada card troca a secao ativa. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Perfil"
+          value={user.name?.trim() || 'Conta'}
+          subtitle={role ? ROLE_LABELS[role] : undefined}
+          icon={<UserRound />}
+          active={tab === 'profile'}
+          onClick={() => setTab('profile')}
+        />
+        <KpiCard
+          label="Preferências"
+          value={preferences.dateFormat}
+          subtitle={preferences.timezone}
+          icon={<SlidersHorizontal />}
+          active={tab === 'preferences'}
+          onClick={() => setTab('preferences')}
+        />
+        <KpiCard
+          label="Segurança"
+          value="Credencial ativa"
+          subtitle={user.email || 'E-mail e senha'}
+          icon={<ShieldCheck />}
+          tone="success"
+          active={tab === 'security'}
+          onClick={() => setTab('security')}
+        />
+        <KpiCard
+          label="Acessos Recentes"
+          value={recentEvents.length}
+          subtitle="eventos registrados na conta"
+          icon={<History />}
+          tone="info"
+          active={tab === 'sessions'}
+          onClick={() => setTab('sessions')}
+        />
       </div>
-      <div className="min-w-0">{sections}</div>
-    </Tabs>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as AccountDialogTab)}
+        orientation="vertical"
+        className="grid items-start gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]"
+      >
+        <div className="space-y-5 lg:sticky lg:top-22">
+          <OperatorIdentity user={user} details={details} timezone={preferences.timezone} />
+          <Panel>
+            <TabsList
+              aria-label="Seções da conta"
+              className="grid h-auto w-full grid-cols-2 items-stretch gap-1 bg-transparent p-2 lg:grid-cols-1"
+            >
+              {ACCOUNT_TABS.map(({ value, label, icon: Icon }) => (
+                <TabsTrigger key={value} value={value} variant="nav">
+                  <Icon />
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Panel>
+        </div>
+        <div className="min-w-0">{sections}</div>
+      </Tabs>
+    </div>
   )
 }
 

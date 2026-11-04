@@ -197,18 +197,22 @@ const PLATFORM_EXPORTS = [
   ['Portal: relatório CSV', '/api/portal/reports/csv', 'Relatório do próprio cliente no Portal (CLIENT_VIEWER).'],
   ['Portal: relatório PDF', '/api/portal/reports/pdf', 'Versão PDF do relatório do Portal.'],
   ['Admin: clientes', '/api/admin/clients/csv', 'Clientes com slug, status, dispositivos e agentes ativos. PLATFORM_ADMIN, ou ORG_ADMIN restrito à própria organização.'],
+  ['Admin: agentes do cliente', '/api/admin/clients/[id]/agents/csv', 'Credenciais de agente de um cliente específico, com status, versão e última coleta. É o "Baixar CSV" de /admin/clients/[id]/agents. PLATFORM_ADMIN, ou ORG_ADMIN da organização do cliente; fora do escopo responde 404.'],
   ['Admin: auditoria global', '/api/admin/audit/csv', 'Trilha de auditoria da administração global (PLATFORM_ADMIN).'],
   ['Usuários', '/api/users/csv', 'Nome, e-mail, papel, escopo e status. PLATFORM_ADMIN vê todos; ORG_ADMIN, só a própria organização.'],
   ['Segurança', '/api/security/csv', 'Postura por máquina: antivírus e assinaturas, firewall, BitLocker, Secure Boot, UAC, TPM e contas admin habilitadas (PLATFORM_ADMIN).'],
 ] as const
 
 const KPI_FILTERS = [
-  ['Visão Geral do tenant', 'Cards de status levam a /assets?status=online, offline ou warning.'],
+  ['Visão Geral do tenant', 'Cards de status levam a /assets?status=online, offline ou warning. Os 3 blocos do Hero de Segurança (BitLocker, Antivírus, Firewall) abrem o relatório analítico; as linhas de Descoberta de Rede levam a /network e as de Auditoria Recente, à auditoria; as barras de RAM e Disco abrem Computadores e Armazenamento. "Baixar CSV" e "Baixar PDF" usam /reports/csv e /reports/pdf.'],
   ['Computadores, Servidores, Armazenamento, Processadores', 'Os cards filtram a tabela na própria página; Servidores inclui "Agente desatualizado" (versão diferente de LATEST_AGENT_VERSION). Clicar de novo no card ativo limpa o filtro.'],
   ['Alertas', 'Regras ativas, Disparos em aberto (?state=open), Críticos abertos (?severity=critical) e Resolvidos (?state=resolved).'],
-  ['Portal', '/portal?status=online, warning ou offline filtra a lista de máquinas do cliente.'],
+  ['Portal', '/portal?status=online, warning ou offline filtra a lista de máquinas do cliente e se combina com a busca ?q=. A contagem de programas segue a deduplicação do Painel de Controle (appwiz.cpl); "Baixar CSV" e "Baixar PDF" usam /api/portal/reports/csv e /pdf.'],
+  ['Auditoria do tenant e global', 'Em /app/[clientSlug]/audit e /admin/clients/audit, o badge da ação (?action=), o e-mail do operador (?actorEmail=) e, na auditoria global, o cliente (?clientId=) filtram direto da tabela. As 21 ações do catálogo têm rótulo em português.'],
   ['Admin: clientes', 'Total de clientes, Clientes ativos, Agentes ativos (clientes com agente) e Sem agentes filtram a lista de clientes.'],
-  ['Admin: agentes do cliente', 'Total de credenciais, Agentes ativos, Agentes desatualizados e Revogados filtram a tabela de /admin/clients/[id]/agents.'],
+  ['Admin: agentes do cliente', 'Total de credenciais, Agentes ativos, Agentes desatualizados e Revogados filtram a tabela de /admin/clients/[id]/agents; a busca por nome, máquina ou ID se combina com o card ativo.'],
+  ['Configurações do tenant', 'Em /app/[clientSlug]/settings, os cards Perfil corporativo, Sessão e login, Retenção de auditoria e Webhooks HMAC levam à seção correspondente da página.'],
+  ['Minha conta', 'Em /account, os cards Perfil, Preferências, Segurança e Acessos Recentes trocam a aba ativa (?tab=).'],
   ['Usuários', '/users?filter=active, admins ou operators.'],
 ] as const
 
@@ -624,7 +628,7 @@ export function DocsHub() {
               <PanelHeader
                 icon={<Filter className="h-4 w-4" />}
                 title="Filtros Interativos por KPI"
-                description="Os cards de KPI são clicáveis e filtram a lista da própria tela."
+                description="Cards de KPI, blocos, barras de gráfico e badges são clicáveis: filtram a lista da própria tela ou levam à tela de destino."
               />
               <PanelBody>
                 <dl className="divide-y divide-surface-line">

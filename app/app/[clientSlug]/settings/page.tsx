@@ -1,8 +1,9 @@
-import { Building2, Shield, Webhook } from 'lucide-react'
+import { Building2, KeyRound, Shield, Webhook } from 'lucide-react'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { canManageTenantAlerts, getSessionPermissionUser } from '@/lib/permissions'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { WebhookEndpointsPanel } from '@/components/webhook-endpoints-panel'
 import { TenantCompanyProfileForm } from '@/components/tenant-company-profile-form'
@@ -56,6 +57,13 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
     }
   })
 
+  const activeWebhooks = rows.filter((r) => r.isActive).length
+  // A politica guarda minutos (15/30/60/240): abaixo de 1h mostra em minutos.
+  const sessionTimeout =
+    securityPolicy.sessionTimeoutMinutes >= 60
+      ? `${securityPolicy.sessionTimeoutMinutes / 60}h`
+      : `${securityPolicy.sessionTimeoutMinutes} min`
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -68,7 +76,46 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
         </div>
       </div>
 
-      <Panel>
+      {/* Sprint A55: cada card ancora na secao correspondente da pagina. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Perfil corporativo"
+          value={companyProfile.taxId || 'Não informado'}
+          subtitle={
+            companyProfile.maintenanceWindow
+              ? `Janela: ${companyProfile.maintenanceWindow}`
+              : 'Sem janela de manutenção'
+          }
+          icon={<Building2 />}
+          href="#company-profile"
+        />
+        <KpiCard
+          label="Sessão e login"
+          value={sessionTimeout}
+          subtitle={`Máx. ${securityPolicy.maxLoginAttempts} tentativas de login`}
+          icon={<KeyRound />}
+          href="#security-policy"
+        />
+        <KpiCard
+          label="Retenção de auditoria"
+          value={`${securityPolicy.auditRetentionDays} dias`}
+          subtitle={securityPolicy.ipAllowlistCidr ? 'Restrição de IP ativa' : 'Acesso de qualquer IP'}
+          icon={<Shield />}
+          tone="info"
+          href="#security-policy"
+        />
+        <KpiCard
+          label="Webhooks HMAC"
+          value={`${activeWebhooks}/${rows.length}`}
+          subtitle="endpoints ativos configurados"
+          icon={<Webhook />}
+          tone={activeWebhooks > 0 ? 'success' : 'neutral'}
+          emphasizeValue={activeWebhooks > 0}
+          href="#webhooks"
+        />
+      </div>
+
+      <Panel id="company-profile" className="scroll-mt-20">
         <PanelHeader
           icon={<Building2 />}
           title="Dados da empresa e contatos de emergência"
@@ -79,7 +126,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
         </PanelBody>
       </Panel>
 
-      <Panel>
+      <Panel id="security-policy" className="scroll-mt-20">
         <PanelHeader
           icon={<Shield />}
           title="Políticas de segurança"
@@ -91,7 +138,7 @@ export default async function TenantSettingsPage({ params }: PageProps<'/app/[cl
       </Panel>
 
       {/* Casca Panel (Sprint V20) — ver nota em alerts/page.tsx. */}
-      <Panel>
+      <Panel id="webhooks" className="scroll-mt-20">
         <PanelHeader
           icon={<Webhook />}
           title="Webhooks"

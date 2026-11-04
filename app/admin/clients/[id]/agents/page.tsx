@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
 import { Sidebar, Header } from '@/components/sidebar'
+import { Button } from '@/components/ui/button'
 import { auth } from '@/auth'
 import { canManageTenant, getSessionPermissionUser } from '@/lib/permissions'
 import prisma from '@/lib/prisma'
@@ -53,12 +54,20 @@ export default async function ClientAgentsPage({ params }: { params: Promise<{ i
                 <ArrowLeft className="h-4 w-4" aria-hidden />
                 Clientes
               </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Agentes de {client.name}</h1>
-                <p className="text-sm text-muted-foreground">
-                  Cada linha é uma instalação do agente, identificada pela própria credencial. Revogue a
-                  instalação de uma máquina que saiu da empresa ou foi reinstalada.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground">Agentes de {client.name}</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Cada linha é uma instalação do agente, identificada pela própria credencial. Revogue a
+                    instalação de uma máquina que saiu da empresa ou foi reinstalada.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/api/admin/clients/${client.id}/agents/csv`}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar CSV
+                  </a>
+                </Button>
               </div>
             </div>
 

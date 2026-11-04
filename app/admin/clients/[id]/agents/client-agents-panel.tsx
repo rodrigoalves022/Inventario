@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
-import { Bot, CheckCircle2, Monitor, RefreshCw, ShieldOff, X } from 'lucide-react'
+import { Bot, CheckCircle2, Monitor, RefreshCw, Search, ShieldOff, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -122,6 +123,7 @@ export function ClientAgentsPanel({
   const [revokeTarget, setRevokeTarget] = useState<ClientAgentRow | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'outdated' | 'revoked'>('all')
+  const [search, setSearch] = useState('')
   // useActionState exige uma action; sem ela (prop opcional) vira no-op.
   const [updateState, updateAction, updatePending] = useActionState(
     requestAgentUpdateAction ?? (async () => initialRequestAgentUpdateState),
@@ -147,11 +149,14 @@ export function ClientAgentsPanel({
     agent.isActive && Boolean(agent.agentVersion) && agent.agentVersion !== latestAgentVersion
   const outdatedCount = latestAgentVersion ? agents.filter(isOutdated).length : 0
   const revokedCount = agents.filter((agent) => !agent.isActive).length
+  const searchTerm = search.trim().toLowerCase()
+  // Filtro do KPI ativo E busca livre por nome, id ou hostname vinculado.
   const visibleAgents = agents.filter((agent) => {
-    if (statusFilter === 'active') return agent.isActive
-    if (statusFilter === 'outdated') return latestAgentVersion ? isOutdated(agent) : false
-    if (statusFilter === 'revoked') return !agent.isActive
-    return true
+    if (statusFilter === 'active' && !agent.isActive) return false
+    if (statusFilter === 'outdated' && !(latestAgentVersion && isOutdated(agent))) return false
+    if (statusFilter === 'revoked' && agent.isActive) return false
+    if (!searchTerm) return true
+    return [agent.name, agent.id, agent.hostname].some((value) => value?.toLowerCase().includes(searchTerm))
   })
   const isLastActive =Boolean(revokeTarget?.isActive) && activeCount === 1
 
@@ -314,6 +319,21 @@ export function ClientAgentsPanel({
               ) : undefined
             }
           />
+        <div className="flex flex-wrap items-center gap-3 border-b border-surface-line px-5 py-3.5">
+          <div className="relative w-full sm:max-w-xs">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar agente por nome, máquina ou ID..."
+              aria-label="Buscar agente"
+              className="pl-9"
+            />
+          </div>
+        </div>
         <div className={cn(TABLE_SHELL_CLASS, 'overflow-x-auto')}>
           <table className="w-full text-sm">
             <thead>
@@ -329,6 +349,13 @@ export function ClientAgentsPanel({
               </tr>
             </thead>
             <tbody>
+              {visibleAgents.length === 0 && (
+                <tr>
+                  <td colSpan={8} className={cn(TABLE_CELL_CLASS, 'py-8 text-center text-muted-foreground')}>
+                    Nenhum agente corresponde aos filtros.
+                  </td>
+                </tr>
+              )}
               {visibleAgents.map((agent) => {
                 const state = getAgentAuthState({
                   isActive: agent.isActive,
