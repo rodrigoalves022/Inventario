@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import {
+  Activity,
   BookOpen,
   Bot,
   Check,
@@ -233,13 +234,21 @@ const KPI_FILTERS = [
 // da lista do Portal. Nas fichas, o AnyDesk usa o botão próprio do `AnydeskBadge`.
 const COPY_SHORTCUTS = [
   ['Computadores e Servidores', 'Em /app/[clientSlug]/computers, /servers e /assets (Todos os dispositivos), o ícone de copiar ao lado do hostname e do IP de cada linha copia o valor sem abrir a máquina: o clique e as teclas Enter/Espaço no botão não chegam à linha clicável. Linha sem IP coletado não mostra o botão do IP. O AnyDesk dessas linhas aparece formatado (123 456 789), sem botão próprio: copie na ficha da máquina. Em tela estreita, Computadores e Todos os dispositivos viram cartões que abrem a máquina inteira, sem botão de copiar.'],
-  ['Ficha da máquina', 'Em /app/[clientSlug]/assets/[id], o badge do AnyDesk tem o ícone de copiar (copia o ID só com dígitos) e "Conectar" (abre anydesk:<id>).'],
+  ['Ficha da máquina', 'Em /app/[clientSlug]/assets/[id], o cabeçalho traz botões de cópia rápida (CopyInlineButton) ao lado do Hostname, do IP principal e do Número de série (quando coletado), além do badge do AnyDesk com ícone de copiar e "Conectar" (abre anydesk:<id>).'],
   ['Portal do cliente', 'Na lista de /portal, o IP e o AnyDesk de cada máquina têm ícone de copiar fora do link da máquina, então copiar não abre a ficha; máquina sem IP mostra "sem IP", sem botão. Na ficha (/portal/devices/[id]), o CLIENT_VIEWER tem o mesmo badge do AnyDesk da ficha do tenant, com o ícone de copiar e "Conectar".'],
   ['Confirmação', 'Nas listas do tenant e do Portal, o ícone vira um check por 1,5 s e um aviso mostra o valor copiado; no badge do AnyDesk, aparece "Copiado" por 2 s. Fora de contexto seguro (HTTPS ou localhost) o navegador não libera a área de transferência: nas listas, o aviso pede a cópia manual.'],
   ['Governança', 'Copiar acontece só no navegador: não enfileira comando, não grava auditoria e não exige papel além do acesso de leitura à tela.'],
 ] as const
 
 // Sprint A67: faixa "Resumo do parque" abaixo dos cards de /portal.
+// Sprints A73–A75: recorte temporal das métricas, latência semântica e cabeçalho unificado.
+const METRICS_TIMEFRAME_DOCS = [
+  ['Filtros de período', 'Na aba Métricas da ficha da máquina (/assets/[id]), botões permitem alternar entre 24 horas, 3 dias, 7 dias e Todas as amostras. O corte é calculado em relação ao carimbo da amostra mais recente coletada, preservando a pureza de render e evitando telas em branco caso o dispositivo esteja temporariamente offline.'],
+  ['Cores calmas e semânticas', 'Os gráficos de métricas usam paleta semântica descansada: CPU em tom suave (--info), RAM em --chart-2 e Disco em --chart-3, sem saturação excessiva.'],
+  ['Latência de check-in semântica', 'No cabeçalho de saúde, a idade da última coleta adota cor semântica: verde para até 15 min, amarelo para atenção (15 a 60 min) e neutro para acima de 60 min.'],
+  ['Cabeçalho unificado e responsivo', 'O campo de busca rápida do cabeçalho adapta sua largura e rótulo dinamicamente (no tablet usa rótulo compacto "Buscar...", no desktop usa o rótulo completo "Buscar página ou máquina..."), garantindo espaçamento generoso e impedindo sobreposição com o menu de perfil.'],
+] as const
+
 const PORTAL_FLEET_SUMMARY = [
   ['Escopo', 'Tudo no Portal é do próprio cliente do CLIENT_VIEWER e só das máquinas com agente ativo (credencial não revogada).'],
   ['Memória RAM total', 'Soma da RAM de todas as máquinas, em GB. Se só parte delas informou a memória, passar o mouse sobre o valor mostra "Soma de N de M máquina(s) com memória informada"; se nenhuma informou, aparece "Memória RAM não informada".'],
@@ -1011,6 +1020,23 @@ export function DocsHub() {
                     de relatório da Visão Geral, que repetem <Code>canAccessTenant</Code> no servidor, e o atalho da
                     Documentação só aparece para o papel que já vê <Code>/docs</Code> no menu.
                   </Row>
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Activity className="h-4 w-4" />}
+                title="Métricas, Latência Semântica e Cabeçalho (Sprints A73–A75)"
+                description="Recorte temporal das métricas, semântica de latência e cabeçalho unificado."
+              />
+              <PanelBody>
+                <dl className="divide-y divide-surface-line">
+                  {METRICS_TIMEFRAME_DOCS.map(([term, desc]) => (
+                    <Row key={term} term={term}>
+                      {desc}
+                    </Row>
+                  ))}
                 </dl>
               </PanelBody>
             </Panel>

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Download, Monitor } from 'lucide-react'
 import { AnydeskBadge } from '@/components/anydesk-badge'
+import { CopyInlineButton } from '@/components/copy-inline-button'
 import { auth } from '@/auth'
 import { DeleteAssetButton } from '@/components/delete-asset-button'
 import { DeviceDetailTabs } from '@/components/device-detail-tabs-lazy'
@@ -146,9 +147,12 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
               </span>
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="data-mono truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                    {asset.hostname}
-                  </h1>
+                  <span className="inline-flex items-center gap-1.5">
+                    <h1 className="data-mono truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                      {asset.hostname}
+                    </h1>
+                    <CopyInlineButton value={asset.hostname} label="Copiar hostname" />
+                  </span>
                   <StatusPill tone={getStatusTone(asset.status)} label={formatStatus(asset.status)} />
                   {asset.agentVersion ? (
                     <StatusPill
@@ -162,7 +166,24 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
                   ) : null}
                 </div>
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span className="data-mono">{primaryNetwork?.ip ?? 'IP não informado'}</span>
+                  {primaryNetwork?.ip ? (
+                    <span className="inline-flex items-center gap-1 data-mono">
+                      <span>{primaryNetwork.ip}</span>
+                      <CopyInlineButton value={primaryNetwork.ip} label="Copiar IP principal" />
+                    </span>
+                  ) : (
+                    <span className="data-mono">IP não informado</span>
+                  )}
+                  {asset.serial ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="text-muted-foreground">Serial:</span>
+                        <span className="data-mono text-foreground">{asset.serial}</span>
+                        <CopyInlineButton value={asset.serial} label="Copiar número de série" />
+                      </span>
+                    </>
+                  ) : null}
                   {asset.hardware?.sistema ? (
                     <>
                       <span aria-hidden="true">·</span>

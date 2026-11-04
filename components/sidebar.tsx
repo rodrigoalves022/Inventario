@@ -849,7 +849,7 @@ export function Header({
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-surface-line bg-background/80 pr-4 pl-16 backdrop-blur-md lg:gap-4 lg:px-6">
       <ShellBreadcrumbs trail={trail} className="min-w-0 flex-1" />
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
         {hasPalette && (
           <CommandPaletteTrigger onOpen={() => setOpen(true)} canSearchDevices={Boolean(tenant)} />
         )}

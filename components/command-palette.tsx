@@ -251,21 +251,21 @@ export function CommandPaletteTrigger({
   const isMac = useIsMacPlatform()
   const label = canSearchDevices ? 'Buscar página ou máquina' : 'Buscar página'
 
-  // A largura cresce por breakpoint em vez de ficar fixa: no `lg` o header
-  // ainda divide 768px com a trilha, o seletor de cliente e o perfil — um
-  // campo de 240px ali espremeria o breadcrumb a ponto de truncar o nome da
-  // pagina atual.
+  // A largura cresce por breakpoint em vez de ficar fixa: no `md` o rotulo e
+  // encurtado para "Buscar..." para nao estourar o botao nem truncar o KbdGroup;
+  // a partir de `lg` o rotulo completo "Buscar página ou máquina..." cabe com folga.
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={label}
       aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
-      className="flex h-9 items-center gap-2 rounded-lg border border-surface-line bg-secondary/50 px-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none overflow-hidden md:w-56 md:justify-between xl:w-64"
+      className="flex h-9 items-center gap-2 rounded-lg border border-surface-line bg-secondary/50 px-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none overflow-hidden md:w-44 md:justify-between lg:w-64 xl:w-72"
     >
       <span className="flex min-w-0 flex-1 items-center gap-2">
         <Search className="h-4 w-4 shrink-0" />
-        <span className="hidden truncate md:inline">{label}...</span>
+        <span className="hidden truncate md:inline lg:hidden">Buscar...</span>
+        <span className="hidden truncate lg:inline">{label}...</span>
       </span>
       <KbdGroup className="hidden shrink-0 md:inline-flex" aria-hidden>
         <Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd>

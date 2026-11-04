@@ -152,4 +152,16 @@ describe('DocsHub', () => {
     const governance = screen.getByText(/não enfileiram comando, não gravam auditoria e não dão acesso novo/)
     expect(governance.textContent).toContain('canAccessTenant')
   })
+
+  it('documenta métricas, latência semântica e cabeçalho unificado (Sprints A73–A75)', () => {
+    render(<DocsHub />)
+    openTab(/Relatórios, Exportações & Governança/)
+    expect(screen.getByText('Métricas, Latência Semântica e Cabeçalho (Sprints A73–A75)')).toBeTruthy()
+    expect(screen.getByText('Filtros de período')).toBeTruthy()
+    expect(screen.getByText(/24 horas, 3 dias, 7 dias e Todas/)).toBeTruthy()
+    expect(screen.getByText('Cores calmas e semânticas')).toBeTruthy()
+    expect(screen.getByText('Latência de check-in semântica')).toBeTruthy()
+    expect(screen.getByText('Cabeçalho unificado e responsivo')).toBeTruthy()
+    expect(screen.getByText(/Buscar página ou máquina\.\.\./)).toBeTruthy()
+  })
 })

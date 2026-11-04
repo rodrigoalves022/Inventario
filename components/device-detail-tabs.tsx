@@ -486,7 +486,18 @@ function DeviceMetricsSection({
     }
   }, [refresh, tenantSlug])
 
+  type MetricTimeframe = '24h' | '3d' | '7d' | 'all'
+  const [timeframe, setTimeframe] = useState<MetricTimeframe>('all')
+
   const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null
+
+  const filteredMetrics = useMemo(() => {
+    if (timeframe === 'all' || !latestMetric) return metrics
+    const hours = timeframe === '24h' ? 24 : timeframe === '3d' ? 72 : 168
+    const latestTime = new Date(latestMetric.collectedAt).getTime()
+    const cutoff = latestTime - hours * 3600 * 1000
+    return metrics.filter((m) => new Date(m.collectedAt).getTime() >= cutoff)
+  }, [metrics, timeframe, latestMetric])
   const diskUsagePercent =
     latestMetric?.discoUsadoGb != null && latestMetric?.discoLivreGb != null
       ? Math.round(
@@ -502,7 +513,19 @@ function DeviceMetricsSection({
             <HealthBadge effectiveStatus={health.effectiveStatus} />
             <div className="text-xs text-muted-foreground">
               Última coleta:{' '}
-              <span data-testid="device-health-latency" className="font-medium text-foreground">
+              <span
+                data-testid="device-health-latency"
+                className={cn(
+                  'font-medium',
+                  health.checkinLatencyMinutes == null
+                    ? 'text-muted-foreground'
+                    : health.checkinLatencyMinutes <= 15
+                      ? 'text-success'
+                      : health.checkinLatencyMinutes <= 60
+                        ? 'text-warning'
+                        : 'text-muted-foreground'
+                )}
+              >
                 {formatLatency(health.checkinLatencyMinutes)}
               </span>
             </div>
@@ -556,20 +579,49 @@ function DeviceMetricsSection({
             />
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-line pb-3">
+            <p className="text-xs font-medium text-muted-foreground">Período exibido nos gráficos:</p>
+            <div className="flex items-center gap-1.5" role="group" aria-label="Filtrar período das métricas">
+              {(
+                [
+                  { id: '24h', label: '24 horas' },
+                  { id: '3d', label: '3 dias' },
+                  { id: '7d', label: '7 dias' },
+                  { id: 'all', label: 'Todas' },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={timeframe === option.id}
+                  onClick={() => setTimeframe(option.id)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    timeframe === option.id
+                      ? 'bg-secondary font-semibold text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid gap-6 lg:grid-cols-2">
-            <MetricChart title="CPU" unit="%" data={metrics} dataKey="cpuPercent" color="var(--chart-1)" domain={[0, 100]} />
-            <MetricChart title="RAM usada" unit="GB" data={metrics} dataKey="ramUsadaGb" color="var(--chart-2)" />
+            <MetricChart title="CPU" unit="%" data={filteredMetrics} dataKey="cpuPercent" color="var(--info)" domain={[0, 100]} />
+            <MetricChart title="RAM usada" unit="GB" data={filteredMetrics} dataKey="ramUsadaGb" color="var(--chart-2)" />
             <MetricChart
               title="Disco usado (unidade do sistema)"
               unit="GB"
-              data={metrics}
+              data={filteredMetrics}
               dataKey="discoUsadoGb"
               color="var(--chart-3)"
             />
           </div>
 
           <p className="text-xs text-muted-foreground">
-            {metrics.length} amostras · retenção de {metricsRetentionDays} dias configurada para
+            {filteredMetrics.length} de {metrics.length} amostras exibidas · retenção de {metricsRetentionDays} dias configurada para
             este cliente · lacunas no gráfico indicam períodos sem coleta, não zero.
           </p>
         </>
