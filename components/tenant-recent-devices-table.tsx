@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Inbox } from 'lucide-react'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
+import { CopyInlineButton } from '@/components/copy-inline-button'
 import { cn } from '@/lib/utils'
 import type { DevicePresence } from '@/lib/inventory-alerts'
 import {
@@ -99,16 +100,22 @@ export function TenantRecentDevicesTable({ devices }: { devices: RecentDeviceRow
             className={CLICKABLE_ROW_CLASS}
           >
             <td className={cn(TABLE_DATA_CELL_CLASS, 'font-medium')}>
-              <Link
-                href={device.detailsPath}
-                onClick={(event) => event.stopPropagation()}
-                className="text-foreground transition-colors hover:text-primary"
-              >
-                {device.hostname}
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link
+                  href={device.detailsPath}
+                  onClick={(event) => event.stopPropagation()}
+                  className="text-foreground transition-colors hover:text-primary"
+                >
+                  {device.hostname}
+                </Link>
+                <CopyInlineButton value={device.hostname} label="Hostname" />
+              </div>
             </td>
             <td className={cn(TABLE_CELL_CLASS, 'text-muted-foreground')}>
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{device.ip ?? '—'}</code>
+              <div className="flex items-center gap-1">
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{device.ip ?? '—'}</code>
+                {device.ip ? <CopyInlineButton value={device.ip} label="IP" /> : null}
+              </div>
             </td>
             <td className={TABLE_CELL_CLASS}>{device.sistema ?? '—'}</td>
             <td className={cn(TABLE_CELL_CLASS, 'tabular-nums')}>{device.ramLabel}</td>

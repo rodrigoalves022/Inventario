@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TenantRecentDevicesTable, type RecentDeviceRow } from '@/components/tenant-recent-devices-table'
 
@@ -24,6 +24,7 @@ const devices: RecentDeviceRow[] = [
 ]
 
 describe('TenantRecentDevicesTable ("Últimas coletas" do dashboard) — linha inteira clicavel', () => {
+  beforeEach(() => { pushMock.mockClear() })
   it('clicar em qualquer celula da linha (ex: coluna Sistema) navega para o detalhe do dispositivo', () => {
     render(<TenantRecentDevicesTable devices={devices} />)
 
@@ -53,5 +54,15 @@ describe('TenantRecentDevicesTable ("Últimas coletas" do dashboard) — linha i
     render(<TenantRecentDevicesTable devices={[]} />)
 
     expect(screen.getByText('Nenhum dispositivo encontrado para este tenant.')).toBeTruthy()
+  })
+
+  it('oferece botoes de copiar para hostname e IP sem disparar navegacao', () => {
+    render(<TenantRecentDevicesTable devices={devices} />)
+
+    const copyHostnameBtn = screen.getByRole('button', { name: /copiar hostname/i })
+    expect(copyHostnameBtn).toBeTruthy()
+
+    fireEvent.click(copyHostnameBtn)
+    expect(pushMock).not.toHaveBeenCalled()
   })
 })
