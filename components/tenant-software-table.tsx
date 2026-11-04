@@ -6,8 +6,15 @@ import { Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { StatusPill } from '@/components/ui/status-pill'
+import { TablePagination } from '@/components/ui/table-pagination'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import {
+  DEFAULT_PAGE_SIZE,
+  getPageSlice,
+  replaceListQueryParams,
+  type PageSize,
+} from '@/lib/table-pagination'
 import {
   STATIC_ROW_HOVER_CLASS,
   TABLE_CELL_CLASS,
@@ -45,10 +52,13 @@ export function TenantSoftwareTable({
 }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<SoftwareFilter>(initialTab)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   const [lastInitialTab, setLastInitialTab] = useState(initialTab)
   if (lastInitialTab !== initialTab) {
     setLastInitialTab(initialTab)
     setFilter(initialTab)
+    setPage(1)
   }
   const basePath = deviceBasePath ?? `/app/${tenantSlug}/assets`
 
@@ -67,10 +77,36 @@ export function TenantSoftwareTable({
     })
   }, [items, search, filter])
 
+  /** Filtrar -> paginar: o rodape conta `filtered` (o que a aba e a busca
+   * deixaram), nunca o catalogo inteiro que o Server Component carregou. */
+  const slice = getPageSlice(filtered, page, pageSize)
+
+  /** Trocar aba ou busca volta para a pagina 1 — caso contrario o usuario na
+   * pagina 3 de "Todos" cai numa pagina vazia ao abrir "Restritos".
+   *
+   * A aba vai para `?tab=` via `history.replaceState` (sem round-trip de RSC,
+   * ver lib/table-pagination.ts); "Todos" some da URL, como os defaults de
+   * paginacao. A pagina em si fica so em estado local. */
+  function changeFilter(nextFilter: SoftwareFilter) {
+    setFilter(nextFilter)
+    setPage(1)
+    replaceListQueryParams({ tab: nextFilter !== 'all' ? nextFilter : null })
+  }
+
+  function changeSearch(nextSearch: string) {
+    setSearch(nextSearch)
+    setPage(1)
+  }
+
+  function changePageSize(nextPageSize: PageSize) {
+    setPageSize(nextPageSize)
+    setPage(1)
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as SoftwareFilter)}>
+        <Tabs value={filter} onValueChange={(value) => changeFilter(value as SoftwareFilter)}>
           <TabsList>
             <TabsTrigger value="all">Todos</TabsTrigger>
             <TabsTrigger value="blacklisted">Restritos / Blacklist</TabsTrigger>
@@ -84,7 +120,7 @@ export function TenantSoftwareTable({
             aria-label="Buscar software"
             placeholder="Buscar software, versão, fabricante ou máquina..."
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => changeSearch(event.target.value)}
             className="h-9 pl-8"
           />
         </div>
@@ -113,7 +149,7 @@ export function TenantSoftwareTable({
                   </td>
                 </tr>
               ) : (
-                filtered.map((item) => (
+                slice.items.map((item) => (
                   <tr key={item.key} className={STATIC_ROW_HOVER_CLASS}>
                     <td className={cn(TABLE_CELL_CLASS, 'font-medium')}>{item.nome}</td>
                     <td data-mono className={cn(TABLE_DATA_CELL_CLASS, 'text-muted-foreground')}>
@@ -154,6 +190,14 @@ export function TenantSoftwareTable({
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          slice={slice}
+          onPageChange={setPage}
+          onPageSizeChange={changePageSize}
+          itemNoun={{ one: 'software', other: 'softwares' }}
+          navLabel="Paginação do catálogo de softwares"
+        />
       </div>
     </div>
   )

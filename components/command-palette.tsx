@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { CornerDownLeft, Monitor, Search, Server } from 'lucide-react'
+import { BookOpen, CornerDownLeft, Download, FileText, Monitor, Search, Server } from 'lucide-react'
 
-import type { ShellNavSection } from '@/lib/shell-navigation'
+import type { ShellIcon, ShellNavSection } from '@/lib/shell-navigation'
 import { getTenantPath } from '@/lib/tenant-links'
 import { formatAnydeskId } from '@/components/anydesk-badge'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
@@ -26,12 +26,14 @@ import {
 /**
  * Paleta de comando do shell (Ctrl+K / Cmd+K).
  *
- * ESCOPO: a paleta busca DUAS coisas.
+ * ESCOPO: a paleta busca TRES coisas.
  *
  * 1. ROTAS do tenant — exatamente as mesmas que a sidebar monta, filtradas
  *    pelo mesmo predicado de papel (`buildShellNavigation`). Estao em memoria,
  *    filtram instantaneamente, sem rede.
- * 2. DISPOSITIVOS por hostname, IP, usuario, serial, etiqueta ou responsavel, via
+ * 2. ACOES RAPIDAS (Sprint A71) — baixar o relatorio do tenant em PDF/CSV e
+ *    abrir a documentacao. Tambem em memoria; ver `buildQuickActions`.
+ * 3. DISPOSITIVOS por hostname, IP, usuario, serial, etiqueta ou responsavel, via
  *    `GET /api/tenant/[clientSlug]/devices/search` (Backlog item 13). Consulta
  *    de rede, com debounce, escopo por tenant e rate limit na rota.
  *
@@ -53,6 +55,83 @@ const SEARCH_DEBOUNCE_MS = 250
 /** Mesmo minimo que o Zod da rota exige. Checado aqui tambem para nem sair
  * requisicao que a rota ja devolveria vazia. */
 const MIN_SEARCH_LENGTH = 2
+
+const DOCS_HREF = '/docs'
+
+type QuickAction = {
+  id: string
+  label: string
+  /** Sinonimos que entram no `value` do cmdk: quem digita "exportar" ou
+   * "ajuda" tambem precisa encontrar a acao. */
+  keywords: string
+  icon: ShellIcon
+  kind: 'download' | 'navigate'
+  href: string
+}
+
+/**
+ * Acoes rapidas da paleta.
+ *
+ * Os downloads so existem com tenant: o relatorio e' sempre o DE UM cliente,
+ * e a rota (`canAccessTenant`) e' a mesma que a Visao geral ja oferece a
+ * qualquer papel do tenant. A documentacao segue a regra do resto da paleta —
+ * so aparece se o papel ve `/docs` no menu (`sections` ja vem filtrado por
+ * `buildShellNavigation`), em vez de reimplementar RBAC aqui.
+ */
+function buildQuickActions(sections: ShellNavSection[], tenantSlug?: string | null): QuickAction[] {
+  const actions: QuickAction[] = []
+
+  if (tenantSlug) {
+    const reportsBase = `/api/tenant/${encodeURIComponent(tenantSlug)}/reports`
+    actions.push(
+      {
+        id: 'report-pdf',
+        label: 'Baixar Relatório em PDF',
+        keywords: 'exportar download executivo',
+        icon: FileText,
+        kind: 'download',
+        href: `${reportsBase}/pdf`,
+      },
+      {
+        id: 'report-csv',
+        label: 'Baixar Relatório em CSV',
+        keywords: 'exportar download planilha excel',
+        icon: Download,
+        kind: 'download',
+        href: `${reportsBase}/csv`,
+      }
+    )
+  }
+
+  if (sections.some((section) => section.items.some((item) => item.href === DOCS_HREF))) {
+    actions.push({
+      id: 'docs',
+      label: 'Ver Documentação da Plataforma',
+      keywords: 'ajuda guia manual docs',
+      icon: BookOpen,
+      kind: 'navigate',
+      href: DOCS_HREF,
+    })
+  }
+
+  return actions
+}
+
+/**
+ * Dispara o download por um `<a>` temporario — e nao por `router.push`, que
+ * trataria a rota de API como pagina do App Router e buscaria um payload RSC
+ * que ela nao tem. O clique no link e' o mesmo caminho dos botoes "Baixar
+ * CSV/PDF" das telas: o `Content-Disposition: attachment` da rota faz o
+ * navegador baixar sem sair da pagina atual.
+ */
+function triggerDownload(href: string) {
+  const link = document.createElement('a')
+  link.href = href
+  link.rel = 'noopener'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
 
 type DeviceHit = {
   id: string
@@ -286,6 +365,17 @@ export function CommandPalette({
     router.push(href)
   }
 
+  function handleQuickAction(action: QuickAction) {
+    if (action.kind === 'navigate') {
+      handleSelect(action.href)
+      return
+    }
+    handleOpenChange(false)
+    triggerDownload(action.href)
+  }
+
+  const quickActions = buildQuickActions(sections, tenantSlug)
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {/* `top-[12vh] translate-y-0` desfaz a centralizacao vertical do
@@ -297,7 +387,7 @@ export function CommandPalette({
       >
         <DialogTitle className="sr-only">Busca rápida</DialogTitle>
         <DialogDescription className="sr-only">
-          Digite para filtrar as páginas deste cliente. Use as setas para navegar e Enter para abrir.
+          Digite para filtrar as páginas e ações rápidas deste cliente. Use as setas para navegar e Enter para abrir.
         </DialogDescription>
 
         <Command
@@ -339,6 +429,29 @@ export function CommandPalette({
                 ))}
               </CommandGroup>
             ))}
+
+            {/* Acoes DEPOIS das rotas: com a busca vazia o Enter continua
+                abrindo a primeira pagina, como antes. O `value` leva o nome
+                do grupo, entao digitar "acoes" lista todas. */}
+            {quickActions.length > 0 && (
+              <CommandGroup heading="Ações Rápidas">
+                {quickActions.map((action) => (
+                  <CommandItem
+                    key={action.id}
+                    value={`Ações Rápidas ${action.label} ${action.keywords}`}
+                    onSelect={() => handleQuickAction(action)}
+                    className="group cursor-pointer gap-3 rounded-lg px-3 py-2.5 data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
+                  >
+                    <action.icon className="h-4 w-4 shrink-0" />
+                    <span className="font-medium">{action.label}</span>
+                    <CornerDownLeft
+                      aria-hidden
+                      className="ml-auto h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-data-[selected=true]:opacity-100"
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
 
             {/* Dispositivos DEPOIS das rotas: navegar e' o uso dominante da
                 paleta, e as rotas respondem sem rede. O grupo so aparece quando

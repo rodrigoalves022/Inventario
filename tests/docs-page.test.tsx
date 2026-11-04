@@ -114,4 +114,42 @@ describe('DocsHub', () => {
     const risk = screen.getByText(/Crítico: conta habilitada, administradora/)
     expect(risk.textContent).toContain('inclusive toda conta desabilitada')
   })
+
+  it('documenta as abas, a paginação e a URL do Catálogo de Softwares (Sprint A72)', () => {
+    render(<DocsHub />)
+    openTab(/Relatórios, Exportações & Governança/)
+    expect(screen.getByText('Catálogo de Softwares: Abas, Paginação e URL')).toBeTruthy()
+    expect(screen.getByText(/\/portal\/software/)).toBeTruthy()
+    const tab = screen.getByText(/Trocar de aba direto na tabela grava \?tab=blacklisted ou \?tab=widespread/)
+    expect(tab.textContent).toContain('preservando os demais parâmetros')
+    expect(tab.textContent).toContain('Todos remove o ?tab=')
+    expect(screen.getByText(/"Itens por página" oferece 10, 25, 50 ou 100/)).toBeTruthy()
+    expect(screen.getByText('?page= e ?limit=')).toBeTruthy()
+    expect(screen.getByText(/Não entram na URL do catálogo/).textContent).toContain('página 1 com 25 itens')
+    expect(screen.getByText(/digitar na busca ou mudar os itens por página volta para a página 1/)).toBeTruthy()
+    expect(screen.getByText(/sem o recorte da aba, da busca nem da página/)).toBeTruthy()
+    for (const value of ['all', 'blacklisted', 'widespread']) {
+      expect(screen.getByText(`/software?tab=${value}`)).toBeTruthy()
+    }
+    expect(screen.getByText('Cards: Softwares restritos.')).toBeTruthy()
+  })
+
+  it('documenta a paleta Ctrl+K e as ações rápidas (Sprint A72)', () => {
+    render(<DocsHub />)
+    openTab(/Relatórios, Exportações & Governança/)
+    expect(screen.getByText('Paleta de Comandos (Ctrl+K) e Ações Rápidas')).toBeTruthy()
+    expect(screen.getByText('Ctrl+K')).toBeTruthy()
+    expect(screen.getByText(/o atalho não dispara com o foco num campo de digitação/)).toBeTruthy()
+    expect(screen.getByText('Grupo Ações Rápidas')).toBeTruthy()
+    for (const action of ['Baixar Relatório em PDF', 'Baixar Relatório em CSV', 'Ver Documentação da Plataforma']) {
+      expect(screen.getByText(action)).toBeTruthy()
+    }
+    // As rotas de relatório também estão na Matriz de Exportações do Tenant.
+    expect(screen.getAllByText('/api/tenant/[slug]/reports/pdf')).toHaveLength(2)
+    expect(screen.getAllByText('/api/tenant/[slug]/reports/csv')).toHaveLength(2)
+    expect(screen.getAllByText(/Só aparece dentro de um cliente\.$/)).toHaveLength(2)
+    expect(screen.getByText(/casa por sinônimo/).textContent).toContain('"exportar"')
+    const governance = screen.getByText(/não enfileiram comando, não gravam auditoria e não dão acesso novo/)
+    expect(governance.textContent).toContain('canAccessTenant')
+  })
 })

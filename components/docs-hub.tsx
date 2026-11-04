@@ -12,6 +12,7 @@ import {
   Layers,
   Monitor,
   RefreshCw,
+  Search,
   ShieldCheck,
   Terminal,
   Users,
@@ -254,6 +255,30 @@ const LOCAL_ACCOUNT_TABS = [
   ['Admins ativos', 'admin_enabled', 'Contas habilitadas com privilégio de administrador.', 'Admins locais ativos'],
   ['Senha sem expiração', 'never_expires', 'Contas habilitadas cuja senha nunca expira.', 'Senha nunca expira (ativas)'],
   ['Risco crítico', 'critical', 'Contas habilitadas, administradoras e com senha que nunca expira.', 'Risco crítico (Admin + Sem expiração)'],
+] as const
+
+// Sprint A70: espelha `SoftwareFilter` de components/tenant-software-table.tsx
+// e os cards de app/app/[clientSlug]/software/page.tsx.
+const SOFTWARE_TABS = [
+  ['Todos', 'all', 'Todo o catálogo consolidado do cliente.', 'Softwares distintos e Editores / Fabricantes'],
+  ['Restritos / Blacklist', 'blacklisted', 'Softwares que casam com uma regra de blacklist ativa (software_blacklisted).', 'Softwares restritos'],
+  ['Em múltiplas máquinas', 'widespread', 'Softwares instalados em mais de uma máquina.', 'Instalações totais'],
+] as const
+
+const SOFTWARE_CATALOG_URL = [
+  ['Onde', 'A mesma tabela atende /app/[clientSlug]/software e o Portal (/portal/software), com as mesmas abas, busca e paginação.'],
+  ['Aba na URL (?tab=)', 'Trocar de aba direto na tabela grava ?tab=blacklisted ou ?tab=widespread sem recarregar a página e preservando os demais parâmetros; Todos remove o ?tab=. O recorte sobrevive a recarregar e compartilhar o link, e ?tab= desconhecido cai em Todos. Os cards abrem a aba correspondente; Softwares distintos, Instalações totais e Softwares restritos ficam destacados enquanto a aba deles está ativa.'],
+  ['Paginação', '25 softwares por página; "Itens por página" oferece 10, 25, 50 ou 100. O rodapé "Exibindo 1–25 de N softwares" conta o que a aba e a busca deixaram, e os cards contam o catálogo inteiro, nunca só a página.'],
+  ['?page= e ?limit=', 'Não entram na URL do catálogo: a página e os itens por página ficam só na tela, então recarregar ou compartilhar o link volta para a página 1 com 25 itens, mantendo a aba. Diferente de /computers, /servers, /storage, /processors, /network e /audit, que gravam ?page= e ?limit=.'],
+  ['Volta à página 1', 'Trocar de aba (na tabela ou pelos cards), digitar na busca ou mudar os itens por página volta para a página 1.'],
+  ['Exportação', '"Baixar CSV" usa /api/tenant/[slug]/software/csv e exporta o catálogo inteiro, sem o recorte da aba, da busca nem da página.'],
+] as const
+
+// Sprint A71: espelha `buildQuickActions` de components/command-palette.tsx.
+const PALETTE_QUICK_ACTIONS = [
+  ['Baixar Relatório em PDF', '/api/tenant/[slug]/reports/pdf', 'Relatório executivo do cliente atual. Só aparece dentro de um cliente.'],
+  ['Baixar Relatório em CSV', '/api/tenant/[slug]/reports/csv', 'Relatório analítico, uma linha por máquina. Só aparece dentro de um cliente.'],
+  ['Ver Documentação da Plataforma', '/docs', 'Abre esta Central de Documentação. Aparece também fora de um cliente, para quem tem Documentação no menu.'],
 ] as const
 
 export function DocsHub() {
@@ -829,6 +854,42 @@ export function DocsHub() {
 
             <Panel>
               <PanelHeader
+                icon={<Layers className="h-4 w-4" />}
+                title="Catálogo de Softwares: Abas, Paginação e URL"
+                description="Abas, busca e paginação do catálogo consolidado: só a aba (?tab=) vai para a URL."
+              />
+              <PanelBody className="space-y-6">
+                <dl className="divide-y divide-surface-line">
+                  {SOFTWARE_CATALOG_URL.map(([name, text]) => (
+                    <Row key={name} term={name}>
+                      {text}
+                    </Row>
+                  ))}
+                </dl>
+
+                <section className="space-y-2">
+                  <h3 className="section-label">Matriz das abas do catálogo</h3>
+                  <dl className="divide-y divide-surface-line">
+                    {SOFTWARE_TABS.map(([tab, value, rule, cards]) => (
+                      <Row
+                        key={value}
+                        term={
+                          <>
+                            {tab} <Code>/software?tab={value}</Code>
+                          </>
+                        }
+                      >
+                        {rule}
+                        <span className="mt-1 block">Cards: {cards}.</span>
+                      </Row>
+                    ))}
+                  </dl>
+                </section>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
                 icon={<Users className="h-4 w-4" />}
                 title="Portal do Cliente"
                 description="O que o CLIENT_VIEWER vê do parque em /portal e como audita as contas locais em /portal/local-accounts."
@@ -899,6 +960,57 @@ export function DocsHub() {
                       {text}
                     </Row>
                   ))}
+                </dl>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Search className="h-4 w-4" />}
+                title="Paleta de Comandos (Ctrl+K) e Ações Rápidas"
+                description="Páginas, máquinas, relatórios e documentação sem tirar a mão do teclado."
+              />
+              <PanelBody className="space-y-6">
+                <dl className="divide-y divide-surface-line">
+                  <Row term="Abrir e navegar">
+                    <Code>Ctrl+K</Code> (<Code>⌘K</Code> no macOS) ou o campo de busca do cabeçalho abrem a paleta; o
+                    atalho não dispara com o foco num campo de digitação. <Code>↑</Code>/<Code>↓</Code> navegam,{' '}
+                    <Code>Enter</Code> abre e <Code>Esc</Code> fecha.
+                  </Row>
+                  <Row term="Páginas e máquinas">
+                    As páginas são as mesmas da barra lateral, filtradas pelo papel. Dentro de um cliente, a partir de 2
+                    caracteres a paleta também busca máquinas por hostname, IP, usuário, serial, etiqueta, responsável ou
+                    AnyDesk (<Code>/api/tenant/[slug]/devices/search</Code>). A busca ignora acentos.
+                  </Row>
+                </dl>
+
+                <section className="space-y-2">
+                  <h3 className="section-label">Grupo Ações Rápidas</h3>
+                  <dl className="divide-y divide-surface-line">
+                    {PALETTE_QUICK_ACTIONS.map(([name, route, text]) => (
+                      <Row key={name} term={name}>
+                        <Code>{route}</Code>
+                        <span className="mt-1 block">{text}</span>
+                      </Row>
+                    ))}
+                  </dl>
+                </section>
+
+                <dl className="divide-y divide-surface-line">
+                  <Row term="Busca das ações">
+                    O grupo vem depois das páginas, então com a busca vazia o <Code>Enter</Code> continua abrindo a primeira
+                    página. Digitar &quot;ações&quot; lista o grupo inteiro, e cada ação também casa por sinônimo, como
+                    &quot;exportar&quot;, &quot;planilha&quot; ou &quot;ajuda&quot;.
+                  </Row>
+                  <Row term="Downloads">
+                    A paleta fecha e o arquivo baixa sem sair da página atual, pelo mesmo caminho dos botões &quot;Baixar
+                    CSV&quot; e &quot;Baixar PDF&quot; da Visão Geral.
+                  </Row>
+                  <Row term="Governança">
+                    As ações não enfileiram comando, não gravam auditoria e não dão acesso novo: os downloads usam as rotas
+                    de relatório da Visão Geral, que repetem <Code>canAccessTenant</Code> no servidor, e o atalho da
+                    Documentação só aparece para o papel que já vê <Code>/docs</Code> no menu.
+                  </Row>
                 </dl>
               </PanelBody>
             </Panel>

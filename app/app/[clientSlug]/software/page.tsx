@@ -68,6 +68,7 @@ export default async function TenantSoftwarePage({ params, searchParams }: PageP
         <KpiCard
           href="?tab=all"
           label="Softwares distintos"
+          active={initialTab === 'all'}
           value={catalogItems.length}
           subtitle="Aplicações únicas"
           icon={<Package className="h-4 w-4" />}
@@ -76,6 +77,7 @@ export default async function TenantSoftwarePage({ params, searchParams }: PageP
         <KpiCard
           href="?tab=widespread"
           label="Instalações totais"
+          active={initialTab === 'widespread'}
           value={totalInstallations}
           subtitle="Registros em todas as máquinas"
           icon={<Layers className="h-4 w-4" />}
@@ -92,6 +94,7 @@ export default async function TenantSoftwarePage({ params, searchParams }: PageP
         <KpiCard
           href="?tab=blacklisted"
           label="Softwares restritos"
+          active={initialTab === 'blacklisted'}
           value={blacklistedCount}
           subtitle={blacklistedCount > 0 ? 'Correspondem à blacklist ativa' : 'Nenhuma violação de blacklist'}
           icon={<ShieldAlert className="h-4 w-4" />}

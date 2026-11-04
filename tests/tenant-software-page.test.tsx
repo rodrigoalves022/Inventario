@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   getSessionPermissionUser: vi.fn(),
   canAccessTenant: vi.fn(),
   getTenantContext: vi.fn(),
+  requireTenantContext: vi.fn(),
+  requirePortalContext: vi.fn(),
   deviceFindMany: vi.fn(),
   ruleFindMany: vi.fn(),
 }))
@@ -17,7 +19,11 @@ vi.mock('@/lib/permissions', () => ({
   canAccessTenant: mocks.canAccessTenant,
   canReadTenantData: (...args: unknown[]) => (mocks.canAccessTenant as (...a: unknown[]) => unknown)(...args),
 }))
-vi.mock('@/lib/tenant-context', () => ({ getTenantContext: mocks.getTenantContext }))
+vi.mock('@/lib/tenant-context', () => ({
+  getTenantContext: mocks.getTenantContext,
+  requireTenantContext: mocks.requireTenantContext,
+}))
+vi.mock('@/lib/portal-context', () => ({ requirePortalContext: mocks.requirePortalContext }))
 vi.mock('@/lib/prisma', () => ({
   default: {
     device: { findMany: mocks.deviceFindMany },
@@ -29,6 +35,8 @@ import { GET } from '@/app/api/tenant/[clientSlug]/software/csv/route'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { buildSoftwareCatalog, deduplicateDeviceSoftware, isControlPanelSoftware } from '@/lib/software-catalog'
 import { TenantSoftwareTable, type SoftwareCatalogItem } from '@/components/tenant-software-table'
+import TenantSoftwarePage from '@/app/app/[clientSlug]/software/page'
+import PortalSoftwarePage from '@/app/portal/software/page'
 
 const items: SoftwareCatalogItem[] = [
   {
@@ -186,4 +194,109 @@ describe('GET /api/tenant/[clientSlug]/software/csv', () => {
     expect(lines[1]).toContain(`"'=HYPERLINK(""x"")"`)
     expect(lines[2]).toBe('uTorrent;3.5;;Restrito;2;"pc-1, pc-2"'.replace('"pc-1, pc-2"', 'pc-1, pc-2'))
   })
+})
+
+describe('Sprint A70 — paginação e ?tab= do catálogo', () => {
+  // 30 itens: 27 permitidos em 1 máquina + 3 restritos em 2 máquinas.
+  const many: SoftwareCatalogItem[] = Array.from({ length: 30 }, (_, index) => ({
+    key: `sw-${index + 1}`,
+    nome: `App ${String(index + 1).padStart(2, '0')}`,
+    versao: '1.0',
+    editor: 'Acme',
+    installationsCount: index >= 27 ? 2 : 1,
+    machines: [{ id: `m${index + 1}`, hostname: `host-${index + 1}` }],
+    isBlacklisted: index >= 27,
+  }))
+
+  beforeEach(() => {
+    cleanup()
+    window.history.replaceState(null, '', '/app/acme/software')
+  })
+
+  it('pagina 25 por vez e conta o conjunto filtrado no rodapé', () => {
+    render(<TenantSoftwareTable items={many} tenantSlug="acme" />)
+    expect(screen.getByText('App 25')).toBeTruthy()
+    expect(screen.queryByText('App 26')).toBeNull()
+    expect(screen.getByTestId('table-pagination-summary').textContent).toBe('Exibindo 1–25 de 30 softwares')
+
+    const nav = screen.getByRole('navigation', { name: 'Paginação do catálogo de softwares' })
+    fireEvent.click(within(nav).getByRole('button', { name: 'Página 2' }))
+    expect(screen.queryByText('App 01')).toBeNull()
+    expect(screen.getByText('App 30')).toBeTruthy()
+    expect(screen.getByTestId('table-pagination-summary').textContent).toBe('Exibindo 26–30 de 30 softwares')
+  })
+
+  it('trocar de aba grava ?tab= na URL e volta para a página 1', () => {
+    window.history.replaceState(null, '', '/app/acme/software?foo=bar')
+    render(<TenantSoftwareTable items={many} tenantSlug="acme" />)
+    const nav = screen.getByRole('navigation', { name: 'Paginação do catálogo de softwares' })
+    fireEvent.click(within(nav).getByRole('button', { name: 'Página 2' }))
+
+    const restricted = screen.getByRole('tab', { name: 'Restritos / Blacklist' })
+    fireEvent.mouseDown(restricted)
+    fireEvent.click(restricted)
+    expect(window.location.search).toBe('?foo=bar&tab=blacklisted')
+    expect(screen.getByTestId('table-pagination-summary').textContent).toBe('Exibindo 1–3 de 3 softwares')
+
+    const widespread = screen.getByRole('tab', { name: 'Em múltiplas máquinas' })
+    fireEvent.mouseDown(widespread)
+    fireEvent.click(widespread)
+    expect(window.location.search).toBe('?foo=bar&tab=widespread')
+
+    const all = screen.getByRole('tab', { name: 'Todos' })
+    fireEvent.mouseDown(all)
+    fireEvent.click(all)
+    expect(window.location.search).toBe('?foo=bar')
+    expect(screen.getByText('App 01')).toBeTruthy()
+  })
+
+  it('buscar volta para a página 1 e mantém os links das máquinas', () => {
+    render(<TenantSoftwareTable items={many} tenantSlug="acme" />)
+    const nav = screen.getByRole('navigation', { name: 'Paginação do catálogo de softwares' })
+    fireEvent.click(within(nav).getByRole('button', { name: 'Página 2' }))
+
+    fireEvent.change(screen.getByLabelText('Buscar software'), { target: { value: 'app 0' } })
+    expect(screen.getByTestId('table-pagination-summary').textContent).toBe('Exibindo 1–9 de 9 softwares')
+    expect(screen.getByRole('link', { name: 'host-1' }).getAttribute('href')).toBe('/app/acme/assets/m1')
+  })
+})
+
+describe('Sprint A70 — card de KPI ativo conforme ?tab=', () => {
+  const kpiLink = (label: string) => screen.getByText(label).closest('a') as HTMLAnchorElement
+  const isActive = (label: string) => kpiLink(label).className.includes('border-primary')
+
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    mocks.requireTenantContext.mockResolvedValue({ id: 'client-1', slug: 'acme' })
+    mocks.requirePortalContext.mockResolvedValue({ clientId: 'client-1', clientName: 'Acme', clientSlug: 'acme' })
+    mocks.deviceFindMany.mockResolvedValue([])
+    mocks.ruleFindMany.mockResolvedValue([])
+  })
+
+  const cases = [
+    ['all', 'Softwares distintos'],
+    ['widespread', 'Instalações totais'],
+    ['blacklisted', 'Softwares restritos'],
+  ] as const
+  const labels = cases.map(([, label]) => label)
+
+  for (const [tab, label] of cases) {
+    it(`?tab=${tab} destaca "${label}" no catálogo do tenant`, async () => {
+      render(
+        await TenantSoftwarePage({
+          params: Promise.resolve({ clientSlug: 'acme' }),
+          searchParams: Promise.resolve({ tab }),
+        } as never)
+      )
+      for (const other of labels) expect(isActive(other)).toBe(other === label)
+      expect(isActive('Editores / Fabricantes')).toBe(false)
+    })
+
+    it(`?tab=${tab} destaca "${label}" no catálogo do portal`, async () => {
+      render(await PortalSoftwarePage({ searchParams: Promise.resolve({ tab }) }))
+      for (const other of labels) expect(isActive(other)).toBe(other === label)
+      expect(isActive('Editores / Fabricantes')).toBe(false)
+    })
+  }
 })

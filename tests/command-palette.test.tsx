@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { BarChart3, Monitor } from 'lucide-react'
+import { BarChart3, BookOpen, Monitor } from 'lucide-react'
 import type { ShellNavSection } from '@/lib/shell-navigation'
 import {
   CommandPalette,
@@ -61,10 +61,19 @@ function Harness() {
   )
 }
 
-function TenantHarness() {
+function TenantHarness({ sections = SECTIONS }: { sections?: ShellNavSection[] }) {
   const { open, setOpen } = useCommandPalette()
-  return <CommandPalette open={open} onOpenChange={setOpen} sections={SECTIONS} tenantSlug="acme" />
+  return <CommandPalette open={open} onOpenChange={setOpen} sections={sections} tenantSlug="acme" />
 }
+
+/** Papel que ve "Conta > Documentação" no menu (PLATFORM_ADMIN / ORG_ADMIN). */
+const SECTIONS_WITH_DOCS: ShellNavSection[] = [
+  ...SECTIONS,
+  {
+    title: 'Conta',
+    items: [{ name: 'Documentação', href: '/docs', icon: BookOpen, exact: true }],
+  },
+]
 
 function paletteIsOpen() {
   return screen.queryByRole('dialog') !== null
@@ -238,5 +247,159 @@ describe('Paleta de comando — busca de dispositivos por usuário/etiqueta', ()
     await waitFor(() => expect(screen.getByText('PC-0042')).toBeTruthy())
     expect(screen.getByText('PAT-998')).toBeTruthy()
     vi.unstubAllGlobals()
+  })
+})
+
+/**
+ * Sprint A71. Downloads nao podem passar por `router.push` (a rota de API nao
+ * e' pagina do App Router): o teste trava que eles saem por um clique de
+ * `<a>`, como os botoes "Baixar CSV/PDF" das telas.
+ */
+describe('Paleta de comando — Ações Rápidas', () => {
+  let downloadedHrefs: (string | null)[]
+
+  beforeEach(() => {
+    downloadedHrefs = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloadedHrefs.push(this.getAttribute('href'))
+    })
+    // A busca de dispositivos dispara a partir de 2 caracteres; aqui ela nao
+    // e' o assunto, entao responde sempre vazio.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ devices: [] }) })
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  async function openPalette() {
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true })
+    await waitFor(() => expect(paletteIsOpen()).toBe(true))
+  }
+
+  it('no tenant, lista o grupo com os downloads de PDF e CSV', async () => {
+    render(<TenantHarness />)
+    await openPalette()
+
+    expect(screen.getByText('Ações Rápidas')).toBeTruthy()
+    expect(screen.getByText('Baixar Relatório em PDF')).toBeTruthy()
+    expect(screen.getByText('Baixar Relatório em CSV')).toBeTruthy()
+  })
+
+  it('fora de um tenant não oferece download — o relatório é sempre de um cliente', async () => {
+    render(<Harness />)
+    await openPalette()
+
+    expect(screen.queryByText('Baixar Relatório em PDF')).toBeNull()
+    expect(screen.queryByText('Baixar Relatório em CSV')).toBeNull()
+    expect(screen.queryByText('Ações Rápidas')).toBeNull()
+  })
+
+  it('clicar em "Baixar Relatório em PDF" baixa o PDF do tenant e fecha a paleta', async () => {
+    render(<TenantHarness />)
+    await openPalette()
+
+    fireEvent.click(screen.getByText('Baixar Relatório em PDF'))
+
+    await waitFor(() => expect(downloadedHrefs).toEqual(['/api/tenant/acme/reports/pdf']))
+    expect(pushMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(paletteIsOpen()).toBe(false))
+  })
+
+  it('clicar em "Baixar Relatório em CSV" baixa o CSV do tenant', async () => {
+    render(<TenantHarness />)
+    await openPalette()
+
+    fireEvent.click(screen.getByText('Baixar Relatório em CSV'))
+
+    await waitFor(() => expect(downloadedHrefs).toEqual(['/api/tenant/acme/reports/csv']))
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('"Ver Documentação da Plataforma" navega para /docs', async () => {
+    render(<TenantHarness sections={SECTIONS_WITH_DOCS} />)
+    await openPalette()
+
+    fireEvent.click(screen.getByText('Ver Documentação da Plataforma'))
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/docs'))
+    expect(downloadedHrefs).toEqual([])
+    await waitFor(() => expect(paletteIsOpen()).toBe(false))
+  })
+
+  it('a documentação segue o menu: papel sem /docs no menu não vê o atalho', async () => {
+    render(<TenantHarness />)
+    await openPalette()
+
+    expect(screen.queryByText('Ver Documentação da Plataforma')).toBeNull()
+  })
+
+  it('o atalho da documentação também existe fora de um tenant', async () => {
+    function AccountHarness() {
+      const { open, setOpen } = useCommandPalette()
+      return <CommandPalette open={open} onOpenChange={setOpen} sections={SECTIONS_WITH_DOCS} />
+    }
+    render(<AccountHarness />)
+    await openPalette()
+
+    expect(screen.getByText('Ações Rápidas')).toBeTruthy()
+    expect(screen.getByText('Ver Documentação da Plataforma')).toBeTruthy()
+  })
+
+  it('a busca encontra a ação por sinônimo e sem acento — "exportar" e "acoes"', async () => {
+    render(<TenantHarness sections={SECTIONS_WITH_DOCS} />)
+    await openPalette()
+    const input = screen.getByPlaceholderText(/Buscar página, hostname/)
+
+    fireEvent.change(input, { target: { value: 'exportar' } })
+    await waitFor(() => expect(screen.queryByText('Máquinas')).toBeNull())
+    expect(screen.getByText('Baixar Relatório em PDF')).toBeTruthy()
+    expect(screen.getByText('Baixar Relatório em CSV')).toBeTruthy()
+    expect(screen.queryByText('Ver Documentação da Plataforma')).toBeNull()
+
+    fireEvent.change(input, { target: { value: 'acoes' } })
+    await waitFor(() => expect(screen.getByText('Ver Documentação da Plataforma')).toBeTruthy())
+    expect(screen.getByText('Baixar Relatório em PDF')).toBeTruthy()
+  })
+
+  it('Enter na ação filtrada dispara o download pelo teclado', async () => {
+    render(<TenantHarness />)
+    await openPalette()
+    const input = screen.getByPlaceholderText(/Buscar página, hostname/)
+
+    fireEvent.change(input, { target: { value: 'csv' } })
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /Baixar Relatório em CSV/ }).getAttribute('aria-selected')).toBe('true')
+    )
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => expect(downloadedHrefs).toEqual(['/api/tenant/acme/reports/csv']))
+    await waitFor(() => expect(paletteIsOpen()).toBe(false))
+  })
+
+  it('as setas descem das rotas para as ações sem pular nem travar', async () => {
+    render(<TenantHarness />)
+    await openPalette()
+    const input = screen.getByPlaceholderText(/Buscar página, hostname/)
+
+    // "relatorio" casa a rota "Relatórios" E as duas ações de download.
+    fireEvent.change(input, { target: { value: 'relatorio' } })
+    const route = await screen.findByRole('option', { name: /^Relatórios/ })
+    await waitFor(() => expect(route.getAttribute('aria-selected')).toBe('true'))
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /Baixar Relatório em PDF/ }).getAttribute('aria-selected')).toBe('true')
+    )
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => expect(downloadedHrefs).toEqual(['/api/tenant/acme/reports/pdf']))
+    expect(pushMock).not.toHaveBeenCalled()
   })
 })
