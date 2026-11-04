@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 import { requireTenantContext } from '@/lib/tenant-context'
@@ -58,7 +59,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
         metadataJson: true,
         firedAt: true,
         resolvedAt: true,
-        device: { select: { hostname: true } },
+        device: { select: { id: true, hostname: true } },
       },
     }),
   ])
@@ -84,7 +85,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
         <div className="flex items-center gap-2">
           {filterActive && (
             <Button variant="ghost" size="sm" asChild>
-              <a href={basePath}>Limpar filtro</a>
+              <a href={`${basePath}#alert-history`}>Limpar filtro</a>
             </Button>
           )}
           <Button variant="outline" size="sm" asChild>
@@ -103,7 +104,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           subtitle={`de ${rules.length} configurada(s)`}
           icon={<BellRing />}
           tone="primary"
-          href={basePath}
+          href="#alert-rules"
           active={!stateFilter && !severityFilter}
         />
         <KpiCard
@@ -113,7 +114,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           icon={<AlertTriangle />}
           tone={openCount > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={openCount > 0}
-          href={`${basePath}?state=open`}
+          href={`${basePath}?state=open#alert-history`}
           active={stateFilter === 'open' && !severityFilter}
         />
         <KpiCard
@@ -123,7 +124,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           icon={<ShieldAlert />}
           tone={criticalOpenCount > 0 ? 'destructive' : 'neutral'}
           emphasizeValue={criticalOpenCount > 0}
-          href={`${basePath}?severity=critical`}
+          href={`${basePath}?severity=critical#alert-history`}
           active={severityFilter === 'critical'}
         />
         <KpiCard
@@ -132,7 +133,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
           subtitle="nos últimos 50 disparos"
           icon={<CheckCircle2 />}
           tone="success"
-          href={`${basePath}?state=resolved`}
+          href={`${basePath}?state=resolved#alert-history`}
           active={stateFilter === 'resolved'}
         />
       </div>
@@ -142,7 +143,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
         px-5, titulo text-base. Listas dentro do painel sao linhas com
         divide-y, nunca cartoes com borda propria (card dentro de card).
       */}
-      <Panel>
+      <Panel id="alert-rules" className="scroll-mt-20">
         <PanelHeader
           icon={<BellRing />}
           title="Regras"
@@ -172,7 +173,7 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
         </PanelBody>
       </Panel>
 
-      <Panel>
+      <Panel id="alert-history" className="scroll-mt-20">
         <PanelHeader
           icon={<History />}
           title="Histórico de disparos"
@@ -201,7 +202,13 @@ export default async function TenantAlertsPage({ params, searchParams }: PagePro
                   <div key={event.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0 space-y-1">
                       <p className="text-sm font-medium text-foreground">
-                        <span className="data-mono">{event.device.hostname}</span> · {event.message}
+                        <Link
+                          href={getTenantPath(tenant.slug, `assets/${event.device.id}`)}
+                          className="data-mono font-medium text-foreground hover:text-primary hover:underline"
+                        >
+                          {event.device.hostname}
+                        </Link>{' '}
+                        · {event.message}
                       </p>
                       {softwareMetadata && (
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-xs text-foreground">

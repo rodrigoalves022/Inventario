@@ -1,6 +1,6 @@
 /**
  * Limiar de cor pro uso de disco em telas de inventario (ex.: /storage):
- * verde ate 60%, ambar de 60 a 80%, vermelho acima de 80%. Funcao pura para
+ * informativo ate 60%, ambar de 60 a 80%, vermelho acima de 80%. Funcao pura para
  * ser reaproveitada pela UI e testada isoladamente, sem depender de React.
  */
 export type DiskUsageTier = 'ok' | 'warning' | 'critical'
@@ -35,15 +35,21 @@ export function getDiskUsageTier(usedPercent: number): DiskUsageTier {
  * ambar ("pixels amarelados" a 66%). Preenchimento por `width` com
  * `rounded-full` proprio termina sempre numa ponta arredondada e de uma cor so
  * — a mesma do numero ao lado (DISK_USAGE_TIER_TEXT_CLASS).
+ *
+ * Sprint A61: tons calmos. Disco ate 60% nao e' "sucesso" a comemorar, e' so
+ * informacao — por isso `info`, e nao `success`. Os preenchimentos levam
+ * opacidade (60/70/75, crescendo com a gravidade) para a coluna de barras nao
+ * gritar mais alto que o dado; quem carrega a leitura exata e' o percentual em
+ * texto ao lado, sempre em cor cheia (DISK_USAGE_TIER_TEXT_CLASS).
  */
 export const DISK_USAGE_TIER_BAR_CLASS: Record<DiskUsageTier, string> = {
-  ok: 'bg-success',
-  warning: 'bg-warning',
-  critical: 'bg-destructive',
+  ok: 'bg-info/60',
+  warning: 'bg-warning/70',
+  critical: 'bg-destructive/75',
 }
 
 export const DISK_USAGE_TIER_TEXT_CLASS: Record<DiskUsageTier, string> = {
-  ok: 'text-success',
+  ok: 'text-info',
   warning: 'text-warning',
   critical: 'text-destructive',
 }

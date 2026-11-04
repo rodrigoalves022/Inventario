@@ -1,14 +1,21 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TenantStorageTable, type TenantStorageRow } from '@/components/tenant-storage-table'
 
 const replaceMock = vi.fn()
+/** Query "atual" vista por `useSearchParams` — vazia por padrao. */
+let currentSearch = ''
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock }),
   usePathname: () => '/app/cliente-a/storage',
+  useSearchParams: () => new URLSearchParams(currentSearch),
 }))
+
+afterEach(() => {
+  currentSearch = ''
+})
 
 const devices: TenantStorageRow[] = [
   {
@@ -227,13 +234,24 @@ describe('TenantStorageTable — medidor de uso de disco (Sprint V17, entrega 7)
     expect(document.querySelectorAll('.disk-usage-mark')).toHaveLength(0)
   })
 
-  it('cada tier pinta a sua cor: verde ate 60%, ambar de 60 a 80%, vermelho acima de 80%', () => {
+  it('cada tier pinta o seu tom calmo: informativo ate 60%, ambar de 60 a 80%, vermelho acima de 80% (Sprint A61)', () => {
     render(<TenantStorageTable devices={devices} />)
 
     const byWidth = new Map(meterFills().map((fill) => [fill.style.width, fill.className]))
-    expect(byWidth.get('20%')).toContain('bg-success') // PC-OK
-    expect(byWidth.get('70%')).toContain('bg-warning') // PC-ALERTA
-    expect(byWidth.get('90%')).toContain('bg-destructive') // PC-CRITICO
+    expect(byWidth.get('20%')).toContain('bg-info/60') // PC-OK
+    expect(byWidth.get('70%')).toContain('bg-warning/70') // PC-ALERTA
+    expect(byWidth.get('90%')).toContain('bg-destructive/75') // PC-CRITICO
+  })
+
+  it('cada barra tem o percentual em texto, na cor cheia do tier (cor nunca e o unico canal)', () => {
+    render(<TenantStorageTable devices={devices} />)
+
+    const percents = Array.from(document.querySelectorAll<HTMLElement>('[data-disk-usage-percent]'))
+    expect(percents).toHaveLength(meterFills().length)
+    const byText = new Map(percents.map((node) => [node.textContent, node.className]))
+    expect(byText.get('20% usado')).toContain('text-info')
+    expect(byText.get('70% usado')).toContain('text-warning')
+    expect(byText.get('90% usado')).toContain('text-destructive')
   })
 
   it('limita a largura a 100% e anima so quando o usuario nao pediu movimento reduzido', () => {
@@ -256,5 +274,44 @@ describe('TenantStorageTable — medidor de uso de disco (Sprint V17, entrega 7)
     const [fill] = meterFills()
     expect(fill.style.width).toBe('100%')
     expect(fill.className).toContain('motion-safe:transition-[width]')
+  })
+})
+
+describe('TenantStorageTable — badges de tipo (Sprint A61)', () => {
+  it('as badges de tipo sao botoes e o tipo ativo fica marcado com aria-pressed', () => {
+    render(<TenantStorageTable devices={devices} />)
+
+    const all = screen.getByTestId('type-filter-all')
+    const ssd = screen.getByTestId('type-filter-SSD')
+    expect(all.tagName).toBe('BUTTON')
+    expect(ssd.tagName).toBe('BUTTON')
+    expect(all.getAttribute('aria-pressed')).toBe('true')
+    expect(ssd.getAttribute('aria-pressed')).toBe('false')
+
+    fireEvent.click(ssd)
+
+    expect(ssd.getAttribute('aria-pressed')).toBe('true')
+    expect(all.getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByTestId('type-filter-HDD').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('trocar o tipo volta para a pagina 1 e preserva os outros parametros da URL', () => {
+    currentSearch = 'faixa=critical&page=2&ref=dashboard'
+    render(<TenantStorageTable devices={devices} initialUsageRange="critical" initialPage={2} />)
+
+    fireEvent.click(screen.getByTestId('type-filter-SSD'))
+
+    // `page` some (pagina 1 e' default), `faixa` e `ref` ficam, `tipo` entra.
+    expect(replaceMock).toHaveBeenLastCalledWith('/app/cliente-a/storage?faixa=critical&ref=dashboard&tipo=SSD')
+  })
+
+  it('"Todos os tipos" remove so o `tipo` da URL', () => {
+    currentSearch = 'tipo=SSD&ref=dashboard'
+    render(<TenantStorageTable devices={devices} initialType="SSD" />)
+
+    fireEvent.click(screen.getByTestId('type-filter-all'))
+
+    expect(replaceMock).toHaveBeenLastCalledWith('/app/cliente-a/storage?ref=dashboard')
+    expect(screen.getByTestId('type-filter-all').getAttribute('aria-pressed')).toBe('true')
   })
 })

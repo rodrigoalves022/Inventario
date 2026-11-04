@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { HardDrive, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
@@ -26,7 +26,9 @@ import {
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
   DEFAULT_PAGE_SIZE,
+  applyQueryUpdates,
   getPageSlice,
+  paginationQueryUpdates,
   parsePageNumber,
   parsePageSize,
   type PageSize,
@@ -73,6 +75,18 @@ const USAGE_RANGE_LABEL = {
   critical: 'Acima de 80% usado',
 } as const
 
+/** Badge de tipo de disco: o estado ativo e' anunciado por `aria-pressed` no
+ * `<button>` e mostrado pela mesma borda + anel em "Todos os tipos" e nos tipos
+ * — antes so os tipos ganhavam o anel, e o ativo de "Todos" era mais fraco. */
+function typeBadgeClass(active: boolean) {
+  return cn(
+    'cursor-pointer px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors',
+    active
+      ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/40'
+      : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+  )
+}
+
 export function TenantStorageTable({
   devices,
   initialType = 'all',
@@ -91,6 +105,7 @@ export function TenantStorageTable({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [typeFilter, setTypeFilter] = useState(initialType)
   const [usageFilter, setUsageFilter] = useState<'all' | 'ok' | 'warning' | 'critical'>(initialUsageRange)
   const [page, setPage] = useState(() => parsePageNumber(initialPage))
@@ -157,6 +172,10 @@ export function TenantStorageTable({
    * `?faixa=`) — `page`/`limit` entraram AQUI em vez de virar um segundo
    * mecanismo (`history.replaceState`) sobrescrevendo este. Default some da
    * URL: `?tipo=SSD` continua sendo `?tipo=SSD`, nao `?tipo=SSD&page=1&limit=25`.
+   *
+   * Sprint A61: parte da query ATUAL (`applyQueryUpdates`) e so reescreve as 4
+   * chaves desta tabela — qualquer outro parametro que chegou na URL sobrevive
+   * a troca de filtro em vez de ser apagado.
    */
   function syncUrl(
     nextType: string,
@@ -164,12 +183,11 @@ export function TenantStorageTable({
     nextPage: number,
     nextPageSize: PageSize
   ) {
-    const params = new URLSearchParams()
-    if (nextType !== 'all') params.set('tipo', nextType)
-    if (nextUsage !== 'all') params.set('faixa', nextUsage)
-    if (nextPage > 1) params.set('page', String(nextPage))
-    if (nextPageSize !== DEFAULT_PAGE_SIZE) params.set('limit', String(nextPageSize))
-    const query = params.toString()
+    const query = applyQueryUpdates(searchParams?.toString() ?? '', {
+      tipo: nextType !== 'all' ? nextType : null,
+      faixa: nextUsage !== 'all' ? nextUsage : null,
+      ...paginationQueryUpdates(nextPage, nextPageSize),
+    })
     router.replace(query ? `${pathname}?${query}` : pathname)
   }
 
@@ -260,35 +278,31 @@ export function TenantStorageTable({
         />
       </div>
 
-      {/* Filtro por tipo de disco — clicavel, refletido na URL (?tipo=) */}
+      {/* Filtro por tipo de disco — clicavel, refletido na URL (?tipo=). Cada
+          badge e' um <button> de verdade (Enter/Espaco de graca, sem
+          role/tabIndex postiços) e o ativo leva `aria-pressed`, como os cards. */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <Badge
-            variant="outline"
-            role="button"
-            tabIndex={0}
-            onClick={() => applyTypeFilter('all')}
-            className={cn(
-              'cursor-pointer px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors',
-              typeFilter === 'all' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'
-            )}
-          >
-            Todos os tipos
+        <div role="group" aria-label="Filtrar por tipo de disco" className="flex flex-wrap gap-2">
+          <Badge asChild variant="outline" className={typeBadgeClass(typeFilter === 'all')}>
+            <button
+              type="button"
+              data-testid="type-filter-all"
+              aria-pressed={typeFilter === 'all'}
+              onClick={() => applyTypeFilter('all')}
+            >
+              Todos os tipos
+            </button>
           </Badge>
           {types.map((type) => (
-            <Badge
-              key={type}
-              data-testid={`type-filter-${type}`}
-              variant="outline"
-              role="button"
-              tabIndex={0}
-              onClick={() => applyTypeFilter(type)}
-              className={cn(
-                'cursor-pointer px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-colors',
-                typeFilter === type ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/40' : 'border-border text-muted-foreground hover:bg-muted'
-              )}
-            >
-              {type}
+            <Badge key={type} asChild variant="outline" className={typeBadgeClass(typeFilter === type)}>
+              <button
+                type="button"
+                data-testid={`type-filter-${type}`}
+                aria-pressed={typeFilter === type}
+                onClick={() => applyTypeFilter(type)}
+              >
+                {type}
+              </button>
             </Badge>
           ))}
         </div>
@@ -338,11 +352,16 @@ export function TenantStorageTable({
                             const label = disk.unidade ?? `Disco ${index + 1}`
                             return (
                               <div key={`${device.id}-disk-${index}`} className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center justify-between gap-2 text-xs">
                                   <span className="text-muted-foreground">
                                     {label}: {disk.usedGb} GB de {disk.capacidadeGb} GB
                                   </span>
-                                  <span className={cn('font-semibold', DISK_USAGE_TIER_TEXT_CLASS[tier])}>{disk.usagePercent}%</span>
+                                  <span
+                                    data-disk-usage-percent
+                                    className={cn('shrink-0 whitespace-nowrap font-semibold tabular-nums', DISK_USAGE_TIER_TEXT_CLASS[tier])}
+                                  >
+                                    {disk.usagePercent}% usado
+                                  </span>
                                 </div>
                                 {/* Medidor de uso: preenchimento por `width`, cor chapada
                                     do tier e ponta `rounded-full` propria — nunca um

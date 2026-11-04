@@ -29,12 +29,21 @@ describe('computeDiskUsagePercent', () => {
 })
 
 describe('DISK_USAGE_TIER_BAR_CLASS (Sprint V17)', () => {
-  it('mapeia cada tier para a cor chapada do token correspondente', async () => {
+  it('mapeia cada tier para o tom calmo do token correspondente (Sprint A61)', async () => {
     const { DISK_USAGE_TIER_BAR_CLASS } = await import('@/lib/disk-usage')
     expect(DISK_USAGE_TIER_BAR_CLASS).toEqual({
-      ok: 'bg-success',
-      warning: 'bg-warning',
-      critical: 'bg-destructive',
+      ok: 'bg-info/60',
+      warning: 'bg-warning/70',
+      critical: 'bg-destructive/75',
+    })
+  })
+
+  it('o numero ao lado da barra usa o mesmo matiz do tier, em cor cheia', async () => {
+    const { DISK_USAGE_TIER_TEXT_CLASS } = await import('@/lib/disk-usage')
+    expect(DISK_USAGE_TIER_TEXT_CLASS).toEqual({
+      ok: 'text-info',
+      warning: 'text-warning',
+      critical: 'text-destructive',
     })
   })
 })

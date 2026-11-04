@@ -1,15 +1,22 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TenantProcessorsTable, type TenantProcessorRow } from '@/components/tenant-processors-table'
 import { inferVendor, getVendorGroup } from '@/lib/processor-vendor'
 
 const replaceMock = vi.fn()
+/** Query "atual" vista por `useSearchParams` — vazia por padrao. */
+let currentSearch = ''
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock }),
   usePathname: () => '/app/cliente-a/processors',
+  useSearchParams: () => new URLSearchParams(currentSearch),
 }))
+
+afterEach(() => {
+  currentSearch = ''
+})
 
 const processors: TenantProcessorRow[] = [
   { name: 'Intel Core i7-11700', vendor: 'Intel', count: 2, devices: [{ id: 'd1', hostname: 'PC-01', usuario: 'joao' }] },
@@ -151,5 +158,52 @@ describe('TenantProcessorsTable — filtro por fabricante refletido na URL', () 
 
     const link = screen.getByText('Intel Core i7-11700').closest('a')
     expect(link?.getAttribute('href')).toBe('/app/cliente-a/computers?search=Intel%20Core%20i7-11700')
+  })
+})
+
+describe('TenantProcessorsTable — URL e links por modelo (Sprint A61)', () => {
+  it('trocar o fabricante preserva os outros parametros da URL e volta para a pagina 1', () => {
+    currentSearch = 'ref=dashboard&fabricante=Intel&page=2'
+    render(
+      <TenantProcessorsTable processors={processors} initialVendor="Intel" initialPage={2} computersPath="/app/cliente-a/computers" />
+    )
+
+    fireEvent.click(screen.getByTestId('vendor-card-AMD'))
+
+    // `fabricante` reescrito no lugar, `page` removido (pagina 1 e' default),
+    // `ref` intocado.
+    expect(replaceMock).toHaveBeenLastCalledWith('/app/cliente-a/processors?ref=dashboard&fabricante=AMD')
+  })
+
+  it('o card "Total" limpa so o fabricante, mantendo o resto da query', () => {
+    currentSearch = 'fabricante=AMD&ref=dashboard'
+    render(<TenantProcessorsTable processors={processors} initialVendor="AMD" computersPath="/app/cliente-a/computers" />)
+
+    fireEvent.click(screen.getByTestId('vendor-card-all'))
+
+    expect(replaceMock).toHaveBeenLastCalledWith('/app/cliente-a/processors?ref=dashboard')
+    expect(screen.getByTestId('vendor-card-all').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('nome do processador e pilula de contagem levam ao mesmo /computers?search=<nome>', () => {
+    render(<TenantProcessorsTable processors={processors} initialVendor="all" computersPath="/app/cliente-a/computers" />)
+
+    const expected = '/app/cliente-a/computers?search=Xeon%20E5-2680%20v4'
+    const row = screen.getByText('Xeon E5-2680 v4').closest('tr') as HTMLElement
+    const nameLink = row.querySelector('[data-testid="processor-name-link"]')
+    const countLink = row.querySelector('[data-testid="processor-count-link"]')
+
+    expect(nameLink?.getAttribute('href')).toBe(expected)
+    expect(countLink?.getAttribute('href')).toBe(expected)
+    expect(countLink?.textContent).toBe('3')
+    expect(countLink?.getAttribute('aria-label')).toBe('Ver 3 máquinas com Xeon E5-2680 v4 em Computadores')
+  })
+
+  it('a pilula usa o singular quando o modelo tem uma maquina so', () => {
+    render(<TenantProcessorsTable processors={processors} initialVendor="all" computersPath="/app/cliente-a/computers" />)
+
+    const row = screen.getByText('AMD Ryzen 5 5600G').closest('tr') as HTMLElement
+    const countLink = row.querySelector('[data-testid="processor-count-link"]')
+    expect(countLink?.getAttribute('aria-label')).toBe('Ver 1 máquina com AMD Ryzen 5 5600G em Computadores')
   })
 })

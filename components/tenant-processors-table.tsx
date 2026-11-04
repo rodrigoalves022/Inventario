@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Cpu, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { KpiCard } from '@/components/ui/kpi-card'
@@ -18,7 +18,9 @@ import { getVendorGroup } from '@/lib/processor-vendor'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
   DEFAULT_PAGE_SIZE,
+  applyQueryUpdates,
   getPageSlice,
+  paginationQueryUpdates,
   parsePageNumber,
   parsePageSize,
   type PageSize,
@@ -48,6 +50,16 @@ function getVendorBadgeClass(vendor: string) {
  * (leva para /computers?search=<nome>, filtrado pelo mesmo nome). */
 const MAX_VISIBLE_DEVICES = 4
 
+/**
+ * Destino UNICO dos 3 links da linha (nome, pilula de contagem e "+N"):
+ * /computers filtrado pelo nome exato do modelo. `?search=` e' o parametro
+ * generico que /computers le (`?os=` e' so um apelido dele) — e' a mesma busca
+ * que casa o processador no hardware do device.
+ */
+function getComputersHref(computersPath: string, processorName: string) {
+  return `${computersPath}?search=${encodeURIComponent(processorName)}`
+}
+
 export function TenantProcessorsTable({
   processors,
   initialVendor = 'all',
@@ -64,6 +76,7 @@ export function TenantProcessorsTable({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [vendorFilter, setVendorFilter] = useState(initialVendor)
   const [page, setPage] = useState(() => parsePageNumber(initialPage))
   const [pageSize, setPageSize] = useState<PageSize>(() => parsePageSize(initialPageSize))
@@ -102,18 +115,22 @@ export function TenantProcessorsTable({
   const slice = getPageSlice(filteredProcessors, page, pageSize)
 
   /** Mesmo `router.replace` que esta tabela ja usava para `?fabricante=`;
-   * `page`/`limit` entraram aqui, e nao num segundo mecanismo. */
+   * `page`/`limit` entraram aqui, e nao num segundo mecanismo. Sprint A61:
+   * parte da query ATUAL e so reescreve as 3 chaves desta tabela, preservando
+   * qualquer outro parametro da URL. */
   function syncUrl(nextVendor: string, nextPage: number, nextPageSize: PageSize) {
-    const params = new URLSearchParams()
-    if (nextVendor !== 'all') params.set('fabricante', nextVendor)
-    if (nextPage > 1) params.set('page', String(nextPage))
-    if (nextPageSize !== DEFAULT_PAGE_SIZE) params.set('limit', String(nextPageSize))
-    const query = params.toString()
+    const query = applyQueryUpdates(searchParams?.toString() ?? '', {
+      fabricante: nextVendor !== 'all' ? nextVendor : null,
+      ...paginationQueryUpdates(nextPage, nextPageSize),
+    })
     router.replace(query ? `${pathname}?${query}` : pathname)
   }
 
+  /** Toda troca de fabricante volta para a pagina 1 (o recorte novo pode nao
+   * ter a pagina em que o usuario estava). Clicar no card ja ativo desliga o
+   * filtro; o card "Total" sempre limpa. */
   function applyVendorFilter(vendor: string) {
-    const next = vendorFilter === vendor ? 'all' : vendor
+    const next = vendor === 'all' || vendorFilter === vendor ? 'all' : vendor
     setVendorFilter(next)
     setPage(1)
     syncUrl(next, 1, pageSize)
@@ -199,56 +216,63 @@ export function TenantProcessorsTable({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {slice.items.map((processor) => (
-                  <tr key={processor.name} className={STATIC_ROW_HOVER_CLASS}>
-                    <td className={TABLE_CELL_CLASS}>
-                      <Link
-                        href={`${computersPath}?search=${encodeURIComponent(processor.name)}`}
-                        className="flex items-center gap-2 font-medium text-foreground hover:text-primary transition-colors"
-                        title="Ver máquinas com este processador em /computers"
-                      >
-                        <Cpu className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        {processor.name}
-                      </Link>
-                    </td>
-                    <td className={TABLE_CELL_CLASS}>
-                      {/* Exibe o GRUPO, nao a string crua: a badge da linha, o
-                          card do topo e o filtro da URL falam o mesmo
-                          vocabulario de 3 fabricantes (Sprint 15). */}
-                      <Badge variant="outline" className={cn('px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', getVendorBadgeClass(processor.vendor))}>
-                        {getVendorGroup(processor.vendor)}
-                      </Badge>
-                    </td>
-                    <td className={TABLE_CELL_CLASS}>
-                      <Link
-                        href={`${computersPath}?search=${encodeURIComponent(processor.name)}`}
-                        className="text-lg font-bold text-primary hover:underline"
-                      >
-                        {processor.count}
-                      </Link>
-                    </td>
-                    <td className={TABLE_CELL_CLASS}>
-                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                        {processor.devices.slice(0, MAX_VISIBLE_DEVICES).map((device) => (
-                          <span key={device.id} className="data-mono">
-                            {device.hostname}
-                            <span className="ml-1.5 font-sans text-muted-foreground/80">
-                              {device.usuario ? `— ${device.usuario} (snapshot)` : ''}
+                {slice.items.map((processor) => {
+                  const computersHref = getComputersHref(computersPath, processor.name)
+                  const machinesLabel = `${processor.count} máquina${processor.count !== 1 ? 's' : ''}`
+                  return (
+                    <tr key={processor.name} className={STATIC_ROW_HOVER_CLASS}>
+                      <td className={TABLE_CELL_CLASS}>
+                        <Link
+                          href={computersHref}
+                          data-testid="processor-name-link"
+                          className="flex items-center gap-2 font-medium text-foreground hover:text-primary transition-colors"
+                          title="Ver máquinas com este processador em Computadores"
+                        >
+                          <Cpu className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          {processor.name}
+                        </Link>
+                      </td>
+                      <td className={TABLE_CELL_CLASS}>
+                        {/* Exibe o GRUPO, nao a string crua: a badge da linha, o
+                            card do topo e o filtro da URL falam o mesmo
+                            vocabulario de 3 fabricantes (Sprint 15). */}
+                        <Badge variant="outline" className={cn('px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', getVendorBadgeClass(processor.vendor))}>
+                          {getVendorGroup(processor.vendor)}
+                        </Badge>
+                      </td>
+                      <td className={TABLE_CELL_CLASS}>
+                        {/* Pilula de contagem: mesmo destino do nome, com rotulo
+                            acessivel que diz o que o numero e' e para onde leva. */}
+                        <Link
+                          href={computersHref}
+                          data-testid="processor-count-link"
+                          aria-label={`Ver ${machinesLabel} com ${processor.name} em Computadores`}
+                          title={`Ver ${machinesLabel} em Computadores`}
+                          className="inline-flex min-w-9 items-center justify-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-primary outline-none transition-colors hover:border-primary/50 hover:bg-primary/15 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        >
+                          {processor.count}
+                        </Link>
+                      </td>
+                      <td className={TABLE_CELL_CLASS}>
+                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                          {processor.devices.slice(0, MAX_VISIBLE_DEVICES).map((device) => (
+                            <span key={device.id} className="data-mono">
+                              {device.hostname}
+                              <span className="ml-1.5 font-sans text-muted-foreground/80">
+                                {device.usuario ? `— ${device.usuario} (snapshot)` : ''}
+                              </span>
                             </span>
-                          </span>
-                        ))}
-                        {processor.devices.length > MAX_VISIBLE_DEVICES ? (
-                          <Link
-                            href={`${computersPath}?search=${encodeURIComponent(processor.name)}`}
-                            className="text-primary hover:underline"
-                          >
-                            +{processor.devices.length - MAX_VISIBLE_DEVICES} outra(s)
-                          </Link>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          ))}
+                          {processor.devices.length > MAX_VISIBLE_DEVICES ? (
+                            <Link href={computersHref} className="text-primary hover:underline">
+                              +{processor.devices.length - MAX_VISIBLE_DEVICES} outra(s)
+                            </Link>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

@@ -58,4 +58,18 @@ describe('DocsHub', () => {
     expect(screen.getByText('Governança dos Diagnósticos Rápidos')).toBeTruthy()
     expect(screen.getByText('command.enqueue')).toBeTruthy()
   })
+
+  it('documenta as âncoras e os links de máquina de /alerts e os filtros de Armazenamento e Processadores (Sprint A62)', () => {
+    render(<DocsHub />)
+    openTab(/Relatórios, Exportações & Governança/)
+    const alerts = screen.getByText(/#alert-rules/)
+    expect(alerts.textContent).toContain('#alert-history')
+    expect(alerts.textContent).toContain('/app/[clientSlug]/assets/[id]')
+    expect(screen.getByText(/repassa o \?state= e o \?severity= ativos/)).toBeTruthy()
+    const storage = screen.getByText(/gravam \?faixa=ok, warning ou critical/)
+    expect(storage.textContent).toContain('?tipo=')
+    expect(storage.textContent).toContain('aria-pressed')
+    const processors = screen.getByText(/gravam \?fabricante= por grupo de fabricante/)
+    expect(processors.textContent).toContain('/computers?search=<modelo>')
+  })
 })
