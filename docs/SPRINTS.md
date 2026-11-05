@@ -4384,3 +4384,13 @@ Entrega os Backlog Items 21 e 14.
 
 - **Matriz de exportação vigente:** a de A70–A72.
 - **Testes:** 	ests/device-detail-tabs-hardware-timeline.test.tsx (2 testes), 	ests/device-detail-tabs-metrics-polling.test.tsx (3 testes), 	ests/device-detail-tabs-command-output.test.tsx (3 testes).
+
+## Sprint A80 — Modelo SoftwareLicense e motor de reconciliação de licenças (compradas × instaladas)
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A80** | — | 🟢 Concluído nesta wave. Gestão de licenças (prisma/schema.prisma): modelo SoftwareLicense (vinculado a Client, colunas softwareName, licenseKey, seatsPurchased, contractRef, supplier, cost, expiresAt, 
+otes). Motor de conciliação (lib/licenses.ts): cruza licenças cadastradas contra o inventário real de software (Software), deduplicando instâncias por dispositivo físico (deviceId) e apurando uso (seatsInstalled, seatsAvailable). Classificação automática de status de conformidade: COMPLIANT (dentro da cota), OVERUSED (excedida, risco de auditoria), UNUSED (sem instalações, custo ocioso), EXPIRING_SOON (vencendo em <= 30 dias) e EXPIRED (data de expiração ultrapassada). Resumo agregado de licenças, contagem por status e valor financeiro total. Testes unitários em 	ests/software-licenses.test.ts (6 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72.
+- **Testes:** 	ests/software-licenses.test.ts (6 testes).

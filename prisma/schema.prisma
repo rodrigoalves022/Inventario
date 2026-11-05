@@ -64,6 +64,7 @@ model Client {
   alertRules                AlertRule[]
   webhookEndpoints          WebhookEndpoint[]
   discoveredDevices         DiscoveredDevice[]
+  softwareLicenses          SoftwareLicense[]
 
   @@index([name])
   @@index([organizationId])
@@ -431,6 +432,32 @@ model HardwareChange {
   @@index([deviceId, detectedAt])
   @@map("hardware_changes")
 }
+
+/// Licença de software cadastrada para o cliente (SAM - Software Asset Management).
+/// Permite rastrear licenças compradas vs. instaladas, data de expiração,
+/// fornecedor, contrato e custo, detectando conformidade, excesso ou ociosidade.
+model SoftwareLicense {
+  id              String    @id @default(cuid())
+  clientId        String
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  softwareName    String
+  licenseKey      String?
+  seatsPurchased  Int       @default(1)
+  contractRef     String?
+  supplier        String?
+  cost            Float?
+  expiresAt       DateTime?
+  notes           String?
+
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([clientId, softwareName])
+  @@map("software_licenses")
+}
+
 
 /// Regra de alerta configurada pelo cliente, sobre metricas de seguranca ja
 /// coletadas em B1 (antivirus/firewall/UAC/BitLocker) que ate aqui so
