@@ -4403,3 +4403,13 @@ otes). Motor de conciliação (lib/licenses.ts): cruza licenças cadastradas con
 
 - **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv (SAM / licenças compradas × instaladas).
 - **Testes:** 	ests/software-licenses-actions.test.ts (4 testes), 	ests/software-licenses-csv.test.ts (3 testes).
+
+
+## Sprint A82 — Painel de Gestão de Licenças (SAM) e Conciliação na Interface
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A82** | pendente | 🟢 Concluído nesta wave. Painel de Gestão de Licenças de Software (SAM) e Conciliação em app/app/[clientSlug]/software/page.tsx com alternância fluida entre o catálogo instalado e a gestão de conformidade contratual. Tabela interativa (components/tenant-licenses-table.tsx) com cards de KPI (licenças totais, assentos contratados, assentos em uso, licenças em conformidade, licenças em excesso/risco e valor total investido), busca rápida, modal de inclusão/edição com validação Zod, exclusão segura e expansão de linhas revelando quais computadores/servidores específicos do cliente consomem a licença. Documentação da plataforma atualizada em components/docs-hub.tsx (matriz de exportações e regras de conciliação). Testes: tests/tenant-licenses-table.test.tsx (4 testes), tests/tenant-software-page.test.tsx (19 testes), tests/docs-page.test.tsx (12 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv.
+- **Testes:** tests/tenant-licenses-table.test.tsx (4 testes), tests/tenant-software-page.test.tsx (19 testes), tests/docs-page.test.tsx (12 testes).

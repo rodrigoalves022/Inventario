@@ -194,6 +194,7 @@ const TENANT_EXPORTS = [
   ['Servidores', '/api/tenant/[slug]/servers/csv', 'Servidores monitorados do tenant.'],
   ['Dossiê da máquina', '/api/tenant/[slug]/devices/[id]/export', 'Ficha completa de uma máquina, por seção: identificação, hardware, discos, rede, segurança, softwares, periféricos, contas locais e patrimônio.'],
   ['Softwares', '/api/tenant/[slug]/software/csv', 'Catálogo no padrão Programas e Recursos (appwiz.cpl), com conformidade e máquinas por software.'],
+  ['Licenças de software (SAM)', '/api/tenant/[slug]/software/licenses/csv', 'Licenças adquiridas x instalações reais apuradas pelo agente, status de conformidade (CONFORME, EXCEDIDO, ATENCAO, OCIOSO, EXPIRADO), chave de ativação, assentos e custo total.'],
   ['Periféricos e USB', '/api/tenant/[slug]/peripherals/csv', 'Periféricos e dispositivos USB detectados.'],
   ['Contas locais', '/api/tenant/[slug]/local-accounts/csv', 'Contas locais e privilégios por máquina.'],
   ['Armazenamento', '/api/tenant/[slug]/storage/csv', 'Unidades por máquina: tipo, modelo, capacidade, uso e BitLocker.'],
@@ -893,6 +894,21 @@ export function DocsHub() {
                         <span className="mt-1 block">Cards: {cards}.</span>
                       </Row>
                     ))}
+                  </dl>
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="section-label">Gestão de Licenças (SAM) e Conciliação</h3>
+                  <dl className="divide-y divide-surface-line">
+                    <Row term="Conciliação de assentos">
+                      O motor de reconciliação cruza as licenças cadastradas com as instalações apuradas pelo agente em computadores e servidores. Múltiplas instalações do mesmo software no mesmo dispositivo contam como 1 assento consumido.
+                    </Row>
+                    <Row term="Status de conformidade">
+                      Calculado automaticamente: Conforme, Excedido (instalações acima do contratado), Atenção (utilização &ge; 90%), Ocioso (menos de 50% em uso) e Expirado (validade ultrapassada).
+                    </Row>
+                    <Row term="Exportação">
+                      &quot;Exportar CSV&quot; gera arquivo RFC 4180 através da rota <Code>/api/tenant/[slug]/software/licenses/csv</Code> com assentos adquiridos, em uso, saldo, status e custo.
+                    </Row>
                   </dl>
                 </section>
               </PanelBody>

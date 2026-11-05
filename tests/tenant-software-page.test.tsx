@@ -18,6 +18,7 @@ vi.mock('@/lib/permissions', () => ({
   getSessionPermissionUser: mocks.getSessionPermissionUser,
   canAccessTenant: mocks.canAccessTenant,
   canReadTenantData: (...args: unknown[]) => (mocks.canAccessTenant as (...a: unknown[]) => unknown)(...args),
+  canOperateTenant: (...args: unknown[]) => (mocks.canAccessTenant as (...a: unknown[]) => unknown)(...args),
 }))
 vi.mock('@/lib/tenant-context', () => ({
   getTenantContext: mocks.getTenantContext,
@@ -28,6 +29,8 @@ vi.mock('@/lib/prisma', () => ({
   default: {
     device: { findMany: mocks.deviceFindMany },
     alertRule: { findMany: mocks.ruleFindMany },
+    softwareLicense: { findMany: vi.fn(async () => []) },
+    software: { findMany: vi.fn(async () => []) },
   },
 }))
 
