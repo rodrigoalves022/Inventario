@@ -221,6 +221,9 @@ export async function saveAssetRecordAction(
     localizacao: formData.get('localizacao'),
     responsavel: formData.get('responsavel'),
     observacoes: formData.get('observacoes'),
+    lifecycleStatus: formData.get('lifecycleStatus'),
+    usefulLifeMonths: formData.get('usefulLifeMonths'),
+    salvageValue: formData.get('salvageValue'),
   })
 
   if (!parsed.success) {

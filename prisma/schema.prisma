@@ -407,11 +407,39 @@ model AssetRecord {
   responsavel     String?
   observacoes     String?
 
+  lifecycleStatus String    @default("IN_USE") // 'IN_USE' | 'IN_STOCK' | 'IN_MAINTENANCE' | 'ON_LOAN' | 'DISPOSED'
+  usefulLifeMonths Int?     @default(60) // Vida util contabil padrao (5 anos / 60 meses pela RFB)
+  salvageValue    Float?    @default(0)  // Valor residual estimado ao final da vida util
+
+  maintenances    AssetMaintenance[]
+
   updatedByUserId String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@map("asset_records")
+}
+
+/// Registro de manutencao ou intervencao tecnica no ativo (preventiva, corretiva ou upgrade).
+model AssetMaintenance {
+  id            String      @id @default(cuid())
+  assetRecordId String
+  assetRecord   AssetRecord @relation(fields: [assetRecordId], references: [id], onDelete: Cascade)
+
+  type          String      // 'PREVENTIVE' | 'CORRECTIVE' | 'UPGRADE'
+  title         String
+  description   String?
+  cost          Float?      @default(0)
+  performedBy   String?
+  startDate     DateTime    @default(now())
+  completedDate DateTime?
+  status        String      @default("COMPLETED") // 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([assetRecordId, startDate])
+  @@map("asset_maintenances")
 }
 
 /// Histórico de mudanças de hardware entre coletas do agente. Detecta upgrade/

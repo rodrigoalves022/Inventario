@@ -5,7 +5,7 @@ import { z } from 'zod'
  * formulario como string "yyyy-mm-dd" (input type=date) e strings vazias
  * viram null, nao erro de validacao: todo campo aqui e opcional.
  */
-const emptyToNull = (value: unknown) => (value === '' ? null : value)
+const emptyToNull = (value: unknown) => (value === '' || value === null || value === undefined ? null : value)
 
 const shortText = (label: string) =>
   z.string().max(100, `${label}: máximo de 100 caracteres.`).nullable().optional()
@@ -31,6 +31,18 @@ export const assetRecordSchema = z.object({
   localizacao: z.preprocess(emptyToNull, longText('Localização')),
   responsavel: z.preprocess(emptyToNull, longText('Responsável')),
   observacoes: z.preprocess(emptyToNull, z.string().max(2000, 'Observações: máximo de 2.000 caracteres.').nullable().optional()),
+  lifecycleStatus: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 'IN_USE' : val),
+    z.enum(['IN_USE', 'IN_STOCK', 'IN_MAINTENANCE', 'ON_LOAN', 'DISPOSED']).default('IN_USE')
+  ),
+  usefulLifeMonths: z.preprocess(
+    emptyToNull,
+    z.coerce.number().min(1, 'Vida útil mínima de 1 mês.').max(600, 'Vida útil máxima de 600 meses.').nullable().optional()
+  ),
+  salvageValue: z.preprocess(
+    emptyToNull,
+    z.coerce.number().min(0, 'Valor residual não pode ser negativo.').max(100_000_000).nullable().optional()
+  ),
 })
 
 export type AssetRecordInput = z.infer<typeof assetRecordSchema>

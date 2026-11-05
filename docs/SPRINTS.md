@@ -4413,3 +4413,13 @@ otes). Motor de conciliação (lib/licenses.ts): cruza licenças cadastradas con
 
 - **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv.
 - **Testes:** tests/tenant-licenses-table.test.tsx (4 testes), tests/tenant-software-page.test.tsx (19 testes), tests/docs-page.test.tsx (12 testes).
+
+
+## Sprint A83 — Ciclo de vida do ativo, modelo contábil e motor de depreciação linear (ITAM)
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A83** | pendente | 🟢 Concluído nesta wave. Extensão do modelo AssetRecord em prisma/schema.prisma com campos de governança contábil (lifecycleStatus: IN_USE, IN_STOCK, IN_MAINTENANCE, ON_LOAN, DISPOSED; usefulLifeMonths com default de 60 meses pela RFB; salvageValue para valor residual) e criação do modelo AssetMaintenance para histórico de intervenções técnicas. Motor de depreciação linear em lib/asset-depreciation.ts calculando cotas constantes, base depreciável, meses decorridos, depreciação acumulada, valor contábil líquido atual e trava de 100% no valor residual. Atualização do schema Zod (lib/schemas/asset-record.ts) e action de persistência (app/app/[clientSlug]/assets/[id]/actions.ts). Testes: tests/asset-depreciation.test.ts (8 testes) e tests/save-asset-record.test.ts (9 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv.
+- **Testes:** tests/asset-depreciation.test.ts (8 testes), tests/save-asset-record.test.ts (9 testes).

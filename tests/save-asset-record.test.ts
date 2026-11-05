@@ -103,18 +103,27 @@ function seedDevice(overrides: Partial<FakeDevice> & { id: string; clientSlug: s
 
 function buildFormData(overrides: Partial<Record<string, string>> = {}) {
   const formData = new FormData()
-  formData.set('tenantSlug', overrides.tenantSlug ?? 'cliente-a')
-  formData.set('deviceId', overrides.deviceId ?? 'device-1')
-  formData.set('etiqueta', overrides.etiqueta ?? 'PAT-001')
-  formData.set('dataCompra', overrides.dataCompra ?? '')
-  formData.set('notaFiscal', overrides.notaFiscal ?? '')
-  formData.set('fornecedor', overrides.fornecedor ?? '')
-  formData.set('valor', overrides.valor ?? '1500.50')
-  formData.set('garantiaAte', overrides.garantiaAte ?? '')
-  formData.set('centroCusto', overrides.centroCusto ?? '')
-  formData.set('localizacao', overrides.localizacao ?? '')
-  formData.set('responsavel', overrides.responsavel ?? '')
-  formData.set('observacoes', overrides.observacoes ?? '')
+  const defaults: Record<string, string> = {
+    tenantSlug: 'cliente-a',
+    deviceId: 'device-1',
+    etiqueta: 'PAT-001',
+    dataCompra: '',
+    notaFiscal: '',
+    fornecedor: '',
+    valor: '1500.50',
+    garantiaAte: '',
+    centroCusto: '',
+    localizacao: '',
+    responsavel: '',
+    observacoes: '',
+    lifecycleStatus: 'IN_USE',
+    usefulLifeMonths: '',
+    salvageValue: '',
+  }
+  const merged = { ...defaults, ...overrides }
+  for (const [key, val] of Object.entries(merged)) {
+    formData.set(key, val)
+  }
   return formData
 }
 
@@ -139,7 +148,37 @@ describe('saveAssetRecordAction — RN014 (canManageAssetRecord delega a canOper
     expect(assetRecords.get('device-1')).toMatchObject({ etiqueta: 'PAT-001', valor: 1500.5 })
   })
 
-  it('ator de OUTRA organizacao e bloqueado, sem nenhuma escrita no banco', async () => {
+  it('salva campos de ciclo de vida e depreciacao quando informados', async () => {
+    seedClient({ id: 'client-a', slug: 'cliente-a', organizationId: 'org-a' })
+    seedDevice({ id: 'device-1', clientSlug: 'cliente-a' })
+    sessionRef.user = { id: 'user-op', email: 'operador@org-a.local', role: 'ORG_OPERATOR', organizationId: 'org-a' }
+
+    const formData = buildFormData({
+      lifecycleStatus: 'IN_MAINTENANCE',
+      usefulLifeMonths: '36',
+      salvageValue: '300.00',
+    })
+
+    const result = await saveAssetRecordAction({ status: 'idle', message: null }, formData)
+    expect(result.status).toBe('success')
+    expect(assetRecords.get('device-1')).toMatchObject({
+      lifecycleStatus: 'IN_MAINTENANCE',
+      usefulLifeMonths: 36,
+      salvageValue: 300,
+    })
+  })
+
+  it('rejeita status de ciclo de vida invalido', async () => {
+    seedClient({ id: 'client-a', slug: 'cliente-a', organizationId: 'org-a' })
+    seedDevice({ id: 'device-1', clientSlug: 'cliente-a' })
+    sessionRef.user = { id: 'user-op', email: 'operador@org-a.local', role: 'ORG_OPERATOR', organizationId: 'org-a' }
+
+    const formData = buildFormData({ lifecycleStatus: 'STATUS_INVALIDO' })
+    const result = await saveAssetRecordAction({ status: 'idle', message: null }, formData)
+    expect(result.status).toBe('error')
+  })
+
+    it('ator de OUTRA organizacao e bloqueado, sem nenhuma escrita no banco', async () => {
     seedClient({ id: 'client-a', slug: 'cliente-a', organizationId: 'org-a' })
     seedDevice({ id: 'device-1', clientSlug: 'cliente-a' })
     sessionRef.user = { id: 'user-b', email: 'admin@org-b.local', role: 'ORG_ADMIN', organizationId: 'org-b' }
