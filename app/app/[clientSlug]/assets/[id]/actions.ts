@@ -12,6 +12,7 @@ import { getTenantPath } from '@/lib/tenant-links'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { agentCommandInputSchema, toParamsJson, AGENT_COMMAND_TTL_MS } from '@/lib/agent-commands'
 import { assetRecordSchema } from '@/lib/schemas/asset-record'
+import { assetMaintenanceInputSchema } from '@/lib/schemas/asset-maintenance'
 
 export type DeleteAssetActionState = {
   status: 'idle' | 'error'
@@ -244,4 +245,158 @@ export async function saveAssetRecordAction(
   revalidatePath(getTenantPath(tenantSlug, `assets/${deviceId}`))
 
   return { status: 'success', message: 'Patrimônio salvo.' }
+}
+
+
+export type AssetMaintenanceActionState = {
+  status: 'idle' | 'success' | 'error'
+  message: string | null
+}
+
+export async function createAssetMaintenanceAction(
+  _previousState: AssetMaintenanceActionState,
+  formData: FormData
+): Promise<AssetMaintenanceActionState> {
+  const session = await auth()
+  if (!session?.user) {
+    return { status: 'error', message: 'Sessão inválida.' }
+  }
+
+  const tenantSlug = String(formData.get('tenantSlug') ?? '')
+  const deviceId = String(formData.get('deviceId') ?? '')
+
+  const tenant = await getTenantContext(tenantSlug)
+  if (!tenant || !canManageAssetRecord(getSessionPermissionUser(session), tenant)) {
+    return { status: 'error', message: 'Você não pode registrar manutenções nesta máquina.' }
+  }
+
+  const device = await prisma.device.findFirst({
+    where: { id: deviceId, ...getTenantDeviceWhere(tenantSlug) },
+    select: { id: true, hostname: true },
+  })
+  if (!device) {
+    return { status: 'error', message: 'Máquina não encontrada neste tenant.' }
+  }
+
+  const parsed = assetMaintenanceInputSchema.safeParse({
+    type: formData.get('type'),
+    title: formData.get('title'),
+    description: formData.get('description'),
+    cost: formData.get('cost'),
+    performedBy: formData.get('performedBy'),
+    startDate: formData.get('startDate'),
+    completedDate: formData.get('completedDate'),
+    status: formData.get('status') || 'COMPLETED',
+  })
+
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Dados de manutenção inválidos.' }
+  }
+
+  const assetRecord = await prisma.assetRecord.upsert({
+    where: { deviceId: device.id },
+    create: { deviceId: device.id },
+    update: {},
+    select: { id: true },
+  })
+
+  const maintenance = await prisma.assetMaintenance.create({
+    data: {
+      assetRecordId: assetRecord.id,
+      type: parsed.data.type,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      cost: parsed.data.cost,
+      performedBy: parsed.data.performedBy,
+      startDate: parsed.data.startDate ?? new Date(),
+      completedDate: parsed.data.completedDate,
+      status: parsed.data.status,
+    },
+  })
+
+  const actor = getSessionAuditActor(session)
+  if (actor) {
+    await recordAuditLog({
+      action: 'asset.maintenance_create',
+      targetType: 'device',
+      targetId: device.id,
+      clientId: tenant.id,
+      actor,
+      metadata: {
+        maintenanceId: maintenance.id,
+        type: maintenance.type,
+        title: maintenance.title,
+        cost: maintenance.cost,
+        hostname: device.hostname,
+        tenantSlug,
+      },
+    })
+  }
+
+  revalidatePath(getTenantPath(tenantSlug, `assets/${deviceId}`))
+
+  return { status: 'success', message: 'Manutenção registrada com sucesso.' }
+}
+
+export async function deleteAssetMaintenanceAction(
+  _previousState: AssetMaintenanceActionState,
+  formData: FormData
+): Promise<AssetMaintenanceActionState> {
+  const session = await auth()
+  if (!session?.user) {
+    return { status: 'error', message: 'Sessão inválida.' }
+  }
+
+  const tenantSlug = String(formData.get('tenantSlug') ?? '')
+  const deviceId = String(formData.get('deviceId') ?? '')
+  const maintenanceId = String(formData.get('maintenanceId') ?? '')
+
+  const tenant = await getTenantContext(tenantSlug)
+  if (!tenant || !canManageAssetRecord(getSessionPermissionUser(session), tenant)) {
+    return { status: 'error', message: 'Você não pode excluir manutenções desta máquina.' }
+  }
+
+  const device = await prisma.device.findFirst({
+    where: { id: deviceId, ...getTenantDeviceWhere(tenantSlug) },
+    select: { id: true, hostname: true },
+  })
+  if (!device) {
+    return { status: 'error', message: 'Máquina não encontrada neste tenant.' }
+  }
+
+  const maintenance = await prisma.assetMaintenance.findFirst({
+    where: {
+      id: maintenanceId,
+      assetRecord: { deviceId: device.id },
+    },
+    select: { id: true, title: true },
+  })
+  if (!maintenance) {
+    return { status: 'error', message: 'Registro de manutenção não encontrado.' }
+  }
+
+  await prisma.assetMaintenance.delete({
+    where: { id: maintenance.id },
+  })
+
+  const actor = getSessionAuditActor(session)
+  if (actor) {
+    await recordAuditLog({
+      action: 'asset.maintenance_delete',
+      targetType: 'device',
+      targetId: device.id,
+      clientId: tenant.id,
+      actor,
+      metadata: {
+        maintenanceId: maintenance.id,
+        title: maintenance.title,
+        hostname: device.hostname,
+        tenantSlug,
+      },
+    })
+  }
+
+  revalidatePath(getTenantPath(tenantSlug, `assets/${deviceId}`))
+
+  return { status: 'success', message: 'Registro de manutenção excluído.' }
 }

@@ -4423,3 +4423,13 @@ otes). Motor de conciliação (lib/licenses.ts): cruza licenças cadastradas con
 
 - **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv.
 - **Testes:** tests/asset-depreciation.test.ts (8 testes), tests/save-asset-record.test.ts (9 testes).
+
+
+## Sprint A84 — Histórico de manutenções do ativo (preventivas, corretivas e upgrades) e ações server-side com trilha de auditoria
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A84** | pendente | 🟢 Concluído nesta wave. Schema de validação Zod para intervenções técnicas em lib/schemas/asset-maintenance.ts (tipo: PREVENTIVE, CORRECTIVE, UPGRADE; título obrigatório; custo; executor/técnico; datas de início e conclusão; status: PENDING, IN_PROGRESS, COMPLETED, CANCELLED). Implementação das server actions createAssetMaintenanceAction e deleteAssetMaintenanceAction em app/app/[clientSlug]/assets/[id]/actions.ts com validação rigorosa de tenant/device, auto-criação de AssetRecord se ausente, RBAC canManageAssetRecord e registro imediato de auditoria (asset.maintenance_create e asset.maintenance_delete). Testes automatizados em tests/asset-maintenance-actions.test.ts (5 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv.
+- **Testes:** tests/asset-maintenance-actions.test.ts (5 testes), tests/save-asset-record.test.ts (9 testes).
