@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Printer, Router, HardDrive, Search, HelpCircle, Radar, Download } from 'lucide-react'
+import { Printer, Router, HardDrive, Search, HelpCircle, Radar, Download, Layers, Server } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -54,8 +54,9 @@ export type DiscoveredDeviceRow = {
  * aparece em "Todos" — nao existe aba "Outros" de proposito, senao a barra
  * viraria uma lista de tipos em vez de um filtro util.
  */
-const TYPE_FILTERS: Record<'all' | 'printers' | 'network' | 'nas', readonly DiscoveredDeviceType[] | null> = {
+const TYPE_FILTERS: Record<'all' | 'servers' | 'printers' | 'network' | 'nas', readonly DiscoveredDeviceType[] | null> = {
   all: null,
+  servers: ['ESXI', 'VCENTER', 'SERVER'],
   printers: ['PRINTER'],
   network: ['ROUTER', 'SWITCH', 'ACCESS_POINT'],
   nas: ['NAS'],
@@ -76,6 +77,9 @@ const TYPE_LABEL: Record<DiscoveredDeviceType, string> = {
   ROUTER: 'Roteador',
   NAS: 'NAS',
   ACCESS_POINT: 'Access Point',
+  ESXI: 'VMware ESXi',
+  VCENTER: 'VMware vCenter',
+  SERVER: 'Servidor s/ Agente',
   UNKNOWN: 'Não identificado',
 }
 
@@ -90,12 +94,17 @@ const TYPE_BADGE_CLASS: Record<DiscoveredDeviceType, string> = {
   ROUTER: 'border-primary/40 bg-primary/5 text-primary',
   ACCESS_POINT: 'border-primary/40 bg-primary/5 text-primary',
   NAS: 'border-warning/40 bg-warning/5 text-warning',
+  ESXI: 'border-purple-500/40 bg-purple-500/10 text-purple-400',
+  VCENTER: 'border-indigo-500/40 bg-indigo-500/10 text-indigo-400',
+  SERVER: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400',
   UNKNOWN: 'border-border bg-muted/40 text-muted-foreground',
 }
 
 function TypeIcon({ deviceType }: { deviceType: DiscoveredDeviceType }) {
   if (deviceType === 'PRINTER') return <Printer className="h-3 w-3" />
   if (deviceType === 'NAS') return <HardDrive className="h-3 w-3" />
+  if (deviceType === 'ESXI' || deviceType === 'VCENTER') return <Layers className="h-3 w-3" />
+  if (deviceType === 'SERVER') return <Server className="h-3 w-3" />
   if (deviceType === 'UNKNOWN') return <HelpCircle className="h-3 w-3" />
   return <Router className="h-3 w-3" />
 }
@@ -204,6 +213,7 @@ export function DiscoveredDevicesTable({
         <Tabs value={typeFilter} onValueChange={(value) => changeTypeFilter(value as TypeFilter)}>
           <TabsList>
             <TabsTrigger value="all">Todos</TabsTrigger>
+            <TabsTrigger value="servers">Servidores & Virtualização</TabsTrigger>
             <TabsTrigger value="printers">Impressoras</TabsTrigger>
             <TabsTrigger value="network">Roteadores/Switches</TabsTrigger>
             <TabsTrigger value="nas">NAS</TabsTrigger>

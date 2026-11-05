@@ -51,6 +51,9 @@ const DISCOVERED_TYPE_LABEL: Record<DiscoveredDeviceType, string> = {
   ROUTER: 'Roteador',
   NAS: 'NAS',
   ACCESS_POINT: 'Access point',
+  ESXI: 'VMware ESXi',
+  VCENTER: 'VMware vCenter',
+  SERVER: 'Servidor s/ Agente',
   UNKNOWN: 'Não identificado',
 }
 

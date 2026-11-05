@@ -308,3 +308,107 @@ func TestResolveVendor(t *testing.T) {
 		}
 	})
 }
+func TestParseVMwareXML(t *testing.T) {
+	esxiXml := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:vim25="urn:vim25">
+<soapenv:Body><vim25:RetrieveServiceContentResponse><vim25:returnval>
+<vim25:about>
+<vim25:name>VMware ESXi</vim25:name>
+<vim25:fullName>VMware ESXi 7.0.3 build-18644231</vim25:fullName>
+<vim25:vendor>VMware, Inc.</vim25:vendor>
+<vim25:version>7.0.3</vim25:version>
+<vim25:apiType>HostAgent</vim25:apiType>
+</vim25:about>
+</vim25:returnval></vim25:RetrieveServiceContentResponse></soapenv:Body></soapenv:Envelope>`)
+
+	prod := parseVMwareXML(esxiXml)
+	if prod == nil {
+		t.Fatal("parseVMwareXML deveria ter reconhecido o XML do ESXi")
+	}
+	if prod.Tipo != TypeESXi {
+		t.Errorf("Tipo = %q, esperado %q", prod.Tipo, TypeESXi)
+	}
+	if prod.Version != "VMware ESXi 7.0.3 build-18644231" {
+		t.Errorf("Version = %q, esperado %q", prod.Version, "VMware ESXi 7.0.3 build-18644231")
+	}
+
+	vcenterXml := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:vim25="urn:vim25">
+<soapenv:Body><vim25:RetrieveServiceContentResponse><vim25:returnval>
+<vim25:about>
+<vim25:name>VMware vCenter Server</vim25:name>
+<vim25:fullName>VMware vCenter Server 7.0.3 build-20150588</vim25:fullName>
+<vim25:vendor>VMware, Inc.</vim25:vendor>
+<vim25:version>7.0.3</vim25:version>
+<vim25:apiType>VirtualCenter</vim25:apiType>
+</vim25:about>
+</vim25:returnval></vim25:RetrieveServiceContentResponse></soapenv:Body></soapenv:Envelope>`)
+
+	prodVC := parseVMwareXML(vcenterXml)
+	if prodVC == nil {
+		t.Fatal("parseVMwareXML deveria ter reconhecido o XML do vCenter")
+	}
+	if prodVC.Tipo != TypeVCenter {
+		t.Errorf("Tipo = %q, esperado %q", prodVC.Tipo, TypeVCenter)
+	}
+
+	invalidXml := []byte(`<html><body>404 Not Found</body></html>`)
+	if prodInv := parseVMwareXML(invalidXml); prodInv != nil {
+		t.Errorf("parseVMwareXML deveria devolver nil para XML invalido, obtido: %v", prodInv)
+	}
+}
+
+func TestClassifyVMwareAndServers(t *testing.T) {
+	t.Run("probe VMware ESXi vence", func(t *testing.T) {
+		got := ClassifyDevice(Signals{
+			OpenTCPPorts: []int{443, 902},
+			VMware: &VMwareProduct{
+				Tipo:    TypeESXi,
+				Version: "VMware ESXi 7.0.3",
+			},
+		})
+		if got != TypeESXi {
+			t.Errorf("ClassifyDevice = %q, esperado %q", got, TypeESXi)
+		}
+	})
+
+	t.Run("probe VMware vCenter vence", func(t *testing.T) {
+		got := ClassifyDevice(Signals{
+			OpenTCPPorts: []int{443},
+			VMware: &VMwareProduct{
+				Tipo:    TypeVCenter,
+				Version: "VMware vCenter Server 7.0",
+			},
+		})
+		if got != TypeVCenter {
+			t.Errorf("ClassifyDevice = %q, esperado %q", got, TypeVCenter)
+		}
+	})
+
+	t.Run("porta 902 aberta sem XML vira ESXi", func(t *testing.T) {
+		got := ClassifyDevice(Signals{
+			OpenTCPPorts: []int{902},
+		})
+		if got != TypeESXi {
+			t.Errorf("ClassifyDevice = %q, esperado %q", got, TypeESXi)
+		}
+	})
+
+	t.Run("porta 3389 (RDP) aberta vira SERVER", func(t *testing.T) {
+		got := ClassifyDevice(Signals{
+			OpenTCPPorts: []int{3389, 445},
+		})
+		if got != TypeServer {
+			t.Errorf("ClassifyDevice = %q, esperado %q", got, TypeServer)
+		}
+	})
+
+	t.Run("porta 5985 (WinRM) aberta vira SERVER", func(t *testing.T) {
+		got := ClassifyDevice(Signals{
+			OpenTCPPorts: []int{5985},
+		})
+		if got != TypeServer {
+			t.Errorf("ClassifyDevice = %q, esperado %q", got, TypeServer)
+		}
+	})
+}

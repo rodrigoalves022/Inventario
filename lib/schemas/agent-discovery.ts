@@ -31,6 +31,9 @@ export const DISCOVERED_DEVICE_TYPES = [
   'ROUTER',
   'NAS',
   'ACCESS_POINT',
+  'ESXI',
+  'VCENTER',
+  'SERVER',
   'UNKNOWN',
 ] as const
 

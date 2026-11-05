@@ -108,13 +108,24 @@ func Scan(options Options) (payload *inventory.DiscoveryPayload, err error) {
 	for _, host := range found {
 		mac := arpTable[host.IP]
 
+		vendor := ResolveVendor(host.SNMP.SysDescr, host.SNMP.SysName, mac)
+		snmpDescr := host.SNMP.SysDescr
+		if host.VMware != nil {
+			if vendor == "" {
+				vendor = "VMware"
+			}
+			if snmpDescr == "" {
+				snmpDescr = host.VMware.Version
+			}
+		}
+
 		devices = append(devices, inventory.DiscoveredDevice{
 			IP:           host.IP,
 			Mac:          mac,
 			Hostname:     resolveHostname(host.IP),
-			Vendor:       ResolveVendor(host.SNMP.SysDescr, host.SNMP.SysName, mac),
-			DeviceType:   ClassifyDevice(Signals{OpenTCPPorts: host.OpenPorts, SNMPResponded: host.SNMP.Responded, SysDescr: host.SNMP.SysDescr, SysName: host.SNMP.SysName}),
-			SnmpSysDescr: host.SNMP.SysDescr,
+			Vendor:       vendor,
+			DeviceType:   ClassifyDevice(Signals{OpenTCPPorts: host.OpenPorts, SNMPResponded: host.SNMP.Responded, SysDescr: host.SNMP.SysDescr, SysName: host.SNMP.SysName, VMware: host.VMware}),
+			SnmpSysDescr: snmpDescr,
 			OpenPorts:    FormatOpenPorts(allPorts(host)),
 		})
 	}
@@ -130,6 +141,7 @@ type hostResult struct {
 	IP        string
 	OpenPorts []int
 	SNMP      snmpResult
+	VMware    *VMwareProduct
 }
 
 // allPorts junta as portas TCP com 161 — e' o unico lugar onde 161 entra, e so
@@ -193,15 +205,30 @@ func probeHosts(hosts []string, workers int, portTimeout, snmpTimeout time.Durat
 func probeHost(ip string, portTimeout, snmpTimeout time.Duration) (hostResult, bool) {
 	result := hostResult{IP: ip}
 
+	has443 := false
+	has902 := false
+
 	for _, port := range TCPProbePorts {
 		if dialTCP(ip, port, portTimeout) {
 			result.OpenPorts = append(result.OpenPorts, port)
+			if port == 443 {
+				has443 = true
+			}
+			if port == 902 {
+				has902 = true
+			}
 		}
 	}
 
 	result.SNMP = querySNMP(ip, snmpTimeout)
 
-	if len(result.OpenPorts) == 0 && !result.SNMP.Responded {
+	if has443 || has902 {
+		if vmware := queryVMware(ip, snmpTimeout); vmware != nil {
+			result.VMware = vmware
+		}
+	}
+
+	if len(result.OpenPorts) == 0 && !result.SNMP.Responded && result.VMware == nil {
 		return hostResult{}, false
 	}
 

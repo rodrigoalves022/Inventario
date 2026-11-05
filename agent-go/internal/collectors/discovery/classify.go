@@ -17,6 +17,9 @@ const (
 	TypeRouter      = "ROUTER"
 	TypeNAS         = "NAS"
 	TypeAccessPoint = "ACCESS_POINT"
+	TypeESXi        = "ESXI"
+	TypeVCenter     = "VCENTER"
+	TypeServer      = "SERVER"
 	TypeUnknown     = "UNKNOWN"
 )
 
@@ -28,7 +31,7 @@ const (
 // 9100 (RAW/JetDirect), 515 (LPD) e 631 (IPP) juntos sao o sinal FORTE de
 // impressora; 445 (SMB), 22 (SSH), 80 e 443 sao sinais fracos, presentes em
 // praticamente qualquer coisa.
-var TCPProbePorts = []int{22, 80, 443, 445, 515, 631, 9100}
+var TCPProbePorts = []int{22, 80, 443, 445, 515, 631, 902, 3389, 5985, 9100}
 
 // SNMPPort so aparece em openPorts quando um GET SNMP real respondeu.
 const SNMPPort = 161
@@ -42,6 +45,7 @@ type Signals struct {
 	SNMPResponded bool
 	SysDescr      string
 	SysName       string
+	VMware        *VMwareProduct
 }
 
 // FormatOpenPorts monta a string "80,161,9100": ordenada crescente,
@@ -83,6 +87,12 @@ type keywordRule struct {
 }
 
 var sysDescrRules = []keywordRule{
+	// VMware ESXi e vCenter
+	{"esxi", TypeESXi},
+	{"vmware", TypeESXi},
+	{"vcenter", TypeVCenter},
+	{"virtualcenter", TypeVCenter},
+
 	// Impressoras — o fabricante costuma se identificar no proprio banner.
 	{"jetdirect", TypePrinter},
 	{"laserjet", TypePrinter},
@@ -158,12 +168,23 @@ var sysDescrRules = []keywordRule{
 //     "nao identificado" a inventar uma categoria e' o mesmo principio do
 //     "nao apurado != desativado" da postura de seguranca.
 func ClassifyDevice(signals Signals) string {
+	if signals.VMware != nil {
+		if signals.VMware.Tipo == TypeVCenter {
+			return TypeVCenter
+		}
+		return TypeESXi
+	}
+
 	if kind := classifyBySysDescr(signals.SysDescr + " " + signals.SysName); kind != "" {
 		return kind
 	}
 
 	hasPrinterPort := false
 	hasSMB := false
+	hasRDP := false
+	hasWinRM := false
+	hasVMwarePort := false
+
 	for _, port := range signals.OpenTCPPorts {
 		if printerPorts[port] {
 			hasPrinterPort = true
@@ -171,10 +192,25 @@ func ClassifyDevice(signals Signals) string {
 		if port == 445 {
 			hasSMB = true
 		}
+		if port == 3389 {
+			hasRDP = true
+		}
+		if port == 5985 {
+			hasWinRM = true
+		}
+		if port == 902 {
+			hasVMwarePort = true
+		}
 	}
 
+	if hasVMwarePort {
+		return TypeESXi
+	}
 	if hasPrinterPort {
 		return TypePrinter
+	}
+	if hasRDP || hasWinRM {
+		return TypeServer
 	}
 	if hasSMB {
 		return TypeNAS

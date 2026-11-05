@@ -4358,3 +4358,11 @@ Entrega os Backlog Items 21 e 14.
 - **Matriz de exportação vigente:** a de A70–A72.
 - **Testes:** `tests/tenant-recent-devices-table.test.tsx`, `tests/docs-page.test.tsx`.
 
+## Sprint A77 — Descoberta de infraestrutura: VMware ESXi, vCenter e Servidores sem agente
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A77** | — | 🟢 Concluído nesta wave. Descoberta de rede (gent-go/internal/collectors/discovery): detecção passiva de VMware via consulta SOAP em https://<ip>/sdk (RetrieveServiceContent), identificando HostAgent (ESXi) e VirtualCenter (vCenter) e extraindo a versão exata do produto sem necessidade de credenciais; fallback pela porta 902 (uth daemon). Detecção de servidores sem agente via portas de administração RDP (3389) e WinRM (5985) associadas ao SMB (445), classificando máquinas como SERVER. Contrato tipado em lib/schemas/agent-discovery.ts atualizado com 'ESXI', 'VCENTER', 'SERVER'. Tabela de dispositivos descobertos (components/discovered-devices-table.tsx): nova aba Servidores & Virtualização (?type=servers), badges específicos (ESXI púrpura, VCENTER índigo, SERVER esmeralda) e novos ícones (Layers e Server). Testes unitários do agente em Go (discovery_test.go, 42 testes) e testes de UI em 	ests/discovered-devices-table.test.tsx (14 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72.
+- **Testes:** gent-go/internal/collectors/discovery (42 testes Go), 	ests/discovered-devices-table.test.tsx (14 testes).
