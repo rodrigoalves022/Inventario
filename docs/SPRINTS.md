@@ -4362,7 +4362,16 @@ Entrega os Backlog Items 21 e 14.
 
 | Sprint | Commit | Entrega |
 |---|---|---|
-| **A77** | — | 🟢 Concluído nesta wave. Descoberta de rede (gent-go/internal/collectors/discovery): detecção passiva de VMware via consulta SOAP em https://<ip>/sdk (RetrieveServiceContent), identificando HostAgent (ESXi) e VirtualCenter (vCenter) e extraindo a versão exata do produto sem necessidade de credenciais; fallback pela porta 902 (uth daemon). Detecção de servidores sem agente via portas de administração RDP (3389) e WinRM (5985) associadas ao SMB (445), classificando máquinas como SERVER. Contrato tipado em lib/schemas/agent-discovery.ts atualizado com 'ESXI', 'VCENTER', 'SERVER'. Tabela de dispositivos descobertos (components/discovered-devices-table.tsx): nova aba Servidores & Virtualização (?type=servers), badges específicos (ESXI púrpura, VCENTER índigo, SERVER esmeralda) e novos ícones (Layers e Server). Testes unitários do agente em Go (discovery_test.go, 42 testes) e testes de UI em 	ests/discovered-devices-table.test.tsx (14 testes). |
+| **A77** | 65fa998 | 🟢 Concluído nesta wave. Descoberta de rede (gent-go/internal/collectors/discovery): detecção passiva de VMware via consulta SOAP em https://<ip>/sdk (RetrieveServiceContent), identificando HostAgent (ESXi) e VirtualCenter (vCenter) e extraindo a versão exata do produto sem necessidade de credenciais; fallback pela porta 902 (uth daemon). Detecção de servidores sem agente via portas de administração RDP (3389) e WinRM (5985) associadas ao SMB (445), classificando máquinas como SERVER. Contrato tipado em lib/schemas/agent-discovery.ts atualizado com 'ESXI', 'VCENTER', 'SERVER'. Tabela de dispositivos descobertos (components/discovered-devices-table.tsx): nova aba Servidores & Virtualização (?type=servers), badges específicos (ESXI púrpura, VCENTER índigo, SERVER esmeralda) e novos ícones (Layers e Server). Testes unitários do agente em Go (discovery_test.go, 42 testes) e testes de UI em 	ests/discovered-devices-table.test.tsx (14 testes). |
 
 - **Matriz de exportação vigente:** a de A70–A72.
 - **Testes:** gent-go/internal/collectors/discovery (42 testes Go), 	ests/discovered-devices-table.test.tsx (14 testes).
+
+## Sprint A78 — Motor de detecção de mudanças de hardware (CPU, RAM, Discos, Placa-Mãe) e alertas
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A78** | — | 🟢 Concluído nesta wave. Histórico de alterações de hardware (prisma/schema.prisma): novo modelo HardwareChange (1:N com Device, colunas component, ction, description, previousVal, currentVal, detectedAt). Motor de diff (lib/hardware-diff.ts): compara o estado anterior contra o payload de check-in detectando upgrade/downgrade de RAM (incluindo slots slot1..slot4), troca de CPU, placa-mãe, número de série e discos (adição, remoção e substituição de capacidade/modelo). Rota de ingestão (pp/api/agent/checkin/route.ts): registra automaticamente as alterações em lote (hardwareChange.createMany), dispara webhook dedicado 'device.hardware_changed' (lib/webhook-event-catalog.ts) e alimenta a regra de alerta 'hardware_changed' (lib/alert-rules.ts), gerando AlertEvent com detalhes do componente modificado. Testes: 	ests/hardware-diff.test.ts (5 testes), 	ests/hardware-change-checkin.test.ts (2 testes), 	ests/alert-rules.test.ts (34 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72.
+- **Testes:** 	ests/hardware-diff.test.ts (5 testes), 	ests/hardware-change-checkin.test.ts (2 testes), 	ests/alert-rules.test.ts (34 testes).

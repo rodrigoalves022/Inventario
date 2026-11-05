@@ -14,6 +14,7 @@ export const ALERT_METRICS = [
   // Sprint 12. Unica metrica do catalogo que usa texto livre (AlertRule.pattern)
   // em vez de avaliar so a postura de seguranca coletada — ver evaluateAlertMetric.
   'software_blacklisted',
+  'hardware_changed',
 ] as const
 
 export type AlertMetric = (typeof ALERT_METRICS)[number]
@@ -28,6 +29,7 @@ export const ALERT_METRIC_LABELS: Record<AlertMetric, string> = {
   uac_inactive: 'UAC (controle de conta de usuário) desativado',
   bitlocker_missing: 'Disco sem criptografia (BitLocker)',
   software_blacklisted: 'Software não autorizado detectado',
+  hardware_changed: 'Mudança de hardware detectada',
 }
 
 export const ALERT_SEVERITIES = ['warning', 'critical'] as const
@@ -53,10 +55,14 @@ export type SoftwareSnapshot = { nome: string; versao: string | null; editor?: s
 
 /** Contexto extra que so o metric 'software_blacklisted' usa — os outros 4
  * cases ignoram por completo (assinatura generica, catalogo fechado). */
+export type HardwareChangeContext = {
+  hardwareChanges?: Array<{ component: string; action: string; description: string }>
+}
+
 export type SoftwareBlacklistContext = {
   software: SoftwareSnapshot[]
   pattern: string | null
-}
+} & HardwareChangeContext
 
 /**
  * Avalia uma metrica contra o payload de seguranca do check-in atual.
@@ -113,6 +119,20 @@ export function evaluateAlertMetric(
         // card de alerta (app/app/[clientSlug]/alerts/page.tsx) e no
         // relatorio de softwares nao autorizados (lib/reports/device-report.ts).
         metadata: { softwareNome: match.nome, softwareVersao: match.versao, softwareEditor: match.editor ?? null },
+      }
+    }
+    case 'hardware_changed': {
+      const changes = context?.hardwareChanges ?? []
+      if (changes.length === 0) {
+        return { firing: false, message: '' }
+      }
+      const desc = changes[0].description
+      const count = changes.length
+      const message = count === 1 ? desc : `${desc} (+${count - 1} outra(s) alteração(ões))`
+      return {
+        firing: true,
+        message: `Mudança de hardware detectada: ${message}.`,
+        metadata: { changes },
       }
     }
   }
@@ -181,6 +201,7 @@ export async function reconcileAlertEvents(params: {
   /** Sprint 12. Lista de software coletado no check-in atual — so usado
    * pelas regras 'software_blacklisted'. Ausente/omitido == lista vazia. */
   software?: SoftwareSnapshot[]
+  hardwareChanges?: Array<{ component: string; action: string; description: string }>
 }): Promise<NewlyOpenedAlertEvent[]> {
   const rules = await prisma.alertRule.findMany({
     where: { clientId: params.clientId, enabled: true },
@@ -202,7 +223,9 @@ export async function reconcileAlertEvents(params: {
       params.disks,
       rule.metric === 'software_blacklisted'
         ? { software: params.software ?? [], pattern: rule.pattern }
-        : undefined
+        : rule.metric === 'hardware_changed'
+          ? { software: [], pattern: null, hardwareChanges: params.hardwareChanges ?? [] }
+          : undefined
     )
     if (result === null) continue
 

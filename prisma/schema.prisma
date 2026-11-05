@@ -130,6 +130,7 @@ model Device {
   printers    Printer[]
   usbDevices  UsbDevice[]
   assetRecord AssetRecord?
+  hardwareChanges HardwareChange[]
   alertEvents AlertEvent[]
 
   @@index([hostname])
@@ -410,6 +411,25 @@ model AssetRecord {
   updatedAt       DateTime  @updatedAt
 
   @@map("asset_records")
+}
+
+/// Histórico de mudanças de hardware entre coletas do agente. Detecta upgrade/
+/// downgrade de RAM (pente removido/adicionado), troca de CPU, placa-mãe ou
+/// discos, alimentando a linha do tempo do ativo e alertas operacionais.
+model HardwareChange {
+  id          String   @id @default(cuid())
+  deviceId    String
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  component   String   // 'RAM' | 'CPU' | 'DISK' | 'MOTHERBOARD' | 'SERIAL'
+  action      String   // 'CHANGED' | 'ADDED' | 'REMOVED'
+  description String
+  previousVal String?
+  currentVal  String?
+  detectedAt  DateTime @default(now())
+
+  @@index([deviceId, detectedAt])
+  @@map("hardware_changes")
 }
 
 /// Regra de alerta configurada pelo cliente, sobre metricas de seguranca ja

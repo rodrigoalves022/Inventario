@@ -24,6 +24,7 @@ export const WEBHOOK_EVENTS = [
   'device.disk_ok',
   'device.warning',
   'device.recovered',
+  'device.hardware_changed',
 ] as const
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number]
 
@@ -34,4 +35,5 @@ export const WEBHOOK_EVENT_LABELS: Record<WebhookEvent, string> = {
   'device.disk_ok': 'Disco voltou ao normal',
   'device.warning': 'Dispositivo entrou em atenção',
   'device.recovered': 'Dispositivo saiu de atenção',
+  'device.hardware_changed': 'Mudança de hardware detectada',
 }

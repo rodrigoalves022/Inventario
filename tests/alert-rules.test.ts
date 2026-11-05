@@ -166,7 +166,7 @@ describe('reconcileAlertEvents — ciclo de vida ok<->problema (RF015)', () => {
 describe('reconcileAlertEvents — catalogo fechado das 5 metricas (antivirus/firewall/UAC/BitLocker/software_blacklisted)', () => {
   it('ALERT_METRICS e exatamente o catalogo de 5 metricas documentado (Sprint 12 acrescenta software_blacklisted)', () => {
     expect(new Set(ALERT_METRICS)).toEqual(
-      new Set(['antivirus_inactive', 'firewall_inactive', 'uac_inactive', 'bitlocker_missing', 'software_blacklisted'])
+      new Set(['antivirus_inactive', 'firewall_inactive', 'uac_inactive', 'bitlocker_missing', 'software_blacklisted', 'hardware_changed'])
     )
   })
 

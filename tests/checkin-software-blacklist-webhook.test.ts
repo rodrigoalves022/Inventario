@@ -127,7 +127,7 @@ vi.mock('@/lib/auth', () => ({
     Response.json({ error: result.message }, { status: result.status }),
 }))
 vi.mock('@/lib/server-url', () => ({ getCurrentServerUrl: vi.fn(async () => 'https://inventario.example.com') }))
-vi.mock('@/lib/agent-binary', () => ({ getAgentBinarySha256: vi.fn(async () => null) }))
+vi.mock('@/lib/agent-binary', () => ({ getAgentBinarySha256: vi.fn(async () => null), LATEST_AGENT_VERSION: '1.1.0' }))
 // alertSettings null desativa o caminho reativo legado (statusTransitioned) e
 // a varredura de disponibilidade — mantém o teste focado SO no webhook novo
 // disparado por AlertRule (reconcileAlertEvents), sem contaminação.

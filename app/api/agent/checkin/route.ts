@@ -1,3 +1,4 @@
+import { computeHardwareDiff } from '@/lib/hardware-diff'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { validateAgentApiKey, authErrorResponse } from '@/lib/auth'
@@ -81,7 +82,30 @@ export async function POST(req: NextRequest) {
     const { hostname } = body
     const previousDevice = await prisma.device.findUnique({
       where: { agentAuthId: auth.agentAuth.id },
-      select: { id: true, status: true, usuario: true },
+      select: {
+        id: true,
+        status: true,
+        usuario: true,
+        serial: true,
+        hardware: {
+          select: {
+            processador: true,
+            ramTotalGb: true,
+            slot1: true,
+            slot2: true,
+            slot3: true,
+            slot4: true,
+            placaMae: true,
+          },
+        },
+        disks: {
+          select: {
+            unidade: true,
+            modelo: true,
+            capacidadeGb: true,
+          },
+        },
+      },
     })
     const incomingUsuario = isSystemAccountName(body.usuario) ? null : body.usuario!.trim()
     // Sem usuario humano preserva o ultimo conhecido, exceto legado HOST$/SYSTEM (limpa).
@@ -139,6 +163,41 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
       },
     })
+
+    // Wave W21 / Sprint A78: Detecta mudancas de hardware em relacao a coleta anterior
+    const hardwareChanges = previousDevice
+      ? computeHardwareDiff({
+          previousSerial: previousDevice.serial,
+          previousHardware: previousDevice.hardware,
+          previousDisks: previousDevice.disks,
+          incoming: body,
+        })
+      : []
+
+    if (hardwareChanges.length > 0) {
+      await prisma.hardwareChange.createMany({
+        data: hardwareChanges.map((change) => ({
+          deviceId: device.id,
+          component: change.component,
+          action: change.action,
+          description: change.description,
+          previousVal: change.previousVal,
+          currentVal: change.currentVal,
+        })),
+      })
+
+      if (auth.agentAuth.clientId) {
+        void dispatchClientWebhookEndpoints({
+          clientId: auth.agentAuth.clientId,
+          event: 'device.hardware_changed',
+          payload: {
+            deviceId: device.id,
+            hostname: device.hostname,
+            changes: hardwareChanges,
+          },
+        })
+      }
+    }
 
     if (body.sistema || body.processador || body.ramTotalGb) {
       await prisma.hardware.upsert({
@@ -256,6 +315,11 @@ export async function POST(req: NextRequest) {
           nome: software.nome,
           versao: software.versao ?? null,
           editor: software.editor ?? null,
+        })),
+        hardwareChanges: hardwareChanges.map((hc) => ({
+          component: hc.component,
+          action: hc.action,
+          description: hc.description,
         })),
       }).catch((error) => {
         console.error('[agent/checkin] Falha ao reconciliar alertas:', error)
