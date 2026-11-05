@@ -160,13 +160,13 @@ export default async function TenantReportsPage({ params }: PageProps<'/app/[cli
       href: computersPath,
     },
     {
-      label: 'Valor patrimonial cadastrado',
-      value: `R$ ${gov.totalAssetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      label: 'Valor patrimonial & Depreciação contábil',
+      value: `Total: R$ ${gov.totalAssetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Líquido: R$ ${(gov.totalBookValue ?? gov.totalAssetValue).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       href: computersPath,
     },
     {
-      label: 'Ciclo de vida / Garantias',
-      value: `${gov.warrantyActiveCount} em dia · ${gov.warrantyExpiringSoonCount} vencendo em 30d · ${gov.warrantyExpiredCount} vencida(s)`,
+      label: 'Ciclo de vida dos ativos & Garantias',
+      value: `${gov.lifecycle?.inUseCount ?? 0} em uso · ${gov.lifecycle?.inStockCount ?? 0} estoque · ${gov.lifecycle?.inMaintenanceCount ?? 0} manutenção · ${gov.warrantyExpiredCount} garantia vencida`,
       href: computersPath,
     },
   ]

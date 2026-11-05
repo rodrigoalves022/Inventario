@@ -60,7 +60,11 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
       monitors: true,
       printers: { orderBy: [{ padrao: 'desc' }, { nome: 'asc' }] },
       usbDevices: { orderBy: { nome: 'asc' } },
-      assetRecord: true,
+      assetRecord: {
+        include: {
+          maintenances: { orderBy: { startDate: 'desc' } },
+        },
+      },
       hardwareChanges: { orderBy: { detectedAt: 'desc' }, take: 50 },
     },
   })
@@ -358,9 +362,23 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
                 localizacao: asset.assetRecord.localizacao,
                 responsavel: asset.assetRecord.responsavel,
                 observacoes: asset.assetRecord.observacoes,
+                lifecycleStatus: asset.assetRecord.lifecycleStatus,
+                usefulLifeMonths: asset.assetRecord.usefulLifeMonths,
+                salvageValue: asset.assetRecord.salvageValue,
               }
             : null
         }
+        maintenances={(asset.assetRecord?.maintenances ?? []).map((m) => ({
+          id: m.id,
+          type: m.type,
+          title: m.title,
+          description: m.description,
+          cost: m.cost,
+          performedBy: m.performedBy,
+          startDate: m.startDate.toISOString(),
+          completedDate: m.completedDate?.toISOString() ?? null,
+          status: m.status,
+        }))}
         tenantSlug={tenantSlug}
         canManageAssetRecord={canManageAsset}
         hardwareChanges={(asset.hardwareChanges ?? []).map((change) => ({

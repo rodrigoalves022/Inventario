@@ -4433,3 +4433,13 @@ otes). Motor de conciliação (lib/licenses.ts): cruza licenças cadastradas con
 
 - **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv.
 - **Testes:** tests/asset-maintenance-actions.test.ts (5 testes), tests/save-asset-record.test.ts (9 testes).
+
+
+## Sprint A85 — Painel de ciclo de vida, depreciação contábil e histórico de intervenções técnicas na ficha do ativo e relatórios ITAM
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A85** | pendente | 🟢 Concluído nesta wave. Ficha do dispositivo (components/device-detail-tabs.tsx e app/app/[clientSlug]/assets/[id]/page.tsx): aba Patrimônio enriquecida com seletor de status de ciclo de vida (Em Uso, Em Estoque, Em Manutenção, Empréstimo, Baixado/Descartado), cartão de apuração contábil e depreciação linear (valor de compra, valor residual, cotas decorridas e valor contábil líquido atual com badge 100% depreciado) em components/asset-record-form.tsx, e novo componente components/asset-maintenance-list.tsx com timeline de intervenções técnicas (Preventivas, Corretivas e Upgrades), diálogo modal de cadastro rápido e exclusão segura. Atualização do relatório executivo e analítico (lib/reports/device-report.ts e app/app/[clientSlug]/reports/page.tsx) com apuração agregada de valor patrimonial total vs. valor contábil líquido depreciado e distribuição por status de ciclo de vida. Central de documentação sincronizada em components/docs-hub.tsx. Testes: tests/asset-detail-lifecycle.test.tsx (3 testes), tests/device-report.test.ts (6 testes), tests/device-report-analytics-v32.test.tsx (15 testes), tests/docs-page.test.tsx (12 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv.
+- **Testes:** tests/asset-detail-lifecycle.test.tsx (3 testes), tests/device-report.test.ts (6 testes), tests/device-report-analytics-v32.test.tsx (15 testes), tests/docs-page.test.tsx (12 testes).

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag, Wifi, WifiOff, AlertCircle, RefreshCw, HardDrive, History } from 'lucide-react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag, Wifi, WifiOff, AlertCircle, RefreshCw, HardDrive, History, Wrench } from 'lucide-react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { Panel as UiPanel, PanelHeader, PanelBody } from '@/components/ui/panel'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { StatusPill, type StatusPillTone } from '@/components/ui/status-pill'
 import { AssetRecordForm, type AssetRecordValues } from '@/components/asset-record-form'
+import { AssetMaintenanceList, type AssetMaintenanceItem } from '@/components/asset-maintenance-list'
 import { DeviceCommandPanel } from '@/components/device-command-panel'
 import { COMMAND_TYPE_LABELS } from '@/lib/agent-commands'
 import { formatAnydeskId } from '@/components/anydesk-badge'
@@ -178,6 +179,7 @@ type Props = {
   printers: DevicePrinter[]
   usbDevices: DeviceUsbDevice[]
   assetRecord: AssetRecordValues | null
+  maintenances?: AssetMaintenanceItem[]
   /** Presente apenas em /tenant/.../assets/[id]; null no portal, onde patrimonio e' sempre so-leitura. */
   tenantSlug: string | null
   canManageAssetRecord: boolean
@@ -660,6 +662,7 @@ export function DeviceDetailTabs({
   usbDevices,
   deviceId,
   assetRecord,
+  maintenances,
   tenantSlug,
   canManageAssetRecord,
   hardwareChanges,
@@ -1228,6 +1231,15 @@ export function DeviceDetailTabs({
               )}
             </div>
           )}
+        </Panel>
+
+        <Panel title="Intervenções Técnicas & Manutenções" icon={<Wrench className="h-4 w-4" />}>
+          <AssetMaintenanceList
+            tenantSlug={tenantSlug}
+            deviceId={deviceId}
+            maintenances={maintenances ?? []}
+            canManage={canManageAssetRecord}
+          />
         </Panel>
       </TabsContent>
 

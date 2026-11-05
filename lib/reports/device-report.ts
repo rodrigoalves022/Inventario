@@ -5,6 +5,7 @@ import { DEFAULT_ALERT_SETTINGS, deriveInventoryIssues, getEffectiveDeviceStatus
 import { isServerOperatingSystem } from '@/lib/device-classification'
 import { parseSoftwareBlacklistMetadata } from '@/lib/alert-rules'
 import { LATEST_AGENT_VERSION } from '@/lib/agent-binary'
+import { calculateAssetDepreciation } from '@/lib/asset-depreciation'
 
 export type DeviceReportRow = {
   /** Sprint A27. Device.id — usado para linkar a linha ao detalhe do ativo. */
@@ -214,7 +215,7 @@ export async function getDeviceReportRows(
       disks: { select: { unidade: true, capacidadeGb: true, espacoLivreGb: true, criptografia: true } },
       networks: { where: { isPrimary: true }, select: { ip: true }, take: 1 },
       security: { select: { antivirusAtivo: true, firewallAtivo: true, antivirusAtualizado: true } },
-      assetRecord: { select: { etiqueta: true, localizacao: true, responsavel: true, valor: true, garantiaAte: true } },
+      assetRecord: { select: { etiqueta: true, localizacao: true, responsavel: true, valor: true, garantiaAte: true, dataCompra: true, usefulLifeMonths: true, salvageValue: true, lifecycleStatus: true } },
       logs: { orderBy: { coletadoEm: 'desc' }, take: 1, select: { coletadoEm: true } },
     },
   })
@@ -244,6 +245,10 @@ export async function getDeviceReportRows(
       agentVersion: device.agentVersion ?? null,
       valorPatrimonio: device.assetRecord?.valor ?? null,
       garantiaAte: device.assetRecord?.garantiaAte ?? null,
+      dataCompra: device.assetRecord?.dataCompra ?? null,
+      usefulLifeMonths: device.assetRecord?.usefulLifeMonths ?? null,
+      salvageValue: device.assetRecord?.salvageValue ?? null,
+      lifecycleStatus: device.assetRecord?.lifecycleStatus ?? null,
       sistema: device.hardware?.sistema ?? null,
       processador: device.hardware?.processador ?? null,
       ramTotalGb: device.hardware?.ramTotalGb ?? null,
@@ -350,6 +355,32 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[], now: Date = ne
   const agentUpToDateCount = agentKnown.filter((row) => row.agentVersion === LATEST_AGENT_VERSION).length
   const patrimonioRegisteredCount = rows.filter((row) => !!row.etiquetaPatrimonio || !!row.responsavel).length
   const totalAssetValue = rows.reduce((sum, row) => sum + (row.valorPatrimonio ?? 0), 0)
+  let totalBookValue = 0
+  let inUseCount = 0
+  let inStockCount = 0
+  let inMaintenanceCount = 0
+  let onLoanCount = 0
+  let disposedCount = 0
+
+  for (const row of rows) {
+    if (row.valorPatrimonio != null && row.valorPatrimonio > 0) {
+      const dep = calculateAssetDepreciation({
+        purchaseCost: row.valorPatrimonio,
+        purchaseDate: row.dataCompra,
+        usefulLifeMonths: row.usefulLifeMonths,
+        salvageValue: row.salvageValue,
+        asOfDate: now,
+      })
+      totalBookValue += dep.currentBookValue
+    }
+    const st = row.lifecycleStatus || 'IN_USE'
+    if (st === 'IN_STOCK') inStockCount += 1
+    else if (st === 'IN_MAINTENANCE') inMaintenanceCount += 1
+    else if (st === 'ON_LOAN') onLoanCount += 1
+    else if (st === 'DISPOSED') disposedCount += 1
+    else inUseCount += 1
+  }
+  totalBookValue = Math.round(totalBookValue * 100) / 100
   const soonLimit = now.getTime() + WARRANTY_SOON_DAYS * 24 * 60 * 60 * 1000
   let warrantyExpiredCount = 0
   let warrantyExpiringSoonCount = 0
@@ -371,6 +402,14 @@ export function buildDeviceReportSummary(rows: DeviceReportRow[], now: Date = ne
     patrimonioRegisteredCount,
     patrimonioPercent: percentOf(patrimonioRegisteredCount, totalDevices),
     totalAssetValue,
+    totalBookValue,
+    lifecycle: {
+      inUseCount,
+      inStockCount,
+      inMaintenanceCount,
+      onLoanCount,
+      disposedCount,
+    },
     warrantyExpiredCount,
     warrantyExpiringSoonCount,
     warrantyActiveCount,

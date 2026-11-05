@@ -244,6 +244,12 @@ const COPY_SHORTCUTS = [
 
 // Sprint A67: faixa "Resumo do parque" abaixo dos cards de /portal.
 // Sprints A73–A75: recorte temporal das métricas, latência semântica e cabeçalho unificado.
+const ITAM_LIFECYCLE_DOCS = [
+  ['Ciclo de vida do ativo', 'Cada dispositivo possui status explícito de ciclo de vida (Em Uso, Em Estoque, Em Manutenção, Empréstimo ou Baixado/Descartado), permitindo rastrear equipamentos em reserva técnica ou em trânsito de home office.'],
+  ['Depreciação contábil linear', 'Cálculo de cotas constantes pelo método da Receita Federal (IN RFB nº 1700/2017): vida útil contábil (padrão de 60 meses para TI), base depreciável (custo de aquisição menos valor residual), cotas mensais decorridas e valor contábil líquido atual, travando automaticamente no valor residual ao final da vida útil.'],
+  ['Histórico de manutenções', 'Registro estruturado de intervenções técnicas (Preventivas, Corretivas e Upgrades de hardware) com data, executor/técnico, valor e observações detalhadas, vinculado ao log de auditoria da organização.'],
+] as const
+
 const METRICS_TIMEFRAME_DOCS = [
   ['Filtros de período', 'Na aba Métricas da ficha da máquina (/assets/[id]), botões permitem alternar entre 24 horas, 3 dias, 7 dias e Todas as amostras. O corte é calculado em relação ao carimbo da amostra mais recente coletada, preservando a pureza de render e evitando telas em branco caso o dispositivo esteja temporariamente offline.'],
   ['Cores calmas e semânticas', 'Os gráficos de métricas usam paleta semântica descansada: CPU em tom suave (--info), RAM em --chart-2 e Disco em --chart-3, sem saturação excessiva.'],
@@ -911,6 +917,23 @@ export function DocsHub() {
                     </Row>
                   </dl>
                 </section>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader
+                icon={<Layers className="h-4 w-4" />}
+                title="Gestão de Ativos & Ciclo de Vida (ITAM)"
+                description="Controle contábil, depreciação linear de hardware e histórico de intervenções técnicas."
+              />
+              <PanelBody className="space-y-6">
+                <dl className="divide-y divide-surface-line">
+                  {ITAM_LIFECYCLE_DOCS.map(([name, text]) => (
+                    <Row key={name} term={name}>
+                      {text}
+                    </Row>
+                  ))}
+                </dl>
               </PanelBody>
             </Panel>
 
