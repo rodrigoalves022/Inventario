@@ -4394,3 +4394,12 @@ otes). Motor de conciliação (lib/licenses.ts): cruza licenças cadastradas con
 
 - **Matriz de exportação vigente:** a de A70–A72.
 - **Testes:** 	ests/software-licenses.test.ts (6 testes).
+
+## Sprint A81 — Ações de gestão de licenças, schema de validação e exportação CSV
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A81** | — | 🟢 Concluído nesta wave. Contrato de validação (lib/schemas/software-license.ts): schema Zod softwareLicenseInputSchema validando nome obrigatório, chave opcional, cota mínima de 1 licença, contrato, fornecedor, custo e data de expiração. Ações de servidor (pp/app/[clientSlug]/software/licenses/actions.ts): saveLicenseAction (criação e atualização com verificação de escopo de tenant e auditoria license.create/license.update) e deleteLicenseAction (exclusão segura com auditoria license.delete), protegidos por RBAC (canOperateTenant). Rota de exportação CSV (pp/api/tenant/[clientSlug]/software/licenses/csv/route.ts): download formatado RFC 4180 com sanitização contra fórmula injection, BOM UTF-8 e status em português para importação direta em planilhas financeiras. Testes: 	ests/software-licenses-actions.test.ts (4 testes), 	ests/software-licenses-csv.test.ts (3 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72 acrescida de /api/tenant/[clientSlug]/software/licenses/csv (SAM / licenças compradas × instaladas).
+- **Testes:** 	ests/software-licenses-actions.test.ts (4 testes), 	ests/software-licenses-csv.test.ts (3 testes).
