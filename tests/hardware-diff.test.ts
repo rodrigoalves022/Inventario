@@ -152,3 +152,4 @@ describe('computeHardwareDiff', () => {
     expect(diffs[0].currentVal).toBe('BRG9999999')
   })
 })
+
