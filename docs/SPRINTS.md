@@ -4375,3 +4375,12 @@ Entrega os Backlog Items 21 e 14.
 
 - **Matriz de exportação vigente:** a de A70–A72.
 - **Testes:** 	ests/hardware-diff.test.ts (5 testes), 	ests/hardware-change-checkin.test.ts (2 testes), 	ests/alert-rules.test.ts (34 testes).
+
+## Sprint A79 — Linha do tempo de alterações de hardware na ficha do ativo
+
+| Sprint | Commit | Entrega |
+|---|---|---|
+| **A79** | — | 🟢 Concluído nesta wave. Ficha da máquina (components/device-detail-tabs.tsx, aba Hardware em /app/[clientSlug]/assets/[id]): novo painel *Histórico de alterações de hardware* exibindo a linha do tempo cronológica de intervenções físicas no ativo (remoção ou adição de pentes de RAM, troca de processador, substituição de placa-mãe, alteração de número de série e acréscimo/remoção de discos). Cada registro exibe pílula semântica (Remoção destrutiva, Adição de sucesso, Alteração de atenção), rótulo do componente em caixa alta, descrição detalhada da mudança, valores anterior/atual quando disponíveis e carimbo formatado no fuso local. Consulta otimizada em pp/app/[clientSlug]/assets/[id]/page.tsx selecionando os últimos 50 eventos ordenados por data decrescente. Parâmetro initialTab adicionado ao componente para permitir testes diretos e atalhos na interface. Testes: 	ests/device-detail-tabs-hardware-timeline.test.tsx (2 testes) e suíte completa de abas da ficha (8 testes). |
+
+- **Matriz de exportação vigente:** a de A70–A72.
+- **Testes:** 	ests/device-detail-tabs-hardware-timeline.test.tsx (2 testes), 	ests/device-detail-tabs-metrics-polling.test.tsx (3 testes), 	ests/device-detail-tabs-command-output.test.tsx (3 testes).

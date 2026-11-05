@@ -61,6 +61,7 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
       printers: { orderBy: [{ padrao: 'desc' }, { nome: 'asc' }] },
       usbDevices: { orderBy: { nome: 'asc' } },
       assetRecord: true,
+      hardwareChanges: { orderBy: { detectedAt: 'desc' }, take: 50 },
     },
   })
 
@@ -362,6 +363,15 @@ export default async function TenantAssetDetailsPage({ params }: PageProps<'/app
         }
         tenantSlug={tenantSlug}
         canManageAssetRecord={canManageAsset}
+        hardwareChanges={(asset.hardwareChanges ?? []).map((change) => ({
+          id: change.id,
+          component: change.component,
+          action: change.action,
+          description: change.description,
+          previousVal: change.previousVal,
+          currentVal: change.currentVal,
+          detectedAt: change.detectedAt.toISOString(),
+        }))}
       />
     </div>
   )

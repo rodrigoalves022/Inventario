@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag, Wifi, WifiOff, AlertCircle, RefreshCw, HardDrive } from 'lucide-react'
+import { Search, Cpu, Network, Package, Terminal, LayoutGrid, ShieldCheck, Info, Activity, Monitor, Printer, Usb, Tag, Wifi, WifiOff, AlertCircle, RefreshCw, HardDrive, History } from 'lucide-react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -42,6 +42,16 @@ export type DeviceSoftware = {
   versao: string | null
   editor: string | null
   installadoEm: string | null
+}
+
+export type DeviceHardwareChange = {
+  id: string
+  component: string
+  action: string
+  description: string
+  previousVal: string | null
+  currentVal: string | null
+  detectedAt: string
 }
 
 export type DeviceHardware = {
@@ -171,6 +181,8 @@ type Props = {
   /** Presente apenas em /tenant/.../assets/[id]; null no portal, onde patrimonio e' sempre so-leitura. */
   tenantSlug: string | null
   canManageAssetRecord: boolean
+  hardwareChanges?: DeviceHardwareChange[]
+  initialTab?: string
 }
 
 const COMMAND_STATUS_LABELS: Record<string, string> = {
@@ -650,9 +662,11 @@ export function DeviceDetailTabs({
   assetRecord,
   tenantSlug,
   canManageAssetRecord,
+  hardwareChanges,
+  initialTab,
 }: Props) {
   const [query, setQuery] = useState('')
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'overview')
   const software = useMemo(() => deduplicateDeviceSoftware(rawSoftware), [rawSoftware])
 
   const filteredSoftware = useMemo(() => {
@@ -827,6 +841,64 @@ export function DeviceDetailTabs({
                   <Field label="Unidade" value={disk.unidade} />
                   <Field label="Modelo" value={disk.modelo} />
                   <DiskBar disk={disk} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Histórico de alterações de hardware" icon={<History className="h-4 w-4" />}>
+          {!hardwareChanges || hardwareChanges.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhuma alteração de hardware registrada desde o inventário inicial.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {hardwareChanges.map((change) => (
+                <div
+                  key={change.id}
+                  className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-surface-line bg-secondary/20 p-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <StatusPill
+                        tone={
+                          change.action === 'REMOVED'
+                            ? 'destructive'
+                            : change.action === 'ADDED'
+                              ? 'success'
+                              : 'warning'
+                        }
+                        label={
+                          change.action === 'REMOVED'
+                            ? 'Remoção'
+                            : change.action === 'ADDED'
+                              ? 'Adição'
+                              : 'Alteração'
+                        }
+                        dot={false}
+                      />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {change.component}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground">{change.description}</p>
+                    {change.previousVal && change.currentVal && (
+                      <p className="text-xs text-muted-foreground">
+                        Anterior: <span className="data-mono font-medium">{change.previousVal}</span> · Atual:{' '}
+                        <span className="data-mono font-medium">{change.currentVal}</span>
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {new Date(change.detectedAt).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
                 </div>
               ))}
             </div>
