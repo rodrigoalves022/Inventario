@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { startTransition, useActionState, useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, Bot, KeyRound, Loader2, RefreshCw, Trash2, UserPlus } from 'lucide-react'
+import { ArrowUpRight, Bot, KeyRound, Loader2, Package, RefreshCw, Settings, Trash2, UserPlus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel'
 import { StatusPill } from '@/components/ui/status-pill'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -131,38 +132,14 @@ function PackageTab({ client, serverUrl: initialServerUrl, activeAgentCount }: P
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
-        <div className="min-w-0">
-        <Panel className={error ? 'border-destructive/40' : undefined}>
-          <PanelHeader
-            title={fresh ? 'Novo pacote emitido' : 'Credenciais ativas / Pacote de instalação'}
-            description={
-              fresh
-                ? (rotateState.message ?? 'Chave de instalação rotacionada.')
-                : (pkgState.message ?? 'Pacote ativo do cliente, sem rotacionar a chave.')
-            }
-          />
-          <PanelBody>
-            {loading && !shown ? (
-              <p className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Carregando pacote ativo...
-              </p>
-            ) : null}
-            {error && !fresh ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-            {shown ? <AgentInstallPackage key={shown.bootstrapUrl} pkg={shown} keyIsFresh={fresh} /> : null}
-          </PanelBody>
-        </Panel>
-
-        </div>
-        <div className="min-w-0 space-y-6">
-        <Panel>
-          <PanelHeader
-            title="Endereço do servidor"
-            description="Os comandos e links de instalação são recalculados para o endereço informado, sem alterar a chave."
-          />
-          <PanelBody className="space-y-3">
-            <div className="max-w-xl space-y-2">
+      <Panel>
+        <PanelHeader
+          title="Servidor e Emissão de Pacote"
+          description="Os comandos e links são recalculados para o endereço informado, sem alterar a chave. Emitir novo pacote gera uma nova chave e invalida instaladores antigos."
+        />
+        <PanelBody className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[16rem] max-w-md flex-1 space-y-2">
               <Label htmlFor="mgmt-server-url">Endereço do servidor</Label>
               <Input
                 id="mgmt-server-url"
@@ -173,30 +150,39 @@ function PackageTab({ client, serverUrl: initialServerUrl, activeAgentCount }: P
                 className="data-mono"
               />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" disabled={loading || serverUrl.trim() === ''} onClick={() => loadPackage(serverUrl)}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Atualizar servidor no pacote
-              </Button>
-            </div>
-          </PanelBody>
-        </Panel>
-
-        <Panel>
-          <PanelHeader
-            title="Emitir novo pacote"
-            description="Gera uma nova chave de instalação. Instaladores antigos deixam de funcionar para novas máquinas."
-          />
-          <PanelBody className="space-y-3">
+            <Button type="button" size="sm" disabled={loading || serverUrl.trim() === ''} onClick={() => loadPackage(serverUrl)}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Atualizar servidor no pacote
+            </Button>
             <Button type="button" variant="outline" size="sm" disabled={rotatePending} onClick={() => setRotateOpen(true)}>
               {rotatePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
               Emitir novo pacote (Rotacionar chave)
             </Button>
-            {rotateState.error ? <p role="alert" className="text-sm text-destructive">{rotateState.error}</p> : null}
-          </PanelBody>
-        </Panel>
-        </div>
-      </div>
+          </div>
+          {rotateState.error ? <p role="alert" className="text-sm text-destructive">{rotateState.error}</p> : null}
+        </PanelBody>
+      </Panel>
+
+      <Panel className={error ? 'border-destructive/40' : undefined}>
+        <PanelHeader
+          title={fresh ? 'Novo pacote emitido' : 'Credenciais ativas / Pacote de instalação'}
+          description={
+            fresh
+              ? (rotateState.message ?? 'Chave de instalação rotacionada.')
+              : (pkgState.message ?? 'Pacote ativo do cliente, sem rotacionar a chave.')
+          }
+        />
+        <PanelBody>
+          {loading && !shown ? (
+            <p className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando pacote ativo...
+            </p>
+          ) : null}
+          {error && !fresh ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+          {shown ? <AgentInstallPackage key={shown.bootstrapUrl} pkg={shown} keyIsFresh={fresh} /> : null}
+        </PanelBody>
+      </Panel>
 
       <AlertDialog open={rotateOpen} onOpenChange={setRotateOpen}>
         <AlertDialogContent>
@@ -265,13 +251,11 @@ function UsersTab({ client, users }: Pick<Props, 'client' | 'users'>) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
-        <div className="min-w-0">
         <Panel>
           <PanelHeader title="Vincular novo e-mail ao cliente" description="Cria um usuário com acesso somente leitura ao portal deste cliente." />
           <PanelBody>
             <form ref={formRef} onSubmit={handleAdd} className="space-y-4">
-              <div className="grid gap-4">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="mgmt-user-name">Nome do usuário</Label>
                   <Input id="mgmt-user-name" name="name" required minLength={2} placeholder="Nome do usuário" />
@@ -296,10 +280,8 @@ function UsersTab({ client, users }: Pick<Props, 'client' | 'users'>) {
             </form>
           </PanelBody>
         </Panel>
-        </div>
-        <div className="min-w-0">
         <Panel>
-          <PanelHeader title="Usuários vinculados" description="Quem acessa o portal deste cliente (somente leitura)." />
+          <PanelHeader title="Usuários vinculados ao cliente" description="Quem acessa o portal deste cliente (somente leitura)." />
           <PanelBody>
             {users.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum usuário vinculado a este cliente ainda.</p>
@@ -361,8 +343,6 @@ function UsersTab({ client, users }: Pick<Props, 'client' | 'users'>) {
             )}
           </PanelBody>
         </Panel>
-        </div>
-      </div>
 
       <AlertDialog open={removeTarget !== null} onOpenChange={(open) => !open && setRemoveTarget(null)}>
         <AlertDialogContent>
@@ -423,7 +403,7 @@ function SettingsTab({ client }: Pick<Props, 'client'>) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <Panel>
           <PanelHeader title="Dados cadastrais" />
           <PanelBody className="space-y-4">
@@ -561,7 +541,7 @@ function DangerTab({ client, activeAgentCount, totalAgentCount }: Pick<Props, 'c
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <Panel>
           <PanelHeader title="Agentes registrados" description="Instalações do agente neste cliente." />
           <PanelBody className="flex flex-wrap items-center justify-between gap-4">
@@ -624,27 +604,102 @@ function DangerTab({ client, activeAgentCount, totalAgentCount }: Pick<Props, 'c
   )
 }
 
+const SECTIONS = [
+  { value: 'package', label: 'Pacote & Servidor', icon: Package },
+  { value: 'users', label: 'E-mails & Acessos', icon: Users },
+  { value: 'settings', label: 'Configurações, Rede & Alertas', icon: Settings },
+  { value: 'danger', label: 'Agentes & Zona de Perigo', icon: Bot },
+] as const
+
 export function ClientManagementPanel({ client, users, serverUrl, activeAgentCount, totalAgentCount }: Props) {
+  const [activeTab, setActiveTab] = useState<string>('package')
+
   return (
-    <Tabs defaultValue="package" className="mx-auto w-full max-w-5xl gap-6">
-      <TabsList className="h-auto flex-wrap justify-start">
-        <TabsTrigger value="package">Pacote &amp; Servidor</TabsTrigger>
-        <TabsTrigger value="users">E-mails &amp; Acessos ({users.length})</TabsTrigger>
-        <TabsTrigger value="settings">Configurações, Rede &amp; Alertas</TabsTrigger>
-        <TabsTrigger value="danger">Agentes &amp; Zona de Perigo</TabsTrigger>
-      </TabsList>
-      <TabsContent value="package">
-        <PackageTab client={client} serverUrl={serverUrl} activeAgentCount={activeAgentCount} />
-      </TabsContent>
-      <TabsContent value="users">
-        <UsersTab client={client} users={users} />
-      </TabsContent>
-      <TabsContent value="settings">
-        <SettingsTab client={client} />
-      </TabsContent>
-      <TabsContent value="danger">
-        <DangerTab client={client} activeAgentCount={activeAgentCount} totalAgentCount={totalAgentCount} />
-      </TabsContent>
-    </Tabs>
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Status do Cliente"
+          value={client.isActive ? 'Ativo' : 'Inativo'}
+          subtitle={`Slug: ${client.slug}`}
+          tone={client.isActive ? 'success' : 'neutral'}
+          onClick={() => setActiveTab('settings')}
+        />
+        <KpiCard
+          label="Agentes Conectados"
+          value={activeAgentCount}
+          subtitle={`${totalAgentCount} registrados no total`}
+          icon={<Bot />}
+          onClick={() => setActiveTab('danger')}
+        />
+        <KpiCard
+          label="E-mails Vinculados"
+          value={users.length}
+          subtitle="acessos ao Portal do Cliente"
+          icon={<Users />}
+          onClick={() => setActiveTab('users')}
+        />
+        <KpiCard
+          label="Alertas & Retenção"
+          value={client.alertsEnabled ? 'Alertas Ativos' : 'Alertas Pausados'}
+          subtitle={`Retenção de ${client.metricsRetentionDays} dias · Rede ${client.discoveryEnabled ? 'ativa' : 'desativada'}`}
+          tone={client.alertsEnabled ? 'info' : 'neutral'}
+          onClick={() => setActiveTab('settings')}
+        />
+      </div>
+
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        orientation="vertical"
+        className="grid items-start gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]"
+      >
+        <div className="space-y-4 lg:sticky lg:top-20">
+          <Panel aria-label="Identidade do cliente">
+            <PanelBody className="space-y-3">
+              <div className="space-y-1">
+                <p className="section-label">Nome da empresa</p>
+                <p className="break-words text-base font-semibold text-foreground">{client.name}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={client.isActive ? 'success' : 'neutral'} label={client.isActive ? 'Ativo' : 'Inativo'} />
+                <span className="data-mono break-all text-xs text-muted-foreground">{client.slug}</span>
+              </div>
+              <Button asChild size="sm" variant="secondary" className="w-full">
+                <Link href={getTenantBasePath(client.slug)}>
+                  <ArrowUpRight className="h-4 w-4" />
+                  Abrir painel do cliente
+                </Link>
+              </Button>
+            </PanelBody>
+          </Panel>
+
+          <Panel aria-label="Seções do cliente">
+            <TabsList className="h-auto w-full flex-col items-stretch gap-1 bg-transparent p-2">
+              {SECTIONS.map(({ value, label, icon: Icon }) => (
+                <TabsTrigger key={value} value={value} variant="nav">
+                  <Icon aria-hidden />
+                  {value === 'users' ? `${label} (${users.length})` : label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Panel>
+        </div>
+
+        <div className="min-w-0">
+          <TabsContent value="package">
+            <PackageTab client={client} serverUrl={serverUrl} activeAgentCount={activeAgentCount} />
+          </TabsContent>
+          <TabsContent value="users">
+            <UsersTab client={client} users={users} />
+          </TabsContent>
+          <TabsContent value="settings">
+            <SettingsTab client={client} />
+          </TabsContent>
+          <TabsContent value="danger">
+            <DangerTab client={client} activeAgentCount={activeAgentCount} totalAgentCount={totalAgentCount} />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>
   )
 }

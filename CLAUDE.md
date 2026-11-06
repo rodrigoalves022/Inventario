@@ -60,4 +60,5 @@
 - **PROIBIDO** usar nomes fictícios/aleatórios em placeholders (ex.: `Acme Indústria Ltda`, `Contoso`, `João`, `Maria`, `Foo`).
 - Use sempre rótulos neutros e descritivos do campo: `Nome da empresa`, `nome-da-empresa`, `Nome do usuário`, `Nome do responsável`.
 - **PROIBIDO** criar cards ou inputs esticados de ponta a ponta (full-width solto em widescreen).
-- Páginas devem usar sempre containers `max-w-5xl` e layouts em Bento Grid de 2 colunas (`lg:grid-cols-2` ou coluna principal + sidebar, ex.: `lg:grid-cols-[1fr_20rem]`).
+- Páginas de configuração/gerenciamento (ex.: `/admin/clients/[id]`) usam o padrão Mestre-Detalhe de `/account` e `/docs`: 4 `KpiCard` no topo (`grid gap-4 sm:grid-cols-2 lg:grid-cols-4`, clicáveis para trocar a aba) + `Tabs orientation="vertical"` com `grid lg:grid-cols-[18rem_minmax(0,1fr)]`, alinhados à largura total do `<main>`. **NUNCA** usar `mx-auto max-w-*` solto no painel: desalinha do título da página e deixa buracos laterais.
+- Dentro da coluna de detalhe, use `grid gap-6 xl:grid-cols-2` para blocos pareados; campos longos (hash SHA-256, chave de instalação) ficam empilhados, sem truncar nem rolagem horizontal.

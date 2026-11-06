@@ -137,7 +137,7 @@ export function AgentInstallPackage({
       </div>
 
       <div role="tabpanel" id={panelId} aria-labelledby={tabId(platform)} className="space-y-5">
-        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
           {sha256 ? (
             <div className="space-y-3">
               <Button asChild size="lg" className="gap-2">
