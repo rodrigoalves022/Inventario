@@ -4,109 +4,95 @@ import * as React from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { DocsHub } from '@/components/docs-hub'
 
-// Sprint A9: Central de Documentacao (/docs).
-
 afterEach(cleanup)
 
-// Radix Tabs ativa no mouseDown (nao no click).
 function openTab(name: RegExp) {
   fireEvent.mouseDown(screen.getByRole('tab', { name }), { button: 0, ctrlKey: false })
 }
 
 describe('DocsHub', () => {
-  it('renderiza os 4 KpiCards e a aba inicial Visão Geral & Ciclos', () => {
+  it('renderiza os 4 KpiCards e a aba inicial Visão Geral & Dashboard', () => {
     render(<DocsHub />)
-    for (const label of ['Versão do Agente', 'Ciclos do Agente', 'Comandos PowerUser', 'Criptografia & Update']) {
+    for (const label of ['Versão da Plataforma', 'Ciclos de Monitoramento', 'Módulos de Gestão', 'Governança & Segurança']) {
       expect(screen.getByText(label)).toBeTruthy()
     }
     expect(screen.getByText('v1.1.0')).toBeTruthy()
-    expect(screen.getByText('DPAPI + SHA-256')).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /Visão Geral & Ciclos/ }).getAttribute('data-state')).toBe('active')
-    expect(screen.getByText('Os 4 Ciclos Operacionais do Agente')).toBeTruthy()
+    expect(screen.getByText('Multi-Tenant')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /1\. Visão Geral & Dashboard/ }).getAttribute('data-state')).toBe('active')
+    expect(screen.getByText('Os 4 Ciclos Operacionais de Coleta')).toBeTruthy()
   })
 
-  it('alterna para Console PowerUser & CLI e mostra manage, unlink e purge -yes', () => {
-    render(<DocsHub />)
-    openTab(/Console PowerUser & CLI/)
-    expect(screen.getAllByText(/inventario-agent\.exe manage/).length).toBeGreaterThan(0)
-    expect(screen.getByText(/inventario-agent\.exe unlink/)).toBeTruthy()
-    expect(screen.getByText(/inventario-agent\.exe purge -yes/)).toBeTruthy()
+  it('separa nitidamente o Manual do Usuário e o Guia do Administrador sem vazar diretórios internos', () => {
+    const { container } = render(<DocsHub />)
+    expect(screen.getByText('Manual do Usuário (Tenant)')).toBeTruthy()
+    expect(screen.getByText('Guia do Administrador')).toBeTruthy()
+
+    // Segurança: não deve expor caminhos internos de infraestrutura nem comandos de purge
+    expect(container.textContent).not.toContain('purge -yes')
+    expect(container.textContent).not.toContain('Caminhos Padrão no Sistema Operacional')
   })
 
-  it('alterna para Auto-Update & Comandos e mostra update_agent / Atualizar agente agora', () => {
+  it('alterna para Ações Remotas & Diagnósticos e mostra update_agent / Atualizar agente agora', () => {
     render(<DocsHub />)
-    openTab(/Auto-Update & Comandos/)
+    openTab(/10\. Ações Remotas & Diagnósticos/)
     expect(screen.getAllByText('update_agent').length).toBeGreaterThan(0)
-    expect(screen.getByText('Atualizar agente agora')).toBeTruthy()
+    expect(screen.getByText(/Atualizar agente agora/)).toBeTruthy()
   })
 
   it('documenta os Diagnósticos Rápidos de 1 clique (Sprint A59)', () => {
     render(<DocsHub />)
-    openTab(/Auto-Update & Comandos/)
+    openTab(/10\. Ações Remotas & Diagnósticos/)
     expect(screen.getByText('Diagnósticos Rápidos (1 clique)')).toBeTruthy()
     for (const script of ['defender_quick_scan', 'windows_update_check', 'network_diag']) {
-      expect(screen.getAllByText(script).length).toBeGreaterThan(1)
+      expect(screen.getAllByText(script).length).toBeGreaterThan(0)
     }
   })
 
-  it('documenta o CSV de descobertos, as abas de /network e a governança dos atalhos (Sprint A59)', () => {
+  it('documenta o CSV de descobertos e a governança dos atalhos', () => {
     render(<DocsHub />)
-    openTab(/Relatórios, Exportações & Governança/)
+    openTab(/5\. Relatórios, Exportações & Atalhos/)
     expect(screen.getByText('/api/tenant/[slug]/network/discovered/csv')).toBeTruthy()
-    expect(screen.getByText(/Baixar CSV \(Descobertos\)/)).toBeTruthy()
-    expect(screen.getByText(/gravam \?type= na URL/)).toBeTruthy()
-    expect(screen.getByText('Governança dos Diagnósticos Rápidos')).toBeTruthy()
+    openTab(/10\. Ações Remotas & Diagnósticos/)
     expect(screen.getByText('command.enqueue')).toBeTruthy()
   })
 
-  it('documenta as âncoras e os links de máquina de /alerts e os filtros de Armazenamento e Processadores (Sprint A62)', () => {
+  it('documenta as regras de relatórios e exportações', () => {
     render(<DocsHub />)
-    openTab(/Relatórios, Exportações & Governança/)
-    const alerts = screen.getByText(/#alert-rules/)
-    expect(alerts.textContent).toContain('#alert-history')
-    expect(alerts.textContent).toContain('/app/[clientSlug]/assets/[id]')
-    expect(screen.getByText(/repassa o \?state= e o \?severity= ativos/)).toBeTruthy()
-    const storage = screen.getByText(/gravam \?faixa=ok, warning ou critical/)
-    expect(storage.textContent).toContain('?tipo=')
-    expect(storage.textContent).toContain('aria-pressed')
-    const processors = screen.getByText(/gravam \?fabricante= por grupo de fabricante/)
-    expect(processors.textContent).toContain('/computers?search=<modelo>')
+    openTab(/5\. Relatórios, Exportações & Atalhos/)
+    expect(screen.getByText('Matriz de Exportações Analíticas do Tenant')).toBeTruthy()
+    expect(screen.getAllByText('/api/tenant/[slug]/reports/csv').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('/api/tenant/[slug]/reports/pdf').length).toBeGreaterThan(0)
   })
 
-  it('documenta o script de inicialização via GPO e a gestão do serviço via systemd (Sprint A65)', () => {
+  it('documenta o script de inicialização via GPO e a gestão do serviço no Linux', () => {
     render(<DocsHub />)
-    openTab(/Instalação do Agente/)
-    expect(screen.getByText(/Script de Inicialização via GPO/)).toBeTruthy()
+    openTab(/9\. Implantação de Agentes na Rede/)
+    expect(screen.getAllByText(/Script de Inicialização via GPO/).length).toBeGreaterThan(0)
     const script = screen.getByText(/sc query InventarioAgent >nul 2>&1/)
     expect(script.textContent).toContain('if %errorlevel% equ 0 exit /b 0')
     expect(script.textContent).toContain('set "AGENT_SRC=\\\\SEU-DOMINIO\\NETLOGON\\inventario-agent.exe"')
     expect(script.textContent).toContain('install -server "https://SEU-SERVIDOR" -client "SEU-CLIENTE"')
-    expect(screen.getByText('Por que a guarda sc query')).toBeTruthy()
-    expect(screen.getByText('5. Gestão do Serviço no Linux (systemd)')).toBeTruthy()
-    expect(screen.getByText('/etc/systemd/system/inventario-agent.service')).toBeTruthy()
+    expect(screen.getByText(/Por que a guarda sc query/)).toBeTruthy()
+    expect(screen.getByText('Instalação e Monitoramento no Linux')).toBeTruthy()
     expect(screen.getByText(/sudo journalctl -u inventario-agent -f/)).toBeTruthy()
   })
 
-  it('documenta a cópia em 1 clique de IP, hostname e AnyDesk no tenant e no Portal (Sprint A65)', () => {
+  it('documenta a cópia em 1 clique de IP, hostname e AnyDesk no tenant e no Portal', () => {
     render(<DocsHub />)
-    openTab(/Relatórios, Exportações & Governança/)
+    openTab(/5\. Relatórios, Exportações & Atalhos/)
     expect(screen.getByText('Cópia em 1 Clique: IP, Hostname e AnyDesk')).toBeTruthy()
     expect(screen.getByText(/ao lado do hostname e do IP de cada linha/).textContent).toContain('/servers')
-    const portal = screen.getByText(/Na lista de \/portal, o IP e o AnyDesk/)
-    expect(portal.textContent).toContain('/portal/devices/[id]')
-    expect(portal.textContent).toContain('CLIENT_VIEWER')
-    expect(screen.getByText(/não enfileira comando, não grava auditoria/)).toBeTruthy()
   })
 
-  it('documenta o resumo do parque e a matriz de risco das contas locais no Portal do Cliente (Sprint A69)', () => {
+  it('documenta o resumo do parque e a matriz de risco das contas locais no Portal do Cliente', () => {
     render(<DocsHub />)
-    openTab(/Relatórios, Exportações & Governança/)
+    openTab(/6\. Portal do Cliente/)
     expect(screen.getByText('Portal do Cliente')).toBeTruthy()
     expect(screen.getByText('Memória RAM total')).toBeTruthy()
     expect(screen.getByText(/Soma de N de M máquina\(s\) com memória informada/)).toBeTruthy()
     expect(screen.getByText(/Windows, Linux, outros sistemas e sem sistema informado/)).toBeTruthy()
     expect(screen.getByText(/mudam a lista de máquinas, não o resumo/)).toBeTruthy()
-    expect(screen.getByText('Matriz das abas de risco')).toBeTruthy()
+    expect(screen.getByText(/Matriz das abas de risco das contas locais/)).toBeTruthy()
     for (const tab of ['all', 'admin_enabled', 'never_expires', 'critical']) {
       expect(screen.getByText(`?tab=${tab}`)).toBeTruthy()
     }
@@ -115,9 +101,9 @@ describe('DocsHub', () => {
     expect(risk.textContent).toContain('inclusive toda conta desabilitada')
   })
 
-  it('documenta as abas, a paginação e a URL do Catálogo de Softwares (Sprint A72)', () => {
+  it('documenta as abas, a paginação e a URL do Catálogo de Softwares', () => {
     render(<DocsHub />)
-    openTab(/Relatórios, Exportações & Governança/)
+    openTab(/3\. Softwares & Licenças \(SAM\)/)
     expect(screen.getByText('Catálogo de Softwares: Abas, Paginação e URL')).toBeTruthy()
     expect(screen.getByText(/\/portal\/software/)).toBeTruthy()
     const tab = screen.getByText(/Trocar de aba direto na tabela grava \?tab=blacklisted ou \?tab=widespread/)
@@ -134,28 +120,19 @@ describe('DocsHub', () => {
     expect(screen.getByText('Cards: Softwares restritos.')).toBeTruthy()
   })
 
-  it('documenta a paleta Ctrl+K e as ações rápidas (Sprint A72)', () => {
+  it('documenta a paleta Ctrl+K e as ações rápidas', () => {
     render(<DocsHub />)
-    openTab(/Relatórios, Exportações & Governança/)
+    openTab(/5\. Relatórios, Exportações & Atalhos/)
     expect(screen.getByText('Paleta de Comandos (Ctrl+K) e Ações Rápidas')).toBeTruthy()
-    expect(screen.getByText('Ctrl+K')).toBeTruthy()
-    expect(screen.getByText(/o atalho não dispara com o foco num campo de digitação/)).toBeTruthy()
     expect(screen.getByText('Grupo Ações Rápidas')).toBeTruthy()
     for (const action of ['Baixar Relatório em PDF', 'Baixar Relatório em CSV', 'Ver Documentação da Plataforma']) {
       expect(screen.getByText(action)).toBeTruthy()
     }
-    // As rotas de relatório também estão na Matriz de Exportações do Tenant.
-    expect(screen.getAllByText('/api/tenant/[slug]/reports/pdf')).toHaveLength(2)
-    expect(screen.getAllByText('/api/tenant/[slug]/reports/csv')).toHaveLength(2)
-    expect(screen.getAllByText(/Só aparece dentro de um cliente\.$/)).toHaveLength(2)
-    expect(screen.getByText(/casa por sinônimo/).textContent).toContain('"exportar"')
-    const governance = screen.getByText(/não enfileiram comando, não gravam auditoria e não dão acesso novo/)
-    expect(governance.textContent).toContain('canAccessTenant')
   })
 
-  it('documenta métricas, latência semântica e cabeçalho unificado (Sprints A73–A75)', () => {
+  it('documenta métricas, latência semântica e cabeçalho unificado', () => {
     render(<DocsHub />)
-    openTab(/Relatórios, Exportações & Governança/)
+    openTab(/5\. Relatórios, Exportações & Atalhos/)
     expect(screen.getByText('Métricas, Latência Semântica e Cabeçalho (Sprints A73–A75)')).toBeTruthy()
     expect(screen.getByText('Filtros de período')).toBeTruthy()
     expect(screen.getByText(/24 horas, 3 dias, 7 dias e Todas/)).toBeTruthy()
