@@ -8,6 +8,10 @@ export type ClientListRow = {
   isActive: boolean
   discoveryEnabled: boolean
   metricsRetentionDays: number
+  alertsEnabled: boolean
+  alertOfflineHours: number
+  alertDiskThresholdGb: number
+  alertRamThresholdGb: number
   createdAt: string
   /**
    * Credenciais AgentAuth com isActive: true. Alimenta a coluna "Agentes"
@@ -31,6 +35,10 @@ export async function getClients(user: PermissionUser): Promise<ClientListRow[]>
       isActive: true,
       discoveryEnabled: true,
       metricsRetentionDays: true,
+      alertsEnabled: true,
+      alertOfflineHours: true,
+      alertDiskThresholdGb: true,
+      alertRamThresholdGb: true,
       createdAt: true,
     },
   })
@@ -53,6 +61,10 @@ export async function getClients(user: PermissionUser): Promise<ClientListRow[]>
     isActive: client.isActive,
     discoveryEnabled: client.discoveryEnabled,
     metricsRetentionDays: client.metricsRetentionDays,
+    alertsEnabled: client.alertsEnabled,
+    alertOfflineHours: client.alertOfflineHours,
+    alertDiskThresholdGb: client.alertDiskThresholdGb,
+    alertRamThresholdGb: client.alertRamThresholdGb,
     createdAt: client.createdAt.toISOString(),
     activeAgentCount: activeByClient.get(client.id) ?? 0,
   }))
@@ -122,5 +134,22 @@ export async function getClientAgents(clientId: string): Promise<ClientAgentRow[
       agentVersion: device?.agentVersion ?? null,
       lastCollectionAt: lastCollectionAt ? lastCollectionAt.toISOString() : null,
     }
+  })
+}
+
+export type ClientUserRow = {
+  id: string
+  name: string | null
+  email: string
+  role: string
+  isActive: boolean
+}
+
+/** O chamador autoriza o cliente com canManageTenant antes de expor a lista. */
+export async function getClientUsers(clientId: string): Promise<ClientUserRow[]> {
+  return prisma.user.findMany({
+    where: { clientId },
+    orderBy: [{ isActive: 'desc' }, { email: 'asc' }],
+    select: { id: true, name: true, email: true, role: true, isActive: true },
   })
 }

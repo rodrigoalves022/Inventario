@@ -217,7 +217,7 @@ describe('ClientsPanel — credenciais inline (E6, opcao C)', () => {
     expect(screen.queryByText('CHAVE-ATIVA-999')).toBeNull()
     expect(screen.queryByTestId('credentials-result')).toBeNull()
     expect(screen.getByTestId('rotation-result').closest('tr')?.previousElementSibling).toBe(
-      screen.getByText('Teste A0 Rotação', { selector: 'td' }).closest('tr')
+      screen.getByText('Teste A0 Rotação', { selector: 'td a' }).closest('tr')
     )
   })
 
@@ -309,8 +309,8 @@ describe('ClientsPanel — estado vazio (E7)', () => {
 
     const result = await screen.findByTestId('credentials-result')
     const detailsRow = result.closest('tr') as HTMLElement
-    expect(detailsRow.previousElementSibling).toBe(screen.getByText('Alfa', { selector: 'td' }).closest('tr'))
-    expect(detailsRow.nextElementSibling).toBe(screen.getByText('Beta', { selector: 'td' }).closest('tr'))
+    expect(detailsRow.previousElementSibling).toBe(screen.getByText('Alfa', { selector: 'td a' }).closest('tr'))
+    expect(detailsRow.nextElementSibling).toBe(screen.getByText('Beta', { selector: 'td a' }).closest('tr'))
   })
 
   it('segundo clique em "Ver credenciais" no mesmo cliente fecha o painel', async () => {

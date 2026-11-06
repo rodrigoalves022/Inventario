@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Fragment, startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowUpRight, Bot, Building2, CheckCircle2, Eye, Loader2, Pencil, Search, Trash2, X } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Bot, Building2, CheckCircle2, Eye, Loader2, Pencil, Search, Settings2, Trash2, X } from 'lucide-react'
 import {
   initialProvisioningState,
   type ClientMutationState,
@@ -46,6 +46,11 @@ type ClientRow = {
   isActive: boolean
   discoveryEnabled: boolean
   metricsRetentionDays: number
+  /** Alertas do cliente; opcionais: o modal so os exibe quando a listagem os traz. */
+  alertsEnabled?: boolean
+  alertOfflineHours?: number
+  alertDiskThresholdGb?: number
+  alertRamThresholdGb?: number
   createdAt: string
   /**
    * AgentAuth com isActive: true. Coluna "Agentes" (RN020: revogados nao
@@ -266,6 +271,7 @@ function EditClientDialog({
   const [error, setError] = useState<string | null>(null)
   const [isActive, setIsActive] = useState('true')
   const [discoveryEnabled, setDiscoveryEnabled] = useState('false')
+  const [alertsEnabled, setAlertsEnabled] = useState('true')
 
   // Reinicia o formulario a cada cliente aberto.
   useEffect(() => {
@@ -273,6 +279,7 @@ function EditClientDialog({
     setError(null)
     setIsActive(String(client.isActive))
     setDiscoveryEnabled(String(client.discoveryEnabled))
+    setAlertsEnabled(String(client.alertsEnabled ?? true))
   }, [client])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -282,6 +289,7 @@ function EditClientDialog({
     formData.set('clientId', client.id)
     formData.set('isActive', isActive)
     formData.set('discoveryEnabled', discoveryEnabled)
+    if (client.alertsEnabled !== undefined) formData.set('alertsEnabled', alertsEnabled)
     setPending(true)
     setError(null)
     try {
@@ -366,6 +374,41 @@ function EditClientDialog({
               />
               <p className="text-xs text-muted-foreground">Entre 7 e 365 dias.</p>
             </div>
+            {client.alertsEnabled !== undefined ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-client-alerts">Alertas</Label>
+                  <Select value={alertsEnabled} onValueChange={setAlertsEnabled}>
+                    <SelectTrigger id="edit-client-alerts" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Ativos</SelectItem>
+                      <SelectItem value="false">Inativos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-client-offline">Máquina offline (horas)</Label>
+                  <Input id="edit-client-offline" name="alertOfflineHours" type="number" min={1} max={720} defaultValue={client.alertOfflineHours} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-client-disk">Disco livre crítico (GB)</Label>
+                  <Input id="edit-client-disk" name="alertDiskThresholdGb" type="number" min={1} max={10000} defaultValue={client.alertDiskThresholdGb} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-client-ram">RAM mínima (GB)</Label>
+                  <Input id="edit-client-ram" name="alertRamThresholdGb" type="number" min={1} max={1024} defaultValue={client.alertRamThresholdGb} />
+                </div>
+              </div>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Endereço do servidor, e-mails vinculados, webhook e exclusão ficam em{' '}
+              <Link href={`/admin/clients/${client.id}`} className="text-primary underline-offset-2 hover:underline">
+                Gerenciamento completo e E-mails
+              </Link>
+              .
+            </p>
             {error && (
               <p
                 role="alert"
@@ -806,7 +849,12 @@ export function ClientsPanel({
                 <tr className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}>
                   <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>
                     <Building2 aria-hidden className="mr-2 inline h-4 w-4 text-primary" />
-                    {client.name}
+                    <Link
+                      href={`/admin/clients/${client.id}`}
+                      className="rounded-sm hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {client.name}
+                    </Link>
                   </td>
                   <td className={TABLE_CELL_CLASS}>
                     {/* RN020: so AgentAuth ativos. Leva a lista de agentes do
@@ -848,6 +896,12 @@ export function ClientsPanel({
                         <Link href={getTenantBasePath(client.slug)}>
                           <ArrowUpRight className="h-4 w-4" />
                           Abrir painel
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/clients/${client.id}`}>
+                          <Settings2 className="h-4 w-4" />
+                          Gerenciar
                         </Link>
                       </Button>
                       <Button asChild size="sm" variant="outline">

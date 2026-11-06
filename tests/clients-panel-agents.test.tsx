@@ -46,7 +46,7 @@ function renderPanel(clients = [buildClient()]) {
 }
 
 function rowOf(name: string) {
-  return screen.getByText(name, { selector: 'td' }).closest('tr') as HTMLElement
+  return screen.getByText(name, { selector: 'td a' }).closest('tr') as HTMLElement
 }
 
 function openRotateDialog() {

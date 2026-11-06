@@ -632,6 +632,15 @@ export async function requestClientAgentUpdateAction(
   }
 }
 
+function alertIntSchema(label: string, min: number, max: number) {
+  return z
+    .number({ invalid_type_error: `${label} inválido.` })
+    .int(`${label} deve ser um número inteiro.`)
+    .min(min, `${label}: o mínimo é ${min}.`)
+    .max(max, `${label}: o máximo é ${max}.`)
+    .optional()
+}
+
 const updateClientSchema = z.object({
   clientId: requiredString('Cliente não informado.').trim().min(1, 'Cliente não informado.'),
   name: requiredString(clientNameMessage).trim().min(3, clientNameMessage),
@@ -650,6 +659,22 @@ const updateClientSchema = z.object({
     .int('A retenção deve ser um número inteiro de dias.')
     .min(7, 'A retenção mínima é de 7 dias.')
     .max(365, 'A retenção máxima é de 365 dias.'),
+  // Alertas e webhook: opcionais para o modal rapido da tabela continuar
+  // enviando so os campos antigos; ausente = nao altera.
+  alertsEnabled: z.boolean({ invalid_type_error: 'Alertas inválidos.' }).optional(),
+  alertWebhookEnabled: z.boolean({ invalid_type_error: 'Webhook inválido.' }).optional(),
+  alertWebhookUrl: z
+    .string()
+    .trim()
+    .max(2048, 'A URL do webhook é longa demais.')
+    .refine(
+      (value) => value === '' || /^https?:\/\/\S+$/i.test(value),
+      'Informe uma URL de webhook válida (https://...).'
+    )
+    .optional(),
+  alertOfflineHours: alertIntSchema('Limiar de máquina offline', 1, 720),
+  alertDiskThresholdGb: alertIntSchema('Limiar de disco livre', 1, 10000),
+  alertRamThresholdGb: alertIntSchema('Limiar de RAM mínima', 1, 1024),
 })
 
 const deleteClientSchema = z.object({
@@ -662,10 +687,15 @@ function formBoolean(value: FormDataEntryValue | null) {
   return undefined
 }
 
+function formOptionalInt(value: FormDataEntryValue | null) {
+  return typeof value === 'string' && value.trim() !== '' ? Number(value) : undefined
+}
+
 export async function updateClientAction(formData: FormData): Promise<ClientMutationState> {
   try {
     const user = getSessionPermissionUser(await auth())
     const rawRetention = formData.get('metricsRetentionDays')
+    const rawWebhookUrl = formData.get('alertWebhookUrl')
 
     const parsed = updateClientSchema.safeParse({
       clientId: formData.get('clientId'),
@@ -675,12 +705,21 @@ export async function updateClientAction(formData: FormData): Promise<ClientMuta
       discoveryEnabled: formBoolean(formData.get('discoveryEnabled')),
       metricsRetentionDays:
         typeof rawRetention === 'string' && rawRetention.trim() !== '' ? Number(rawRetention) : undefined,
+      alertsEnabled: formBoolean(formData.get('alertsEnabled')),
+      alertWebhookEnabled: formBoolean(formData.get('alertWebhookEnabled')),
+      alertWebhookUrl: typeof rawWebhookUrl === 'string' ? rawWebhookUrl : undefined,
+      alertOfflineHours: formOptionalInt(formData.get('alertOfflineHours')),
+      alertDiskThresholdGb: formOptionalInt(formData.get('alertDiskThresholdGb')),
+      alertRamThresholdGb: formOptionalInt(formData.get('alertRamThresholdGb')),
     })
     if (!parsed.success) {
       return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.', message: null }
     }
 
     const data = parsed.data
+    if (data.alertWebhookEnabled && !data.alertWebhookUrl) {
+      return { error: 'Informe a URL do webhook para ativá-lo.', message: null }
+    }
     const client = await prisma.client.findUnique({
       where: { id: data.clientId },
       select: { id: true, name: true, slug: true, organizationId: true },
@@ -698,6 +737,20 @@ export async function updateClientAction(formData: FormData): Promise<ClientMuta
     }
 
     const actor = getSessionAuditActor(user)
+    const alertData: Record<string, boolean | number | string | null> = {}
+    const alertFields = {
+      alertsEnabled: data.alertsEnabled,
+      alertWebhookEnabled: data.alertWebhookEnabled,
+      alertWebhookUrl: data.alertWebhookUrl === undefined ? undefined : data.alertWebhookUrl || null,
+      alertOfflineHours: data.alertOfflineHours,
+      alertDiskThresholdGb: data.alertDiskThresholdGb,
+      alertRamThresholdGb: data.alertRamThresholdGb,
+    }
+    for (const [key, value] of Object.entries(alertFields)) {
+      if (value !== undefined) alertData[key] = value
+    }
+    // A URL pode carregar token: a auditoria guarda so se esta definida.
+    const { alertWebhookUrl: auditedWebhookUrl, ...auditedAlertData } = alertData
     await prisma.$transaction(async (tx: TransactionLike) => {
       await tx.client.update({
         where: { id: client.id },
@@ -707,6 +760,7 @@ export async function updateClientAction(formData: FormData): Promise<ClientMuta
           isActive: data.isActive,
           discoveryEnabled: data.discoveryEnabled,
           metricsRetentionDays: data.metricsRetentionDays,
+          ...alertData,
         },
       })
       await recordAuditLog(
@@ -722,6 +776,8 @@ export async function updateClientAction(formData: FormData): Promise<ClientMuta
             isActive: data.isActive,
             discoveryEnabled: data.discoveryEnabled,
             metricsRetentionDays: data.metricsRetentionDays,
+            ...auditedAlertData,
+            ...(auditedWebhookUrl !== undefined ? { alertWebhookUrlDefined: Boolean(auditedWebhookUrl) } : {}),
           },
         },
         tx
@@ -729,6 +785,7 @@ export async function updateClientAction(formData: FormData): Promise<ClientMuta
     })
 
     revalidatePath('/admin/clients')
+    revalidatePath(`/admin/clients/${client.id}`)
     return { error: null, message: 'Cliente atualizado.' }
   } catch (error) {
     console.error('[clients/update] Erro:', error)
