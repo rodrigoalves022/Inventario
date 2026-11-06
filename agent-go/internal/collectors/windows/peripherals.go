@@ -49,6 +49,20 @@ type win32Printer struct {
 	Network    bool
 }
 
+var (
+	virtualPrinterNamePattern = regexp.MustCompile(`(?i)microsoft print to pdf|microsoft xps document writer|openxps|fax|onenote|remote desktop easy print|root print queue`)
+	virtualPrinterPortPattern = regexp.MustCompile(`(?i)^(portprompt:?|nul:?|file:?|shrfax:?)`)
+)
+
+// isVirtualPrinter detecta impressoras de software do Windows (PDF, XPS, Fax,
+// OneNote...) que nao sao ativos fisicos. Espelha lib/printers.ts.
+func isVirtualPrinter(name, driver, port string) bool {
+	if virtualPrinterNamePattern.MatchString(name) || virtualPrinterNamePattern.MatchString(driver) {
+		return true
+	}
+	return virtualPrinterPortPattern.MatchString(strings.TrimSpace(port))
+}
+
 type win32PnpUsbEntity struct {
 	Name     string
 	DeviceID string
@@ -157,7 +171,7 @@ func collectPrinters() []inventory.PrinterInfo {
 	result := make([]inventory.PrinterInfo, 0, len(printers))
 	for _, p := range printers {
 		name := strings.TrimSpace(p.Name)
-		if name == "" {
+		if name == "" || isVirtualPrinter(name, p.DriverName, p.PortName) {
 			continue
 		}
 		result = append(result, inventory.PrinterInfo{

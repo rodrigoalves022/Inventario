@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
+import { isVirtualPrinter } from '@/lib/printers'
 import { canReadTenantData, getSessionPermissionUser } from '@/lib/permissions'
 import { getTenantContext } from '@/lib/tenant-context'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
@@ -51,6 +52,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cli
       records.push(['Monitor', m.modelo || m.fabricante || 'Monitor genérico', m.fabricante, m.serial, detail || '—', machine])
     }
     for (const p of device.printers) {
+      if (isVirtualPrinter(p)) continue
       const detail = p.deRede ? (p.padrao ? 'Rede · Padrão' : 'Impressora de rede') : p.padrao ? 'Local · Padrão' : 'Local'
       records.push(['Impressora', p.nome, p.driver, p.porta, detail, machine])
     }

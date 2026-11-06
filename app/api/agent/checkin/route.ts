@@ -11,6 +11,7 @@ import { reconcileAvailabilityEvents } from '@/lib/availability-alerts'
 import { sendAlertWebhook } from '@/lib/alert-webhook'
 import { dispatchClientWebhookEndpoints, type WebhookEvent } from '@/lib/webhook-endpoints'
 import { agentCheckinSchema } from '@/lib/schemas/agent-checkin'
+import { filterPhysicalPrinters } from '@/lib/printers'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const checkinSchema = agentCheckinSchema
@@ -369,10 +370,11 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    if (body.impressoras && body.impressoras.length > 0) {
+    const physicalPrinters = filterPhysicalPrinters(body.impressoras ?? [])
+    if (physicalPrinters.length > 0) {
       await prisma.printer.deleteMany({ where: { deviceId: device.id } })
       await prisma.printer.createMany({
-        data: body.impressoras.map((printer) => ({
+        data: physicalPrinters.map((printer) => ({
           deviceId: device.id,
           nome: printer.nome,
           porta: printer.porta,

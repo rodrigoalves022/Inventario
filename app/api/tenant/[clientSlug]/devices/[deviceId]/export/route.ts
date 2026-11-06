@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
+import { isVirtualPrinter } from '@/lib/printers'
 import { canReadTenantData, getSessionPermissionUser } from '@/lib/permissions'
 import { deduplicateDeviceSoftware } from '@/lib/software-catalog'
 import { getTenantContext } from '@/lib/tenant-context'
@@ -105,6 +106,7 @@ export async function GET(
     add('Perifericos', 'Monitor', [m.fabricante, m.modelo].filter(Boolean).join(' '), m.serial, m.polegadas ? `${m.polegadas}"` : '')
   }
   for (const p of device.printers) {
+    if (isVirtualPrinter(p)) continue
     add('Perifericos', 'Impressora', p.nome, p.porta, p.padrao ? 'Padrao' : '')
   }
   for (const u of device.usbDevices) {

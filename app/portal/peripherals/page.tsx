@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { isVirtualPrinter } from '@/lib/printers'
 import { requirePortalContext } from '@/lib/portal-context'
 import { Cable, Download, Monitor, Printer, Usb } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -54,6 +55,7 @@ export default async function PortalPeripheralsPage({
       })
     }
     for (const p of device.printers) {
+      if (isVirtualPrinter(p)) continue
       rows.push({
         ...base,
         id: p.id,

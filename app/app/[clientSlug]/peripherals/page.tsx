@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { isVirtualPrinter } from '@/lib/printers'
 import { getTenantDeviceWhere } from '@/lib/tenant-scope'
 import { requireTenantContext } from '@/lib/tenant-context'
 import { Cable, Download, Monitor, Printer, Usb } from 'lucide-react'
@@ -55,6 +56,7 @@ export default async function TenantPeripheralsPage({
       })
     }
     for (const p of device.printers) {
+      if (isVirtualPrinter(p)) continue
       rows.push({
         ...base,
         id: p.id,
