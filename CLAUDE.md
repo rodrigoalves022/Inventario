@@ -53,3 +53,9 @@
 - `prisma/schema.prisma`
 - `app/admin/clients/**`
 - `app/users/page.tsx`
+
+---
+
+## 5. Regra de UI — Placeholders
+- **PROIBIDO** usar nomes fictícios/aleatórios em placeholders (ex.: `Acme Indústria Ltda`, `Contoso`, `João`, `Maria`, `Foo`).
+- Use sempre rótulos neutros e descritivos do campo: `Nome da empresa`, `nome-da-empresa`, `Nome do usuário`, `Nome do responsável`.

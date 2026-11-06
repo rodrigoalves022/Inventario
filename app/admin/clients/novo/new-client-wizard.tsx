@@ -292,7 +292,7 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome da empresa</Label>
-                  <Input id="name" name="name" required minLength={3} placeholder="Acme Indústria Ltda" autoFocus />
+                  <Input id="name" name="name" required minLength={3} placeholder="Nome da empresa" autoFocus />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="slug">Slug (opcional)</Label>
@@ -301,7 +301,7 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
                     name="slug"
                     pattern="[a-z0-9\-]+"
                     maxLength={64}
-                    placeholder="acme-industria"
+                    placeholder="nome-da-empresa"
                     className="data-mono"
                   />
                 </div>
