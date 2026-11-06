@@ -127,3 +127,4 @@ describe('labels e classes de status de ciclo de vida', () => {
     expect(LIFECYCLE_STATUS_BADGE_CLASS.DISPOSED).toContain('destructive')
   })
 })
+

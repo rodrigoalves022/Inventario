@@ -226,3 +226,4 @@ describe('deleteAssetMaintenanceAction', () => {
     expect(maintenances.has('m-2')).toBe(true)
   })
 })
+

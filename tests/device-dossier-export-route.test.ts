@@ -16,10 +16,10 @@ vi.mock('@/lib/permissions', () => ({
 vi.mock('@/lib/tenant-context', () => ({ getTenantContext: mocks.getTenantContext }))
 vi.mock('@/lib/prisma', () => ({ default: { device: { findFirst: mocks.findFirst } } }))
 
-import { GET } from '@/app/api/tenant/[clientSlug]/devices/[id]/export/route'
+import { GET } from '@/app/api/tenant/[clientSlug]/devices/[deviceId]/export/route'
 
 const tenant = { id: 'client-1', slug: 'acme' }
-const params = { params: Promise.resolve({ clientSlug: 'acme', id: 'dev-1' }) }
+const params = { params: Promise.resolve({ clientSlug: 'acme', deviceId: 'dev-1' }) }
 const req = {} as never
 
 const device = {

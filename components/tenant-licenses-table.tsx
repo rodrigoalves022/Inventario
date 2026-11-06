@@ -520,3 +520,4 @@ export function TenantLicensesTable({
     </div>
   )
 }
+

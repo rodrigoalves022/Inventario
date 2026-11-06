@@ -147,3 +147,4 @@ describe('Software Licenses Server Actions (Sprint A81)', () => {
     expect(auditLogs[0].targetName).toBe('WinRAR')
   })
 })
+

@@ -165,3 +165,4 @@ export async function deleteLicenseAction(
     return { status: 'error', message: 'Erro interno ao excluir a licença.' }
   }
 }
+

@@ -13,3 +13,4 @@ export const softwareLicenseInputSchema = z.object({
 })
 
 export type SoftwareLicenseInput = z.infer<typeof softwareLicenseInputSchema>
+

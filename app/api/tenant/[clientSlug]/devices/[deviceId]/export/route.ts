@@ -27,9 +27,9 @@ const fmtDate = (value: Date | null | undefined) => (value ? value.toISOString()
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ clientSlug: string; id: string }> }
+  { params }: { params: Promise<{ clientSlug: string; deviceId: string }> }
 ) {
-  const { clientSlug, id } = await params
+  const { clientSlug, deviceId } = await params
   const session = await auth()
   if (!session?.user) {
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -41,7 +41,7 @@ export async function GET(
   }
 
   const device = await prisma.device.findFirst({
-    where: { id, ...getTenantDeviceWhere(clientSlug) },
+    where: { id: deviceId, ...getTenantDeviceWhere(clientSlug) },
     include: {
       hardware: true,
       disks: true,

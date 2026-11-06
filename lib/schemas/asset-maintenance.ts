@@ -35,3 +35,4 @@ export const assetMaintenanceInputSchema = z.object({
 })
 
 export type AssetMaintenanceInput = z.infer<typeof assetMaintenanceInputSchema>
+

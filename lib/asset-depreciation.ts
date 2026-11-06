@@ -170,3 +170,4 @@ export function formatBRL(value: number | null | undefined): string {
     minimumFractionDigits: 2,
   }).format(value)
 }
+

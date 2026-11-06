@@ -157,3 +157,4 @@ describe('reconcileLicenses', () => {
     expect(summary.totalCost).toBe(1900)
   })
 })
+
