@@ -137,38 +137,40 @@ export function AgentInstallPackage({
       </div>
 
       <div role="tabpanel" id={panelId} aria-labelledby={tabId(platform)} className="space-y-5">
-        {sha256 ? (
-          <div className="space-y-3">
-            <Button asChild size="lg" className="gap-2">
-              <a href={isWindows ? `/api/agent/download-exe?${query}` : `/api/agent/download-linux?${query}`} download>
-                <Download className="h-4 w-4" />
-                {isWindows ? 'Baixar instalador para Windows (.exe)' : 'Baixar binário para Linux (amd64)'}
-              </a>
-            </Button>
-            <PublishedBinaryHash sha256={sha256} />
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Binário não publicado para {platformLabel} neste servidor. O download e o comando de uma linha ficam
-            indisponíveis até um build do agente ser publicado.
-          </p>
-        )}
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          {sha256 ? (
+            <div className="space-y-3">
+              <Button asChild size="lg" className="gap-2">
+                <a href={isWindows ? `/api/agent/download-exe?${query}` : `/api/agent/download-linux?${query}`} download>
+                  <Download className="h-4 w-4" />
+                  {isWindows ? 'Baixar instalador para Windows (.exe)' : 'Baixar binário para Linux (amd64)'}
+                </a>
+              </Button>
+              <PublishedBinaryHash sha256={sha256} />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Binário não publicado para {platformLabel} neste servidor. O download e o comando de uma linha ficam
+              indisponíveis até um build do agente ser publicado.
+            </p>
+          )}
 
-        <div className="rounded-xl border border-warning/40 bg-warning/5 p-4">
-          <div className="flex gap-3">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-            <div className="min-w-0 flex-1 space-y-3">
-              <div>
-                <p className="text-sm font-medium">
-                  {keyIsFresh ? 'Chave de instalação: trate como senha' : 'Chave ativa deste cliente'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {keyIsFresh
-                    ? 'É uma credencial sensível: quem a tiver registra máquinas neste cliente. Ela fica guardada cifrada e pode ser consultada em "Ver credenciais" por quem administra este cliente. Só é necessária para instalar em mais máquinas manualmente.'
-                    : 'Continua válida até você emitir um novo pacote — quem acessa esta tela pode vê-la novamente a qualquer momento.'}
-                </p>
+          <div className="rounded-xl border border-warning/40 bg-warning/5 p-4">
+            <div className="flex gap-3">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div className="min-w-0 flex-1 space-y-3">
+                <div>
+                  <p className="text-sm font-medium">
+                    {keyIsFresh ? 'Chave de instalação: trate como senha' : 'Chave ativa deste cliente'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {keyIsFresh
+                      ? 'É uma credencial sensível: quem a tiver registra máquinas neste cliente. Ela fica guardada cifrada e pode ser consultada em "Ver credenciais" por quem administra este cliente. Só é necessária para instalar em mais máquinas manualmente.'
+                      : 'Continua válida até você emitir um novo pacote — quem acessa esta tela pode vê-la novamente a qualquer momento.'}
+                  </p>
+                </div>
+                <CopyField value={pkg.enrollmentKey} label="Chave de instalação" />
               </div>
-              <CopyField value={pkg.enrollmentKey} label="Chave de instalação" />
             </div>
           </div>
         </div>
