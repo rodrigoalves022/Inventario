@@ -6,10 +6,14 @@ import { Button } from '@/components/ui/button'
 import { auth } from '@/auth'
 import { getSessionPermissionUser, isOrgAdmin, isPlatformAdmin } from '@/lib/permissions'
 import { getCurrentServerUrl } from '@/lib/server-url'
-import { rotateEnrollmentKeyAction as rotateClientProvisioningAction } from './actions'
+import {
+  deleteClientAction as deleteClient,
+  rotateEnrollmentKeyAction as rotateClientProvisioningAction,
+  updateClientAction as updateClient,
+} from './actions'
 import { ClientsPanel } from './clients-panel'
 import { getClients } from './queries'
-import { type ProvisioningActionState } from './types'
+import { type ClientMutationState, type ProvisioningActionState } from './types'
 
 async function requireClientsAdminAccess() {
   const session = await auth()
@@ -29,6 +33,16 @@ export default async function ClientsPage() {
   async function rotateEnrollmentKeyAction(state: ProvisioningActionState, formData: FormData) {
     'use server'
     return rotateClientProvisioningAction(state, formData)
+  }
+
+  async function updateClientAction(formData: FormData): Promise<ClientMutationState> {
+    'use server'
+    return updateClient(formData)
+  }
+
+  async function deleteClientAction(formData: FormData): Promise<ClientMutationState> {
+    'use server'
+    return deleteClient(formData)
   }
 
   return (
@@ -69,6 +83,8 @@ export default async function ClientsPage() {
               clients={clients}
               serverUrl={serverUrl}
               rotateEnrollmentKeyAction={rotateEnrollmentKeyAction}
+              updateClientAction={updateClientAction}
+              deleteClientAction={deleteClientAction}
             />
           </div>
         </main>

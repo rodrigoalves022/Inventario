@@ -6,6 +6,8 @@ export type ClientListRow = {
   name: string
   slug: string
   isActive: boolean
+  discoveryEnabled: boolean
+  metricsRetentionDays: number
   createdAt: string
   /**
    * Credenciais AgentAuth com isActive: true. Alimenta a coluna "Agentes"
@@ -27,6 +29,8 @@ export async function getClients(user: PermissionUser): Promise<ClientListRow[]>
       name: true,
       slug: true,
       isActive: true,
+      discoveryEnabled: true,
+      metricsRetentionDays: true,
       createdAt: true,
     },
   })
@@ -47,6 +51,8 @@ export async function getClients(user: PermissionUser): Promise<ClientListRow[]>
     name: client.name,
     slug: client.slug,
     isActive: client.isActive,
+    discoveryEnabled: client.discoveryEnabled,
+    metricsRetentionDays: client.metricsRetentionDays,
     createdAt: client.createdAt.toISOString(),
     activeAgentCount: activeByClient.get(client.id) ?? 0,
   }))

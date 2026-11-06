@@ -13,7 +13,7 @@ import { getPublishedAgentHashes } from '@/lib/agent-binary'
 import { encryptProvisioningSecret } from '@/lib/provisioning-credentials'
 import { AGENT_COMMAND_TTL_MS } from '@/lib/agent-commands'
 import { getSessionAuditActor, recordAuditLog } from '@/lib/audit-log'
-import { type ProvisioningActionState, type RequestAgentUpdateState } from './types'
+import { type ClientMutationState, type ProvisioningActionState, type RequestAgentUpdateState } from './types'
 
 // Arquivo 'use server': so funcoes async em runtime. O valor inicial
 // (initialRequestAgentUpdateState) mora em ./types.ts.
@@ -629,5 +629,151 @@ export async function requestClientAgentUpdateAction(
   } catch (error) {
     console.error('[clients/request-agent-update] Erro:', error)
     return { error: 'Erro interno ao solicitar a atualização do agente.', message: null }
+  }
+}
+
+const updateClientSchema = z.object({
+  clientId: requiredString('Cliente não informado.').trim().min(1, 'Cliente não informado.'),
+  name: requiredString(clientNameMessage).trim().min(3, clientNameMessage),
+  slug: requiredString('Informe o identificador (slug) do cliente.')
+    .trim()
+    .min(1, 'Informe o identificador (slug) do cliente.')
+    .max(64, 'O slug deve ter no máximo 64 caracteres.')
+    .regex(/^[a-z0-9-]+$/, 'Use apenas letras minúsculas, números e hifens.'),
+  isActive: z.boolean({ invalid_type_error: 'Status inválido.', required_error: 'Status inválido.' }),
+  discoveryEnabled: z.boolean({
+    invalid_type_error: 'Descoberta de rede inválida.',
+    required_error: 'Descoberta de rede inválida.',
+  }),
+  metricsRetentionDays: z
+    .number({ invalid_type_error: 'Informe a retenção em dias.', required_error: 'Informe a retenção em dias.' })
+    .int('A retenção deve ser um número inteiro de dias.')
+    .min(7, 'A retenção mínima é de 7 dias.')
+    .max(365, 'A retenção máxima é de 365 dias.'),
+})
+
+const deleteClientSchema = z.object({
+  clientId: requiredString('Cliente não informado.').trim().min(1, 'Cliente não informado.'),
+})
+
+function formBoolean(value: FormDataEntryValue | null) {
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
+}
+
+export async function updateClientAction(formData: FormData): Promise<ClientMutationState> {
+  try {
+    const user = getSessionPermissionUser(await auth())
+    const rawRetention = formData.get('metricsRetentionDays')
+
+    const parsed = updateClientSchema.safeParse({
+      clientId: formData.get('clientId'),
+      name: formData.get('name'),
+      slug: formData.get('slug'),
+      isActive: formBoolean(formData.get('isActive')),
+      discoveryEnabled: formBoolean(formData.get('discoveryEnabled')),
+      metricsRetentionDays:
+        typeof rawRetention === 'string' && rawRetention.trim() !== '' ? Number(rawRetention) : undefined,
+    })
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.', message: null }
+    }
+
+    const data = parsed.data
+    const client = await prisma.client.findUnique({
+      where: { id: data.clientId },
+      select: { id: true, name: true, slug: true, organizationId: true },
+    })
+    // Existencia + autorizacao numa so mensagem: nao revela tenants alheios.
+    if (!client || !canManageTenant(user, client)) {
+      return { error: 'Cliente não encontrado.', message: null }
+    }
+
+    if (data.slug !== client.slug) {
+      const taken = await prisma.client.findUnique({ where: { slug: data.slug }, select: { id: true } })
+      if (taken && taken.id !== client.id) {
+        return { error: 'Já existe um cliente com esse identificador (slug).', message: null }
+      }
+    }
+
+    const actor = getSessionAuditActor(user)
+    await prisma.$transaction(async (tx: TransactionLike) => {
+      await tx.client.update({
+        where: { id: client.id },
+        data: {
+          name: data.name,
+          slug: data.slug,
+          isActive: data.isActive,
+          discoveryEnabled: data.discoveryEnabled,
+          metricsRetentionDays: data.metricsRetentionDays,
+        },
+      })
+      await recordAuditLog(
+        {
+          action: 'client.update',
+          targetType: 'client',
+          targetId: client.id,
+          clientId: client.id,
+          actor,
+          metadata: {
+            previousSlug: client.slug,
+            clientSlug: data.slug,
+            isActive: data.isActive,
+            discoveryEnabled: data.discoveryEnabled,
+            metricsRetentionDays: data.metricsRetentionDays,
+          },
+        },
+        tx
+      )
+    })
+
+    revalidatePath('/admin/clients')
+    return { error: null, message: 'Cliente atualizado.' }
+  } catch (error) {
+    console.error('[clients/update] Erro:', error)
+    return { error: 'Erro interno ao atualizar o cliente.', message: null }
+  }
+}
+
+export async function deleteClientAction(formData: FormData): Promise<ClientMutationState> {
+  try {
+    const user = getSessionPermissionUser(await auth())
+    const parsed = deleteClientSchema.safeParse({ clientId: formData.get('clientId') })
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.', message: null }
+    }
+
+    const client = await prisma.client.findUnique({
+      where: { id: parsed.data.clientId },
+      select: { id: true, name: true, slug: true, organizationId: true },
+    })
+    if (!client || !canManageTenant(user, client)) {
+      return { error: 'Cliente não encontrado.', message: null }
+    }
+
+    const actor = getSessionAuditActor(user)
+    // Auditoria na mesma transacao, ANTES da exclusao. AuditLog.clientId e
+    // SetNull, entao a trilha sobrevive; nome e slug ficam no metadata.
+    await prisma.$transaction(async (tx: TransactionLike) => {
+      await recordAuditLog(
+        {
+          action: 'client.delete',
+          targetType: 'client',
+          targetId: client.id,
+          clientId: client.id,
+          actor,
+          metadata: { clientName: client.name, clientSlug: client.slug },
+        },
+        tx
+      )
+      await tx.client.delete({ where: { id: client.id } })
+    })
+
+    revalidatePath('/admin/clients')
+    return { error: null, message: 'Cliente excluído.' }
+  } catch (error) {
+    console.error('[clients/delete] Erro:', error)
+    return { error: 'Erro interno ao excluir o cliente.', message: null }
   }
 }

@@ -267,7 +267,7 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
   const step = !pkg ? 0 : connected ? 2 : 1
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <div className="space-y-4">
         <Button asChild variant="ghost" size="sm" className="-ml-2 gap-2">
           <Link href="/admin/clients">
@@ -279,7 +279,7 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
         <Stepper current={step} finished={connected} />
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       {/* ---------- Passo 1 ---------- */}
       {!pkg && (
         <Panel>
@@ -289,12 +289,25 @@ export function NewClientWizard({ serverUrl, createClientAction }: WizardProps) 
           />
           <PanelBody>
             <form action={formAction} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome da empresa</Label>
-                <Input id="name" name="name" required minLength={3} placeholder="Acme Indústria Ltda" autoFocus />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome da empresa</Label>
+                  <Input id="name" name="name" required minLength={3} placeholder="Acme Indústria Ltda" autoFocus />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="slug">Slug (opcional)</Label>
+                  <Input
+                    id="slug"
+                    name="slug"
+                    pattern="[a-z0-9\-]+"
+                    maxLength={64}
+                    placeholder="acme-industria"
+                    className="data-mono"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="max-w-md space-y-2">
                 <Label htmlFor="serverUrl">Endereço do servidor</Label>
                 <Input id="serverUrl" name="serverUrl" required defaultValue={serverUrl} />
                 <p className="text-xs text-muted-foreground">

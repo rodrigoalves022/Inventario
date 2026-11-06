@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowUpRight, Bot, Building2, CheckCircle2, Eye, Loader2, Search, X } from 'lucide-react'
+import { Fragment, startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, ArrowUpRight, Bot, Building2, CheckCircle2, Eye, Loader2, Pencil, Search, Trash2, X } from 'lucide-react'
 import {
   initialProvisioningState,
+  type ClientMutationState,
   type ProvisioningActionState,
   type ProvisioningCredentialsResponse,
   type ProvisioningPackage,
@@ -25,6 +26,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AgentInstallPackage } from '@/components/agent-install-package'
 import { getTenantBasePath } from '@/lib/tenant-links'
 import {
@@ -40,6 +44,8 @@ type ClientRow = {
   name: string
   slug: string
   isActive: boolean
+  discoveryEnabled: boolean
+  metricsRetentionDays: number
   createdAt: string
   /**
    * AgentAuth com isActive: true. Coluna "Agentes" (RN020: revogados nao
@@ -63,6 +69,8 @@ type ClientsPanelProps = {
     state: ProvisioningActionState,
     payload: FormData
   ) => Promise<ProvisioningActionState>
+  updateClientAction: (formData: FormData) => Promise<ClientMutationState>
+  deleteClientAction: (formData: FormData) => Promise<ClientMutationState>
 }
 
 /**
@@ -245,10 +253,205 @@ function RotateConfirmDialog({
   )
 }
 
+function EditClientDialog({
+  client,
+  onClose,
+  updateClientAction,
+}: {
+  client: ClientRow | null
+  onClose: () => void
+  updateClientAction: (formData: FormData) => Promise<ClientMutationState>
+}) {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isActive, setIsActive] = useState('true')
+  const [discoveryEnabled, setDiscoveryEnabled] = useState('false')
+
+  // Reinicia o formulario a cada cliente aberto.
+  useEffect(() => {
+    if (!client) return
+    setError(null)
+    setIsActive(String(client.isActive))
+    setDiscoveryEnabled(String(client.discoveryEnabled))
+  }, [client])
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!client) return
+    const formData = new FormData(event.currentTarget)
+    formData.set('clientId', client.id)
+    formData.set('isActive', isActive)
+    formData.set('discoveryEnabled', discoveryEnabled)
+    setPending(true)
+    setError(null)
+    try {
+      const result = await updateClientAction(formData)
+      if (result.error) setError(result.error)
+      else onClose()
+    } catch {
+      setError('Erro interno ao atualizar o cliente.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Dialog open={client !== null} onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar cliente</DialogTitle>
+          <DialogDescription>
+            Altere os dados cadastrais e a configuração de {client?.name ?? 'cliente'}.
+          </DialogDescription>
+        </DialogHeader>
+        {client ? (
+          <form key={client.id} onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-client-name">Nome</Label>
+              <Input id="edit-client-name" name="name" required minLength={3} defaultValue={client.name} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-client-slug">Slug</Label>
+              <Input
+                id="edit-client-slug"
+                name="slug"
+                required
+                maxLength={64}
+                pattern="[a-z0-9\-]+"
+                defaultValue={client.slug}
+                className="data-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Apenas letras minúsculas, números e hifens. Alterar o slug muda o endereço do painel do cliente.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-client-status">Status</Label>
+                <Select value={isActive} onValueChange={setIsActive}>
+                  <SelectTrigger id="edit-client-status" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Ativo</SelectItem>
+                    <SelectItem value="false">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-client-discovery">Descoberta de rede</Label>
+                <Select value={discoveryEnabled} onValueChange={setDiscoveryEnabled}>
+                  <SelectTrigger id="edit-client-discovery" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Ativa</SelectItem>
+                    <SelectItem value="false">Inativa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-client-retention">Retenção de métricas (dias)</Label>
+              <Input
+                id="edit-client-retention"
+                name="metricsRetentionDays"
+                type="number"
+                required
+                min={7}
+                max={365}
+                step={1}
+                defaultValue={client.metricsRetentionDays}
+                className="max-w-[10rem]"
+              />
+              <p className="text-xs text-muted-foreground">Entre 7 e 365 dias.</p>
+            </div>
+            {error && (
+              <p
+                role="alert"
+                className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              >
+                {error}
+              </p>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? 'Salvando...' : 'Salvar alterações'}
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeleteClientDialog({
+  client,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  client: ClientRow | null
+  pending: boolean
+  error: string | null
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <AlertDialog open={client !== null} onOpenChange={(open) => !open && !pending && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{client ? `Excluir ${client.name}?` : 'Excluir cliente?'}</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <p>
+                Esta ação é permanente. O cliente e seus dados vinculados (máquinas, credenciais de agentes,
+                alertas e métricas) serão removidos e os agentes instalados deixam de funcionar.
+              </p>
+              {client && client.activeAgentCount > 0 ? (
+                <p className="font-medium text-foreground">
+                  Atenção: {client.activeAgentCount === 1 ? '1 agente ativo' : `${client.activeAgentCount} agentes ativos`}{' '}
+                  será desconectado.
+                </p>
+              ) : null}
+              {error ? (
+                <p role="alert" className="font-medium text-destructive">
+                  {error}
+                </p>
+              ) : null}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className={buttonVariants({ variant: 'destructive' })}
+            disabled={pending}
+            onClick={(event) => {
+              // Mantem o dialogo aberto ate a exclusao terminar (ou falhar).
+              event.preventDefault()
+              onConfirm()
+            }}
+          >
+            {pending ? 'Excluindo...' : 'Excluir cliente'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 export function ClientsPanel({
   clients,
   serverUrl,
   rotateEnrollmentKeyAction,
+  updateClientAction,
+  deleteClientAction,
 }: ClientsPanelProps) {
   const [rotateState, rotateAction, rotatePending] = useActionState(
     rotateEnrollmentKeyAction,
@@ -275,9 +478,38 @@ export function ClientsPanel({
   const rotateTriggerRef = useRef<HTMLButtonElement | null>(null)
   const rotationConfirmedRef = useRef(false)
   const resultRef = useRef<HTMLDivElement | null>(null)
+  // Cliente cuja linha recebe o resultado da rotacao (o state da action nao
+  // carrega o id quando a rotacao falha).
+  const [rotationClientId, setRotationClientId] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<ClientRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ClientRow | null>(null)
+  const [deletePending, setDeletePending] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    const formData = new FormData()
+    formData.set('clientId', deleteTarget.id)
+    setDeletePending(true)
+    setDeleteError(null)
+    try {
+      const outcome = await deleteClientAction(formData)
+      if (outcome.error) {
+        setDeleteError(outcome.error)
+      } else {
+        if (credentials.client?.id === deleteTarget.id) closeCredentials()
+        setDeleteTarget(null)
+      }
+    } catch {
+      setDeleteError('Erro interno ao excluir o cliente.')
+    } finally {
+      setDeletePending(false)
+    }
+  }
 
   function confirmRotation() {
     if (!rotateTarget) return
+    setRotationClientId(rotateTarget.id)
     const formData = new FormData()
     formData.set('serverUrl', serverUrl)
     formData.set('clientId', rotateTarget.id)
@@ -351,6 +583,11 @@ export function ClientsPanel({
   }, [sortedClients, search, filter])
 
   async function handleViewCredentials(client: ClientRow) {
+    // Segundo clique no cliente ja aberto fecha o painel (toggle).
+    if (credentials.client?.id === client.id) {
+      closeCredentials()
+      return
+    }
     const requestId = credentialsRequestId.current + 1
     credentialsRequestId.current = requestId
     setDismissedState(rotateState)
@@ -396,8 +633,60 @@ export function ClientsPanel({
     }
   }
 
+  const hasResult = Boolean(credentials.client || result.package || result.error)
+  // Linha que hospeda o resultado: credenciais -> o cliente consultado;
+  // rotacao -> o cliente do pacote (ou o alvo, em caso de erro).
+  const resultClientId = credentials.client
+    ? credentials.client.id
+    : result.package
+      ? result.package.clientId
+      : rotationClientId
+
+  // Espaco unico de resultado: credenciais consultadas OU o resultado da
+  // ultima rotacao, expandido logo abaixo da linha do cliente. Mesmo elemento,
+  // foco programatico e "Dispensar".
+  const resultBlock = hasResult ? (
+    <div
+      ref={resultRef}
+      tabIndex={-1}
+      data-testid={credentials.client ? 'credentials-result' : 'rotation-result'}
+      className="relative rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    >
+      {credentials.client ? (
+        <CredentialsPanel state={credentials} />
+      ) : result.package ? (
+        <PackagePanel pkg={result.package} message={result.message} />
+      ) : (
+        <Panel className="border-destructive/40">
+          <PanelHeader className="pr-14" title="Falha ao emitir novo pacote" description={result.error} />
+        </Panel>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="absolute right-3 top-3"
+        aria-label="Dispensar"
+        onClick={() => (credentials.client ? closeCredentials() : setDismissedState(rotateState))}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  ) : null
+
   return (
     <div className="space-y-6">
+      <EditClientDialog
+        client={editTarget}
+        onClose={() => setEditTarget(null)}
+        updateClientAction={updateClientAction}
+      />
+      <DeleteClientDialog
+        client={deleteTarget}
+        pending={deletePending}
+        error={deleteError}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
       <RotateConfirmDialog
         client={rotateTarget}
         open={rotateDialogOpen}
@@ -413,36 +702,6 @@ export function ClientsPanel({
       <div role="status" aria-live="polite" className="sr-only">
         {credentials.client ? credentialsAnnouncement : rotationAnnouncement}
       </div>
-
-      {/* Espaco unico de resultado: credenciais consultadas OU o resultado da
-          ultima rotacao. Mesmo elemento, foco programatico e "Dispensar". */}
-      {(credentials.client || result.package || result.error) && (
-        <div
-          ref={resultRef}
-          tabIndex={-1}
-          data-testid={credentials.client ? 'credentials-result' : 'rotation-result'}
-          className="relative rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          {credentials.client ? (
-            <CredentialsPanel state={credentials} />
-          ) : result.package ? (
-            <PackagePanel pkg={result.package} message={result.message} />
-          ) : (
-            <Panel className="border-destructive/40">
-              <PanelHeader className="pr-14" title="Falha ao emitir novo pacote" description={result.error} />
-            </Panel>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="absolute right-3 top-3"
-            aria-label="Dispensar"
-            onClick={() => (credentials.client ? closeCredentials() : setDismissedState(rotateState))}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
@@ -543,7 +802,8 @@ export function ClientsPanel({
             </thead>
             <tbody>
               {visibleClients.map((client) => (
-                <tr key={client.id} className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}>
+                <Fragment key={client.id}>
+                <tr className={cn('border-b border-surface-line last:border-0', STATIC_ROW_HOVER_CLASS)}>
                   <td className={cn(TABLE_CELL_CLASS, 'font-medium text-foreground')}>
                     <Building2 aria-hidden className="mr-2 inline h-4 w-4 text-primary" />
                     {client.name}
@@ -614,9 +874,34 @@ export function ClientsPanel({
                       >
                         {rotatePending && rotateTarget?.id === client.id ? 'Emitindo...' : 'Emitir novo pacote'}
                       </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setEditTarget(client)}>
+                        <Pencil className="h-4 w-4" />
+                        Editar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setDeleteError(null)
+                          setDeleteTarget(client)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Excluir
+                      </Button>
                     </div>
                   </td>
                 </tr>
+                {resultBlock && resultClientId === client.id ? (
+                  <tr key={client.id + '-details'} className="border-b border-surface-line bg-secondary/20">
+                    <td colSpan={6} className="px-5 py-4">
+                      {resultBlock}
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

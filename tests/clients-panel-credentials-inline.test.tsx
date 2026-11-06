@@ -25,6 +25,8 @@ vi.mock('next/link', () => ({
 
 type RotateAction = (state: ProvisioningActionState, payload: FormData) => Promise<ProvisioningActionState>
 
+type MutationAction = (formData: FormData) => Promise<{ error: string | null; message: string | null }>
+
 const SERVER_URL = 'https://inventario.example.com'
 
 function buildClient(overrides: Partial<{ id: string; name: string; slug: string; isActive: boolean }> = {}) {
@@ -33,6 +35,8 @@ function buildClient(overrides: Partial<{ id: string; name: string; slug: string
     name: overrides.name ?? 'Teste A0 Rotação',
     slug: overrides.slug ?? 'teste-a0-rotacao',
     isActive: overrides.isActive ?? true,
+    discoveryEnabled: false,
+    metricsRetentionDays: 90,
     createdAt: '2026-10-01T12:00:00.000Z',
     agentCount: 3,
     activeAgentCount: 2,
@@ -72,11 +76,15 @@ function jsonResponse(body: unknown, status = 200) {
 
 let fetchMock: ReturnType<typeof vi.fn>
 let action: ReturnType<typeof vi.fn<RotateAction>>
+let updateAction: ReturnType<typeof vi.fn<MutationAction>>
+let deleteAction: ReturnType<typeof vi.fn<MutationAction>>
 
 beforeEach(() => {
   fetchMock = vi.fn(async () => jsonResponse(availableBody))
   vi.stubGlobal('fetch', fetchMock)
   action = vi.fn<RotateAction>(async () => rotationSuccess)
+  updateAction = vi.fn<MutationAction>(async () => ({ error: null, message: 'Cliente atualizado.' }))
+  deleteAction = vi.fn<MutationAction>(async () => ({ error: null, message: 'Cliente excluído.' }))
 })
 
 afterEach(() => {
@@ -84,7 +92,15 @@ afterEach(() => {
 })
 
 function renderPanel(clients = [buildClient()]) {
-  return render(<ClientsPanel clients={clients} serverUrl={SERVER_URL} rotateEnrollmentKeyAction={action} />)
+  return render(
+    <ClientsPanel
+      clients={clients}
+      serverUrl={SERVER_URL}
+      rotateEnrollmentKeyAction={action}
+      updateClientAction={updateAction}
+      deleteClientAction={deleteAction}
+    />
+  )
 }
 
 function credentialRequests() {
@@ -193,7 +209,6 @@ describe('ClientsPanel — credenciais inline (E6, opcao C)', () => {
     renderPanel()
     await clickViewCredentials()
     await screen.findByText('CHAVE-ATIVA-999')
-    const slotParent = screen.getByTestId('credentials-result').parentElement
 
     fireEvent.click(screen.getByRole('button', { name: /Emitir novo pacote/i }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Confirmar' }))
@@ -201,7 +216,9 @@ describe('ClientsPanel — credenciais inline (E6, opcao C)', () => {
     expect(await screen.findByText('CHAVE-NOVA-123')).toBeTruthy()
     expect(screen.queryByText('CHAVE-ATIVA-999')).toBeNull()
     expect(screen.queryByTestId('credentials-result')).toBeNull()
-    expect(screen.getByTestId('rotation-result').parentElement).toBe(slotParent)
+    expect(screen.getByTestId('rotation-result').closest('tr')?.previousElementSibling).toBe(
+      screen.getByText('Teste A0 Rotação', { selector: 'td' }).closest('tr')
+    )
   })
 
   it('"Ver credenciais" depois de uma rotacao substitui o resultado da rotacao', async () => {
@@ -285,5 +302,58 @@ describe('ClientsPanel — estado vazio (E7)', () => {
     expect(container.textContent).toMatch(/Nenhum cliente cadastrado/)
     expect(container.querySelector('.border-dashed')).toBeNull()
     expect(container.querySelector('[data-slot="card"]')).toBeNull()
+  })
+  it('renderiza as credenciais numa linha logo abaixo da linha do cliente', async () => {
+    renderPanel([buildClient({ id: 'a', name: 'Alfa' }), buildClient({ id: 'b', name: 'Beta' })])
+    fireEvent.click(screen.getAllByRole('button', { name: /Ver credenciais/i })[0])
+
+    const result = await screen.findByTestId('credentials-result')
+    const detailsRow = result.closest('tr') as HTMLElement
+    expect(detailsRow.previousElementSibling).toBe(screen.getByText('Alfa', { selector: 'td' }).closest('tr'))
+    expect(detailsRow.nextElementSibling).toBe(screen.getByText('Beta', { selector: 'td' }).closest('tr'))
+  })
+
+  it('segundo clique em "Ver credenciais" no mesmo cliente fecha o painel', async () => {
+    renderPanel()
+    await clickViewCredentials()
+    await screen.findByText('CHAVE-ATIVA-999')
+
+    await clickViewCredentials()
+
+    expect(screen.queryByTestId('credentials-result')).toBeNull()
+  })
+
+  it('Editar envia os campos para updateClientAction', async () => {
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: /Editar/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Nome'), { target: { value: 'Novo Nome' } })
+    fireEvent.change(within(dialog).getByLabelText('Retenção de métricas (dias)'), { target: { value: '30' } })
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar alterações' }))
+    })
+
+    expect(updateAction).toHaveBeenCalledTimes(1)
+    const sent = updateAction.mock.calls[0][0]
+    expect(sent.get('clientId')).toBe('client-rot')
+    expect(sent.get('name')).toBe('Novo Nome')
+    expect(sent.get('slug')).toBe('teste-a0-rotacao')
+    expect(sent.get('metricsRetentionDays')).toBe('30')
+    expect(sent.get('isActive')).toBe('true')
+    expect(sent.get('discoveryEnabled')).toBe('false')
+  })
+
+  it('Excluir pede confirmacao e so chama deleteClientAction ao confirmar', async () => {
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: /Excluir/i }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(deleteAction).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Excluir cliente' }))
+    })
+
+    expect(deleteAction).toHaveBeenCalledTimes(1)
+    expect(deleteAction.mock.calls[0][0].get('clientId')).toBe('client-rot')
   })
 })

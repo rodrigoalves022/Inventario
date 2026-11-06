@@ -48,3 +48,8 @@ export type ProvisioningCredentialsResponse =
       reason: 'legacy'
       message: string
     }
+
+export type ClientMutationState = {
+  error: string | null
+  message: string | null
+}
